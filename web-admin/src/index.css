@@ -1,0 +1,238 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global Icon Styling */
+svg.lucide {
+  /* Default all icons to blue */
+  color: rgb(37, 99, 235);
+}
+
+/* Allow icons inside colored buttons/badges to inherit their color */
+button[class*="text-white"] svg.lucide,
+button[class*="bg-"] svg.lucide,
+a[class*="bg-"] svg.lucide,
+span[class*="text-white"] svg.lucide,
+span[class*="bg-"] svg.lucide,
+div[class*="bg-"] > svg.lucide,
+.sidebar-nav a:not(.bg-blue-600) svg.lucide {
+  color: currentColor;
+}
+
+/* Allow explicitly colored icons to keep their colors (warnings, etc) */
+svg.lucide[class*="text-red-"],
+svg.lucide[class*="text-amber-"],
+svg.lucide[class*="text-yellow-"],
+svg.lucide[class*="text-green-"],
+svg.lucide[class*="text-emerald-"],
+svg.lucide[class*="text-orange-"],
+svg.lucide[class*="text-blue-"],
+svg.lucide[class*="text-white"] {
+  color: currentColor !important;
+}
+
+/* ── CSS Custom Properties ──────────────────────────────── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-base:        #f8fafc;
+  --bg-surface:     #ffffff;
+  --bg-surface-2:   #f1f5f9;
+  --bg-surface-3:   #e2e8f0;
+  --bg-sidebar:     #0f172a;
+  --border-color:   #e2e8f0;
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+  --input-bg:       #ffffff;
+  --input-border:   #cbd5e1;
+  --header-bg:      #ffffff;
+  --header-border:  #e2e8f0;
+  --card-shadow:    0 1px 3px 0 rgb(0 0 0 / .06), 0 1px 2px -1px rgb(0 0 0 / .06);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-base:        #0d1117;
+  --bg-surface:     #161b22;
+  --bg-surface-2:   #1c2333;
+  --bg-surface-3:   #262e40;
+  --bg-sidebar:     #161b22;
+  --border-color:   #30363d;
+  --text-primary:   #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted:     #6e7681;
+  --input-bg:       #161b22;
+  --input-border:   #30363d;
+  --header-bg:      #161b22;
+  --header-border:  #30363d;
+  --card-shadow:    0 1px 3px 0 rgb(0 0 0 / .35), 0 1px 2px -1px rgb(0 0 0 / .35);
+}
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    @apply antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+  input, select, textarea { @apply outline-none; }
+}
+
+@layer components {
+  .btn { @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary   { @apply btn bg-amber-500 hover:bg-amber-600 text-slate-900; }
+  .btn-secondary {
+    @apply btn;
+    background-color: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+  }
+  .btn-secondary:hover { background-color: var(--bg-surface-2); }
+  .btn-danger { @apply btn bg-red-600 hover:bg-red-700 text-white; }
+
+  .card {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--card-shadow);
+    @apply rounded-xl;
+  }
+
+  .card-h {
+    border-bottom: 1px solid var(--border-color);
+    @apply px-5 py-3;
+  }
+
+  .badge { @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold; }
+
+  .form-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    background-color: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--input-border);
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.2s;
+  }
+  .form-input:focus {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgb(245 158 11 / 0.25);
+  }
+  .form-input::placeholder { color: var(--text-muted); }
+
+  .form-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  /* Global Select Option Fix for Dark Mode */
+  select option, select optgroup {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+  }
+
+  /* Page-level backgrounds */
+  .page-bg   { background-color: var(--bg-base); }
+  .surface   { background-color: var(--bg-surface); }
+  .surface-2 { background-color: var(--bg-surface-2); }
+  .surface-3 { background-color: var(--bg-surface-3); }
+
+  /* Text helpers */
+  .text-base-primary   { color: var(--text-primary); }
+  .text-base-secondary { color: var(--text-secondary); }
+  .text-base-muted     { color: var(--text-muted); }
+
+  /* Border helper */
+  .border-base { border-color: var(--border-color); }
+
+  /* Header */
+  .app-header {
+    background-color: var(--header-bg);
+    border-bottom: 1px solid var(--header-border);
+  }
+
+  /* ── Dark-mode-safe alert banners ─────────────────────────── */
+  .alert-success {
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    color: var(--text-primary);
+  }
+  .alert-error {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: var(--text-primary);
+  }
+  .alert-warning {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    color: var(--text-primary);
+  }
+  .alert-info {
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.35);
+    color: var(--text-primary);
+  }
+
+  /* ── Dark-mode-safe icon badge backgrounds ────────────────── */
+  .icon-bg-green  { background: rgba(34,197,94,0.15);  color: #4ade80; }
+  .icon-bg-red    { background: rgba(239,68,68,0.15);  color: #f87171; }
+  .icon-bg-amber  { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .icon-bg-blue   { background: rgba(59,130,246,0.15); color: #60a5fa; }
+
+  /* ── Modal / panel header ─────────────────────────────────── */
+  .panel-header {
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  /* ── Table header ─────────────────────────────────────────── */
+  .table-head {
+    background-color: var(--bg-surface-2);
+    color: var(--text-secondary);
+  }
+
+  /* ── Filter pill/tab (inactive) ──────────────────────────── */
+  .tab-pill {
+    background-color: var(--bg-surface-2);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+  }
+  .tab-pill:hover {
+    background-color: var(--border-color);
+  }
+  /* active tab uses amber accent so it stands out in both themes */
+  .tab-pill-active {
+    background-color: #f59e0b;
+    color: #0f172a;
+    border-color: #f59e0b;
+  }
+}
+
+/* Sidebar navigation scrollbar styling */
+.sidebar-nav {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+.sidebar-nav::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.4);
+  border-radius: 3px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.6);
+}
