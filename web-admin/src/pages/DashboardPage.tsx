@@ -6,6 +6,7 @@ import {
   Users, Phone, ClipboardList, Target, TrendingUp, AlertCircle,
   Coins, Package, Shield, Download, RefreshCw, BarChart2, Bell, TrendingDown, LayoutDashboard
 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 
 interface KPIResponse {
   totalCustomers: number;
@@ -63,6 +64,11 @@ export default function DashboardPage() {
       setAiSummary(data.summary);
     },
   });
+
+  const pieData = kpis ? [
+    { name: 'Active Plans', value: kpis.activePlans, color: '#10b981' },
+    { name: 'Pending Apps', value: kpis.pendingApps, color: '#8b5cf6' },
+  ] : [];
 
   if (kpiLoading) {
     return (
@@ -307,31 +313,51 @@ export default function DashboardPage() {
       </div>
 
       {/* Row 2: Charts and AI summary */}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-4 gap-5">
         {/* Collections chart */}
         <div className="card p-5 col-span-2">
           <h3 className="font-semibold text-sm text-base-secondary mb-5 flex items-center gap-1.5">
             <BarChart2 size={16} /> Monthly Collections Summary — {new Date().getFullYear()}
           </h3>
-          <div className="flex items-end gap-3 h-48 border-b border-base pb-3">
-            {chartData.map(c => {
-              const pct = (c.amount / maxAmount) * 100;
-              return (
-                <div key={c.month} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                  <div
-                    className="w-full bg-green-500 rounded-t-md hover:bg-green-600 transition-all cursor-pointer"
-                    style={{ height: `${pct}%` }}
-                    title={`LKR ${c.amount.toLocaleString()}`}
-                  />
-                  <span className="text-xs font-semibold text-base-muted">{c.month}</span>
-                </div>
-              );
-            })}
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} tickFormatter={(val) => `LKR ${(val/1000).toFixed(0)}k`} />
+                <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: number) => `LKR ${value.toLocaleString()}`} />
+                <Bar dataKey="amount" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Breakdown Pie Chart */}
+        <div className="card p-5 col-span-1 flex flex-col justify-between">
+          <h3 className="font-semibold text-sm text-base-secondary mb-4 flex items-center gap-1.5">
+            <Target size={16} /> Plan Breakdown
+          </h3>
+          <div className="h-48 flex-1 flex items-center justify-center">
+            {pieData.some(d => d.value > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: number) => value.toLocaleString()} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-xs text-base-muted text-center">No data available</div>
+            )}
           </div>
         </div>
 
         {/* AI Weekly Summary */}
-        <div className="card p-5 flex flex-col justify-between">
+        <div className="card p-5 flex flex-col justify-between col-span-1">
           <div>
             <h3 className="font-semibold text-sm text-base-secondary mb-4 flex items-center justify-between">
               <span>AI Command Executive Summary</span>

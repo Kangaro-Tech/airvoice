@@ -357,14 +357,6 @@ export default function AppLayout() {
   const translationCache = useRef<Record<string, string>>({});
 
   useEffect(() => {
-    if (language === 'en') {
-      const prev = localStorage.getItem('previous-language');
-      if (prev && prev !== 'en') {
-        localStorage.setItem('previous-language', 'en');
-        window.location.reload();
-      }
-      return;
-    }
     localStorage.setItem('previous-language', language);
 
     const dictionary = DICTIONARY[language] || {};
@@ -372,11 +364,22 @@ export default function AppLayout() {
     const translateNode = async (node: Node) => {
       // 1. Handle text nodes
       if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent?.trim();
-        if (!text || text.length < 2) return;
+        let originalText = (node as any)._originalText;
+        if (!originalText) {
+          originalText = node.textContent?.trim();
+          if (!originalText || originalText.length < 2) return;
+          (node as any)._originalText = originalText;
+        }
+
+        const text = originalText;
 
         // Skip numbers, currencies, dates
         if (/^\d+$/.test(text) || /^[LKR\s\d,.]+$/i.test(text) || /^\d{4}-\d{2}-\d{2}$/.test(text) || text.includes(':') || text.includes('/') || text.length > 150) return;
+
+        if (language === 'en') {
+          if (node.textContent !== text) node.textContent = text;
+          return;
+        }
 
         // Try dictionary first
         if (dictionary[text]) {
@@ -391,17 +394,21 @@ export default function AppLayout() {
           return;
         }
 
-        // Translate via backend API
+        // Translate via Google API direct call
         try {
-          const res = await api.post('/translate', {
-            text,
-            targetLanguage: language,
-            sourceLanguage: 'en',
+          const apiKey = import.meta.env.VITE_GOOGLE_TRANSLATE_API_KEY;
+          if (!apiKey) return;
+          const url = `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ q: text, target: language, source: 'en', format: 'text' })
           });
-          if (res.data?.translatedText) {
+          const data = await res.json();
+          if (data?.data?.translations?.[0]?.translatedText) {
             const decoded = (() => {
               const txt = document.createElement('textarea');
-              txt.innerHTML = res.data.translatedText;
+              txt.innerHTML = data.data.translations[0].translatedText;
               return txt.value;
             })();
             translationCache.current[cacheKey] = decoded;
@@ -418,8 +425,8 @@ export default function AppLayout() {
         const el = node as Element;
         if (['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'CODE', 'PRE'].includes(el.tagName)) return;
 
-        // If it's a badge or active role pill, do not translate
-        if (el.classList.contains('font-mono') || el.classList.contains('badge') || el.classList.contains('role-pill')) return;
+        // If it's a badge, active role pill, or excluded class, do not translate
+        if (el.classList.contains('font-mono') || el.classList.contains('badge') || el.classList.contains('role-pill') || el.classList.contains('no-translate') || el.closest?.('.no-translate')) return;
 
         for (let i = 0; i < el.childNodes.length; i++) {
           translateNode(el.childNodes[i]);

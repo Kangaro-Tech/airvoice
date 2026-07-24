@@ -127,12 +127,54 @@ export default async function dashboardRoutes(app: FastifyInstance) {
   });
 
   app.post('/weekly-summary', { preHandler: [authenticate] }, async (_req, reply) => {
-    // Standard mock analysis summary representing a breakdown of Sri Lankan military segments
-    return reply.send({
-      summary: `AIRVOICE Command Intelligence weekly summary:
-Collections are solid at 93.5% of expected LKR 8.4M. Diyatalawa Camp has experienced a minor 2.4% dip in recovery rates due to recent transfers. 
-There are 4 high-risk customer profiles requiring immediate guarantor notice review. 
-Commissions payable are fully aligned with the June salary runs. Suggested: Initiate bulk WhatsApp reminders for overdue accounts in Galle Naval base.`
+    const sb = getSupabase();
+    
+    const { count: totalCustomers } = await sb.from('customers').select('id', { count: 'exact', head: true }).is('deleted_at', null);
+    const { count: pendingApps } = await sb.from('applications').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'docs_review', 'camp_review']);
+    
+    // Get June/Current month installments data
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    
+    const { data: insts } = await sb.from('installments')
+      .select('status, expected_amount, deducted_amount')
+      .eq('due_year', currentYear)
+      .eq('due_month', currentMonth);
+
+    let expectedTotal = 0;
+    let actualTotal = 0;
+    let failureCount = 0;
+
+    (insts ?? []).forEach(i => {
+      expectedTotal += Number(i.expected_amount || 0);
+      actualTotal += Number(i.deducted_amount || 0);
+      if (i.status === 'missed' || i.status === 'not_deducted') {
+        failureCount++;
+      }
     });
+
+    const anthropicApiKey = process.env.CLAUDE_API_KEY;
+    if (!anthropicApiKey) {
+      return reply.send({ summary: "AI Summary is unavailable (CLAUDE_API_KEY not configured)." });
+    }
+
+    try {
+      const { Anthropic } = require('@anthropic-ai/sdk');
+      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
+
+      const prompt = `You are a financial AI assistant for AIRVOICE Defence Finance Management. Please provide a concise, professional 3-4 sentence weekly executive summary of the following real data:\nTotal Customers: ${totalCustomers ?? 0}\nPending Applications: ${pendingApps ?? 0}\nExpected Total Collection: LKR ${expectedTotal}\nActual Total Collection: LKR ${actualTotal}\nFailed Installments: ${failureCount}\nHighlight any risks and suggest a quick action. Avoid markdown.`;
+
+      const response = await anthropic.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 150,
+        messages: [{ role: "user", content: prompt }]
+      });
+
+      return reply.send({ summary: (response.content[0] as any).text });
+    } catch (e: any) {
+      console.error('Claude AI Error:', e);
+      return reply.send({ summary: "Failed to generate AI summary at this time. Please try again later." });
+    }
   });
 }

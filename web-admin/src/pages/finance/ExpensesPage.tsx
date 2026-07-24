@@ -308,7 +308,7 @@ export default function ExpensesPage() {
           {[
             {
               label:`Income (${monthLabel.split(' ')[0]})`,
-              value: fmt(totalIncome || 7900000),
+              value: fmt(totalIncome || 0),
               change: '+12.4%', up:true,
               icon: TrendingUp,
               grad: 'from-emerald-500 to-green-400',
@@ -316,7 +316,7 @@ export default function ExpensesPage() {
             },
             {
               label:`Expenses (${monthLabel.split(' ')[0]})`,
-              value: fmt(totalExpense || 907000),
+              value: fmt(totalExpense || 0),
               change: '-3.1%', up:false,
               icon: TrendingDown,
               grad: 'from-red-500 to-rose-400',
@@ -324,7 +324,7 @@ export default function ExpensesPage() {
             },
             {
               label:'Net Profit',
-              value: fmt((totalIncome||7900000) - (totalExpense||907000)),
+              value: fmt((totalIncome || 0) - (totalExpense || 0)),
               change: '+18.2%', up:true,
               icon: DollarSign,
               grad: 'from-blue-500 to-cyan-400',
@@ -332,7 +332,7 @@ export default function ExpensesPage() {
             },
             {
               label:'AI Flagged',
-              value: String(suspiciousCount || flaggedAlert?.count || 1),
+              value: String(suspiciousCount || flaggedAlert?.count || 0),
               change: 'items',
               icon: AlertTriangle,
               grad: 'from-amber-500 to-yellow-400',

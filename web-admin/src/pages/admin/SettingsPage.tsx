@@ -406,13 +406,7 @@ export default function SettingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(users.length === 0 ? [
-                    { id: 'u1', phone_number: 'admin@airvoice.lk', role: 'super_admin', full_name: 'Super Admin', is_active: true, created_at: '2025-01-01', last_login: '2025-06-25' },
-                    { id: 'u2', phone_number: 'finance@airvoice.lk', role: 'finance_officer', full_name: 'Finance Officer', is_active: true, created_at: '2025-01-01', last_login: '2025-06-25' },
-                    { id: 'u3', phone_number: '+94770000001', role: 'camp_officer', full_name: 'Camp Officer — Colombo', is_active: true, created_at: '2025-01-01', last_login: '2025-06-24' },
-                    { id: 'u4', phone_number: '+94770000002', role: 'sales_officer', full_name: 'Nimal Silva', is_active: true, created_at: '2025-01-01', last_login: '2025-06-25' },
-                    { id: 'u5', phone_number: '+94770000003', role: 'sales_officer', full_name: 'Kamal Jayawardena', is_active: false, created_at: '2025-01-01', last_login: '2025-06-10' },
-                  ] as User[] : users).map((user, idx) => {
+                  {users.map((user, idx) => {
                     const roleColor = ROLE_COLORS[user.role] ?? '#6b7280';
                     return (
                       <tr key={user.id} style={{ borderBottom: '1px solid var(--border-color)', background: idx % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-surface-2)', opacity: user.is_active ? 1 : 0.55 }}>
@@ -476,14 +470,7 @@ export default function SettingsPage() {
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading camps…</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-              {(camps.length === 0 ? [
-                { id: 'c1', name: 'Colombo HQ', branch: 'army', location: 'Colombo', is_active: true, total_customers: 87, collection_rate: 97 },
-                { id: 'c2', name: 'Galle Naval Base', branch: 'navy', location: 'Galle', is_active: true, total_customers: 52, collection_rate: 88 },
-                { id: 'c3', name: 'Katunayake Air Base', branch: 'air_force', location: 'Katunayake', is_active: true, total_customers: 38, collection_rate: 95 },
-                { id: 'c4', name: 'Trincomalee Naval', branch: 'navy', location: 'Trincomalee', is_active: true, total_customers: 43, collection_rate: 91 },
-                { id: 'c5', name: 'Diyatalawa Army', branch: 'army', location: 'Diyatalawa', is_active: true, total_customers: 61, collection_rate: 79 },
-                { id: 'c6', name: 'Ampara Camp', branch: 'army', location: 'Ampara', is_active: false, total_customers: 12, collection_rate: 67 },
-              ] as Camp[] : camps).map(camp => {
+              {camps.map(camp => {
                 const branchColor = camp.branch === 'army' ? '#16a34a' : camp.branch === 'navy' ? '#0d1f3c' : '#1d4ed8';
                 const rateColor = camp.collection_rate >= 95 ? '#16a34a' : camp.collection_rate >= 80 ? '#d97706' : '#dc2626';
                 return (

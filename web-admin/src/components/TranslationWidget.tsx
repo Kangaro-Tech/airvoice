@@ -105,7 +105,7 @@ export function LanguageSelector({
   };
 
   return (
-    <div className="flex gap-1 surface-2 rounded-lg p-1">
+    <div className="flex gap-1 surface-2 rounded-lg p-1 no-translate">
       {languageOptions.map(lang => (
         <button
           key={lang.code}

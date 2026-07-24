@@ -12,6 +12,7 @@
     "create-districts-table": "tsx src/scripts/create-districts-table.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.114.0",
     "@fastify/cors": "^9.0.1",
     "@fastify/helmet": "^11.1.1",
     "@fastify/multipart": "^8.3.0",

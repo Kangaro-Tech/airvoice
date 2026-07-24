@@ -1,4 +1,7 @@
-import { api } from './api';
+import axios from 'axios';
+
+const GOOGLE_TRANSLATE_API_KEY = import.meta.env.VITE_GOOGLE_TRANSLATE_API_KEY;
+const API_URL = 'https://translation.googleapis.com/language/translate/v2';
 
 export interface TranslationResponse {
   translatedText: string;
@@ -11,68 +14,78 @@ export interface TranslationRequest {
   sourceLanguage?: string;
 }
 
-/**
- * Translate text using Google Cloud Translation API via backend
- * This keeps the API key secure on the backend
- */
 export async function translateText(request: TranslationRequest): Promise<TranslationResponse> {
+  if (!GOOGLE_TRANSLATE_API_KEY) {
+    throw new Error('Google Translate API Key is missing.');
+  }
+
   try {
-    const response = await api.post('/translate', {
-      text: request.text,
-      targetLanguage: request.targetLanguage,
-      sourceLanguage: request.sourceLanguage || 'en',
+    const response = await axios.post(`${API_URL}?key=${GOOGLE_TRANSLATE_API_KEY}`, {
+      q: request.text,
+      target: request.targetLanguage,
+      source: request.sourceLanguage || 'en',
+      format: 'text',
     });
 
-    return response.data;
+    const translatedText = response.data.data.translations[0].translatedText;
+    const detectedSourceLanguage = response.data.data.translations[0].detectedSourceLanguage;
+
+    return {
+      translatedText,
+      detectedLanguage: detectedSourceLanguage,
+    };
   } catch (error) {
     console.error('Translation error:', error);
     throw new Error('Failed to translate text. Please try again.');
   }
 }
 
-/**
- * Translate multiple texts in batch
- */
 export async function translateBatch(texts: string[], targetLanguage: string): Promise<TranslationResponse[]> {
+  if (!GOOGLE_TRANSLATE_API_KEY) {
+    throw new Error('Google Translate API Key is missing.');
+  }
+
   try {
-    const response = await api.post('/translate/batch', {
-      texts,
-      targetLanguage,
+    const response = await axios.post(`${API_URL}?key=${GOOGLE_TRANSLATE_API_KEY}`, {
+      q: texts,
+      target: targetLanguage,
+      format: 'text',
     });
 
-    return response.data;
+    return response.data.data.translations.map((t: any) => ({
+      translatedText: t.translatedText,
+      detectedLanguage: t.detectedSourceLanguage,
+    }));
   } catch (error) {
     console.error('Batch translation error:', error);
     throw new Error('Failed to translate texts. Please try again.');
   }
 }
 
-/**
- * Detect language of given text
- */
 export async function detectLanguage(text: string): Promise<{ language: string; confidence: number }> {
+  if (!GOOGLE_TRANSLATE_API_KEY) {
+    throw new Error('Google Translate API Key is missing.');
+  }
+
   try {
-    const response = await api.post('/translate/detect', { text });
-    return response.data;
+    const response = await axios.post(`${API_URL}/detect?key=${GOOGLE_TRANSLATE_API_KEY}`, {
+      q: text,
+    });
+    const detection = response.data.data.detections[0][0];
+    return {
+      language: detection.language,
+      confidence: detection.confidence,
+    };
   } catch (error) {
     console.error('Language detection error:', error);
     throw new Error('Failed to detect language.');
   }
 }
 
-/**
- * Get available languages
- */
 export async function getAvailableLanguages(): Promise<Array<{ code: string; name: string }>> {
-  try {
-    const response = await api.get('/translate/languages');
-    return response.data;
-  } catch (error) {
-    console.error('Get languages error:', error);
-    return [
-      { code: 'en', name: 'English' },
-      { code: 'si', name: 'Sinhala' },
-      { code: 'ta', name: 'Tamil' },
-    ];
-  }
+  return [
+    { code: 'en', name: 'English' },
+    { code: 'si', name: 'Sinhala' },
+    { code: 'ta', name: 'Tamil' },
+  ];
 }
