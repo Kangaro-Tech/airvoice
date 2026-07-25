@@ -36,6 +36,7 @@ import dashboardRoutes from './routes/dashboard';
 import financeRoutes from './routes/finance';
 import translationRoutes from './routes/translation';
 import districtRoutes from './routes/districts';
+import tasksRoutes from './routes/tasks';
 
 
 export async function buildApp() {
@@ -264,6 +265,11 @@ export async function buildApp() {
 
   await app.register(translationRoutes,{
     prefix:"/translate"
+  });
+
+
+  await app.register(tasksRoutes,{
+    prefix:"/tasks"
   });
 
 

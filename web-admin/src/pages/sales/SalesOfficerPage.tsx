@@ -93,10 +93,12 @@ function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCap
 interface OfficerPerf {
   officer_id: string;
   officer_phone: string;
+  officer_name: string;
   phones_sold: number;
   commission_pending: number;
   commission_payable: number;
   commission_paid: number;
+  customers: Array<{ name: string; commission: number; status: string }>;
 }
 
 interface FreePhoneReq {
@@ -970,19 +972,27 @@ export default function SalesOfficerPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="surface-2 border-b border-base">
-                  {['Officer', 'Phones Sold', 'Pending', 'Payable', 'Paid', 'Total'].map(h => (
+                  {['#', 'Officer', 'Phones Sold', 'Pending', 'Payable', 'Paid', 'Total'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-base-muted">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {officers.map(o => (
-                  <tr key={o.officer_id}>
-                    <td className="px-4 py-3 font-semibold text-base-primary">{o.officer_phone}</td>
+                {officers.slice().sort((a, b) => (b.commission_pending + b.commission_payable + b.commission_paid) - (a.commission_pending + a.commission_payable + a.commission_paid)).map((o, rank) => (
+                  <tr key={o.officer_id} className="hover:bg-[var(--bg-surface-2)] transition-colors">
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-black w-5 h-5 rounded-full flex items-center justify-center ${rank === 0 ? 'bg-amber-100 text-amber-700' : rank === 1 ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
+                        {rank + 1}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-semibold text-base-primary text-sm">{o.officer_name || o.officer_phone}</div>
+                      <div className="text-[11px] text-base-muted">{o.officer_phone}</div>
+                    </td>
                     <td className="px-4 py-3 font-bold">{o.phones_sold}</td>
                     <td className="px-4 py-3 text-amber-600 font-mono">LKR {o.commission_pending.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-green-600 font-mono font-semibold">LKR {o.commission_payable.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-purple-600 font-mono">LKR {o.commission_paid.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-blue-600 font-mono font-semibold">LKR {o.commission_payable.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-green-600 font-mono">LKR {o.commission_paid.toLocaleString()}</td>
                     <td className="px-4 py-3 font-bold font-mono text-base-primary">LKR {(o.commission_pending + o.commission_payable + o.commission_paid).toLocaleString()}</td>
                   </tr>
                 ))}

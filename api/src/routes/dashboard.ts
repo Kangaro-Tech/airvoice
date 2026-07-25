@@ -106,6 +106,98 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     return reply.send({ data: chartData });
   });
 
+  app.get('/expenses/breakdown', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
+    const q = req.query as { year?: string, month?: string };
+    const year = parseInt(q.year || new Date().getFullYear().toString());
+    const month = parseInt(q.month || (new Date().getMonth() + 1).toString());
+
+    const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+    const end = new Date(year, month, 0);
+    const endStr = `${year}-${String(month).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+
+    const sb = getSupabase();
+    
+    const { data: expenses, error } = await sb.from('expenses')
+      .select('amount, category:expense_categories(name)')
+      .gte('expense_date', startStr)
+      .lte('expense_date', endStr)
+      .eq('status', 'approved')
+      .is('deleted_at', null);
+
+    if (error) return reply.status(500).send({ error: error.message });
+
+    const grouped: Record<string, number> = {};
+    let total = 0;
+
+    (expenses || []).forEach(e => {
+      const catName = (e.category as any)?.name || 'Uncategorized';
+      const amount = Number(e.amount || 0);
+      grouped[catName] = (grouped[catName] || 0) + amount;
+      total += amount;
+    });
+
+    const breakdown = Object.entries(grouped).map(([category, amount]) => ({
+      category,
+      total: amount,
+      percentage: total > 0 ? Math.round((amount / total) * 100) : 0,
+    }));
+
+    return reply.send({ data: breakdown });
+  });
+
+  app.get('/financial-summary', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
+    const q = req.query as { year?: string, month?: string };
+    const year = parseInt(q.year || new Date().getFullYear().toString());
+    const month = parseInt(q.month || (new Date().getMonth() + 1).toString());
+
+    const sb = getSupabase();
+
+    const { data: insts } = await sb.from('installments')
+      .select('deducted_amount')
+      .eq('due_year', year)
+      .eq('due_month', month);
+
+    let income = 0;
+    (insts ?? []).forEach(i => {
+      income += Number(i.deducted_amount || 0);
+    });
+
+    const startStr = `${year}-${String(month).padStart(2, '0')}-01`;
+    const end = new Date(year, month, 0);
+    const endStr = `${year}-${String(month).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+    
+    const { data: expenses } = await sb.from('expenses')
+      .select(`
+        amount,
+        category:expense_categories(type)
+      `)
+      .gte('expense_date', startStr)
+      .lte('expense_date', endStr)
+      .eq('status', 'approved')
+      .is('deleted_at', null);
+
+    let totalExpenses = 0;
+    let otherIncome = 0;
+    
+    (expenses ?? []).forEach(e => {
+      const isIncome = e.category && (e.category as any).type === 'income';
+      if (isIncome) {
+        otherIncome += Number(e.amount || 0);
+      } else {
+        totalExpenses += Number(e.amount || 0);
+      }
+    });
+
+    const netProfit = (income + otherIncome) - totalExpenses;
+
+    return reply.send({
+      income: income + otherIncome,
+      expenses: totalExpenses,
+      netProfit,
+    });
+  });
+
+
   app.get('/ai-alerts', { preHandler: [authenticate] }, async (_req, reply) => {
     const sb = getSupabase();
     // Return typical critical alerts dynamically compiled from data anomalies

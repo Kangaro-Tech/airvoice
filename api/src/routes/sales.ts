@@ -22,9 +22,19 @@ export default async function salesRoutes(app: FastifyInstance) {
       0
     ).toISOString().split('T')[0];
 
-    // Commissions for the period
+    // Commissions for the period — include customer name via application
     let commQuery = sb.from('commissions')
-      .select('*,application:applications(ref_number,phone_model_id,monthly_amount),officer:users!sales_officer_id(phone_number)')
+      .select(`
+        *,
+        application:applications(
+          ref_number,
+          phone_model_id,
+          phone_model,
+          monthly_amount,
+          customer:customers(full_name)
+        ),
+        officer:users!sales_officer_id(phone_number, full_name)
+      `)
       .gte('created_at', monthStart)
       .lte('created_at', monthEnd + 'T23:59:59Z');
 
@@ -40,23 +50,30 @@ export default async function salesRoutes(app: FastifyInstance) {
     const officerMap: Record<string, {
       officer_id: string;
       officer_phone: string;
+      officer_name: string;
       phones_sold: number;
       commission_pending: number;
       commission_payable: number;
       commission_paid: number;
+      customers: Array<{ name: string; commission: number; status: string }>;
     }> = {};
 
     (commissions ?? []).forEach((c: Record<string, unknown>) => {
       const oid = c.sales_officer_id as string;
       const officer = c.officer as Record<string, unknown> | null;
+      const application = c.application as Record<string, unknown> | null;
+      const customer = application?.customer as Record<string, unknown> | null;
+
       if (!officerMap[oid]) {
         officerMap[oid] = {
           officer_id: oid,
           officer_phone: officer?.phone_number as string ?? '—',
+          officer_name: (officer?.full_name as string) || (officer?.phone_number as string) || '—',
           phones_sold: 0,
           commission_pending: 0,
           commission_payable: 0,
           commission_paid: 0,
+          customers: [],
         };
       }
       officerMap[oid].phones_sold++;
@@ -65,6 +82,15 @@ export default async function salesRoutes(app: FastifyInstance) {
       if (status === 'pending') officerMap[oid].commission_pending += amt;
       else if (status === 'payable') officerMap[oid].commission_payable += amt;
       else if (status === 'paid') officerMap[oid].commission_paid += amt;
+
+      // Track customer details
+      if (customer?.full_name) {
+        officerMap[oid].customers.push({
+          name: customer.full_name as string,
+          commission: amt,
+          status,
+        });
+      }
     });
 
     return reply.send({

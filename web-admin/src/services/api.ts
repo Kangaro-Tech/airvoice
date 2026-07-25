@@ -145,3 +145,11 @@ export const documentsApi = {
       rejection_reason: rejectionReason,
     }),
 };
+
+export const tasksApi = {
+  list:   () => api.get('/tasks'),
+  create: (data: unknown) => api.post('/tasks', data),
+  update: (id: string, data: unknown) => api.patch(`/tasks/${id}`, data),
+  delete: (id: string) => api.delete(`/tasks/${id}`),
+};
+
