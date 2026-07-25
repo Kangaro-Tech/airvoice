@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Bell, FileText, Users, CreditCard, Package, Truck, Phone,
   BarChart2, DollarSign, RefreshCcw, Shield, Briefcase, TrendingUp,
   Upload, Cpu, Smartphone, LogOut, Menu, AlertCircle, Sun, Moon,
-  Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3
+  Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 
@@ -28,7 +28,7 @@ type BadgeKey =
   | 'finance'
   | 'customers';
 
-interface NavItem {
+export interface NavItem {
   label: string;
   to: string;
   icon: React.ReactNode;
@@ -36,12 +36,12 @@ interface NavItem {
   badgeKey?: BadgeKey;
 }
 
-interface NavSection {
+export interface NavSection {
   title: string;
   items: NavItem[];
 }
 
-const NAV_SECTIONS: NavSection[] = [
+export const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Overview',
     items: [
@@ -57,6 +57,11 @@ const NAV_SECTIONS: NavSection[] = [
         icon: <Bell size={16} />,
         badgeKey: 'notifications',
         roles: ['finance_officer', 'accountant', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager', 'admin', 'super_admin']
+      },
+      {
+        label: 'Schedule',
+        to: '/schedule',
+        icon: <ScrollText size={16} />
       },
     ],
   },
@@ -82,7 +87,7 @@ const NAV_SECTIONS: NavSection[] = [
         to: '/installments',
         icon: <CreditCard size={16} />,
         badgeKey: 'installments',
-        roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
+        roles: ['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin']
       },
       {
         label: 'Inventory',
@@ -150,6 +155,18 @@ const NAV_SECTIONS: NavSection[] = [
         icon: <Printer size={16} />,
         roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
       },
+      {
+        label: 'Company Payments',
+        to: '/company-payments',
+        icon: <Building size={16} />,
+        roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
+      },
+      {
+        label: 'Petty Cash',
+        to: '/petty-cash',
+        icon: <Wallet size={16} />,
+        roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
+      },
     ],
   },
   {
@@ -165,7 +182,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: 'Reports',
         to: '/reports',
         icon: <FileText size={16} />,
-        roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
+        roles: ['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin']
       },
     ],
   },
@@ -262,6 +279,9 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     'P&L Report': 'ලාභ හා අලාභ වාර්තාව',
     'Add Expense': 'වියදමක් එක් කරන්න',
     'Sign out': 'පිටවෙන්න',
+    'Schedule': 'කාලසටහන',
+    'Petty Cash': 'සුළු මුදල්',
+    'Company Payments': 'සමාගමේ ගෙවීම්',
     'Active Plans': 'සක්‍රීය සැලසුම්',
     'Collection Rate': 'එකතු කිරීමේ අනුපාතය',
     'Overdue Customers': 'හිඟ මුදල් ඇති ගනුදෙනුකරුවන්',
@@ -599,8 +619,24 @@ export default function AppLayout() {
     }
   }, [location.pathname, pendingApps, lowStock, unreadNotifs, stockOrdersPending, pendingInstallments, expensesPending, payrollDrafts, recoveryOverdue, guarantorRequestsPending, financeTasks, newCustomersToday, seenCounts]);
 
-  const isVisible = (item: NavItem) =>
-    !item.roles || (user && item.roles.includes(user.role));
+  const isVisible = (item: NavItem) => {
+    if (!user) return false;
+    if (Array.isArray(user.custom_modules)) {
+      return user.custom_modules.includes(item.to) || item.to === '/dashboard' || item.to === '/notifications';
+    }
+    return !item.roles || item.roles.includes(user.role);
+  };
+
+  useEffect(() => {
+    if (user && Array.isArray(user.custom_modules)) {
+      const allowedPaths = [...user.custom_modules, '/dashboard', '/notifications'];
+      // Allow exact match or if path starts with allowed path (e.g. /customers/1)
+      const isAllowed = allowedPaths.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
+      if (!isAllowed) {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [location.pathname, user, navigate]);
 
   const isDark = theme === 'dark';
 

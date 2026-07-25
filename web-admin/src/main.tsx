@@ -35,6 +35,8 @@ import FinancePage from '@/pages/finance/FinancePage';
 import ExpensesPage from '@/pages/finance/ExpensesPage';
 import PayrollPage from '@/pages/finance/PayrollPage';
 import InstallmentsPage from '@/pages/finance/InstallmentsPage';
+import PettyCashPage from '@/pages/finance/PettyCashPage';
+import CompanyPaymentsPage from '@/pages/finance/CompanyPaymentsPage';
 
 // Pages — Recovery & Sales
 import RecoveryPage from '@/pages/recovery/RecoveryPage';
@@ -58,6 +60,7 @@ import CustomerAppPage from '@/pages/admin/CustomerAppPage';
 
 // Pages — Reports
 import ReportsPage from '@/pages/ReportsPage';
+import SchedulePage from '@/pages/SchedulePage';
 
 // Pages — Tools
 import ChequePrinterPage from '@/pages/cheque/ChequePrinterPage';
@@ -103,6 +106,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               {/* Applications */}
               <Route path="/applications" element={<ApplicationsPage />} />
               <Route path="/applications/:id" element={<ApplicationDetailPage />} />
+              
+              <Route path="/schedule" element={<SchedulePage />} />
 
               {/* Operations */}
               <Route path="/camp" element={<CampPortalPage />} />
@@ -117,18 +122,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/recovery" element={<RecoveryPage />} />
               </Route>
 
-              {/* Finance+ */}
+              {/* Finance (Strict) */}
               <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'admin', 'super_admin']} />}>
                 <Route path="/finance" element={<FinancePage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />
-                <Route path="/installments" element={<InstallmentsPage />} />
-                <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
                 <Route path="/legacy-import" element={<LegacyImportPage />} />
                 <Route path="/legacy-import/upload" element={<LegacyUploadPage />} />
                 <Route path="/legacy-import/:id/mapping" element={<LegacyMappingPage />} />
                 <Route path="/legacy-import/:id/preview" element={<LegacyPreviewPage />} />
+                <Route path="/petty-cash" element={<PettyCashPage />} />
+                <Route path="/company-payments" element={<CompanyPaymentsPage />} />
+              </Route>
+
+              {/* Installments & Reports (Finance + Camp Officer) */}
+              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin']} />}>
+                <Route path="/installments" element={<InstallmentsPage />} />
+                <Route path="/reports" element={<ReportsPage />} />
               </Route>
 
               {/* Sales (sales_officer + admin) */}

@@ -37,6 +37,9 @@ import financeRoutes from './routes/finance';
 import translationRoutes from './routes/translation';
 import districtRoutes from './routes/districts';
 import tasksRoutes from './routes/tasks';
+import pettyCashRoutes from './routes/petty-cash';
+import companyPaymentsRoutes from './routes/company-payments';
+import scheduleRoutes from './routes/schedule';
 
 
 export async function buildApp() {
@@ -270,6 +273,21 @@ export async function buildApp() {
 
   await app.register(tasksRoutes,{
     prefix:"/tasks"
+  });
+
+
+  await app.register(pettyCashRoutes,{
+    prefix:"/petty-cash"
+  });
+
+
+  await app.register(companyPaymentsRoutes,{
+    prefix:"/company-payments"
+  });
+
+
+  await app.register(scheduleRoutes,{
+    prefix:"/schedule"
   });
 
 

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '@/services/api';
 import {
   Search, Plus, Download, Eye, FileText,
   Shield, AlertTriangle, CheckCircle, ChevronRight, X,
   Users, Anchor, Plane, Smartphone, Wallet, Phone, Mail, Calendar, Building2,
+  Pencil, Trash2, Loader2, Check,
 } from 'lucide-react';
 
 // ── Branch badge ─────────────────────────────────────────────────────────────
@@ -145,10 +146,17 @@ function QuickPanel({ customer, onClose, onProfile }: {
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function CustomersPage() {
   const [params, setParams] = useSearchParams();
+  const qc = useQueryClient();
   const [search, setSearch] = useState(params.get('q') || '');
   const [branch, setBranch] = useState(params.get('branch') || 'all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [quickView, setQuickView] = useState<Customer | null>(null);
+  const [editCustomer, setEditCustomer] = useState<Customer | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Customer | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [editError, setEditError] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['customers', search, branch, params.get('page')],
@@ -162,6 +170,48 @@ export default function CustomersPage() {
     }).then(r => r.data),
     placeholderData: (prev) => prev,
   });
+
+  const deleteCustomer = useMutation({
+    mutationFn: (id: string) => api.delete(`/customers/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      setDeleteConfirm(null);
+      setDeleteError('');
+    },
+    onError: (err: any) => {
+      setDeleteError(err?.response?.data?.error ?? 'Failed to delete customer');
+    },
+  });
+
+  const openEdit = (c: Customer) => {
+    setEditCustomer(c);
+    setEditForm({
+      full_name:      (c.full_name as string) || '',
+      service_number: (c.service_number as string) || '',
+      nic_number:     (c.nic_number as string) || '',
+      rank:           (c.rank as string) || '',
+      phone_number:   (c.phone_number as string) || '',
+    });
+    setEditError('');
+  };
+
+  const submitEdit = async () => {
+    if (!editCustomer) return;
+    setEditError(''); setEditSubmitting(true);
+    try {
+      await api.patch(`/customers/${editCustomer.id}`, {
+        full_name:      editForm.full_name || undefined,
+        service_number: editForm.service_number || undefined,
+        nic_number:     editForm.nic_number || undefined,
+        rank:           editForm.rank || undefined,
+        phone_number:   editForm.phone_number || undefined,
+      });
+      qc.invalidateQueries({ queryKey: ['customers'] });
+      setEditCustomer(null);
+    } catch (e: any) {
+      setEditError(e?.response?.data?.error ?? 'Failed to update customer');
+    } finally { setEditSubmitting(false); }
+  };
 
   const customers = (data?.data ?? []) as Customer[];
   const meta = data?.meta as { total: number; page: number; pages: number } | undefined;
@@ -407,6 +457,20 @@ export default function CustomersPage() {
                           >
                             <FileText size={15} />
                           </Link>
+                          <button
+                            title="Edit customer"
+                            onClick={e => { e.stopPropagation(); openEdit(c); }}
+                            className="p-1.5 rounded-lg text-base-muted hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            title="Delete customer"
+                            onClick={e => { e.stopPropagation(); setDeleteConfirm(c); setDeleteError(''); }}
+                            className="p-1.5 rounded-lg text-base-muted hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -447,6 +511,71 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Customer Modal */}
+      {editCustomer && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-[#0f172a] text-white flex items-center justify-between px-6 py-4">
+              <h3 className="font-bold text-lg">Edit Customer</h3>
+              <button onClick={() => setEditCustomer(null)} className="text-slate-400 hover:text-white p-1.5 rounded-lg border border-slate-700 bg-[#1e293b]"><X size={16} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              {editError && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{editError}</div>}
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  ['Full Name', 'full_name', 'text'],
+                  ['Service No', 'service_number', 'text'],
+                  ['NIC Number', 'nic_number', 'text'],
+                  ['Rank', 'rank', 'text'],
+                  ['Phone Number', 'phone_number', 'text'],
+                ].map(([label, key, type]) => (
+                  <div key={key} className={key === 'full_name' ? 'col-span-2' : ''}>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">{label}</label>
+                    <input type={type} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300"
+                      value={editForm[key] || ''} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} />
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setEditCustomer(null)} className="px-4 py-2 text-sm font-semibold border border-base rounded-lg hover:bg-slate-50">Cancel</button>
+                <button onClick={submitEdit} disabled={editSubmitting} className="px-4 py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5">
+                  {editSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Customer Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-red-600" />
+              </div>
+              <div>
+                <div className="font-bold text-base-primary">Delete Customer?</div>
+                <div className="text-xs text-base-muted mt-0.5">{deleteConfirm.full_name as string}</div>
+              </div>
+            </div>
+            <p className="text-sm text-base-secondary mb-4">This customer will be soft-deleted and removed from active lists. This cannot be undone easily.</p>
+            {deleteError && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{deleteError}</div>}
+            <div className="flex gap-2">
+              <button onClick={() => { setDeleteConfirm(null); setDeleteError(''); }} className="flex-1 py-2 text-sm font-semibold border border-base rounded-lg hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => deleteCustomer.mutate(deleteConfirm.id as string)}
+                disabled={deleteCustomer.isPending}
+                className="flex-1 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {deleteCustomer.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

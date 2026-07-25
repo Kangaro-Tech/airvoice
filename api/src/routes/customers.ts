@@ -449,4 +449,98 @@ export default async function customerRoutes(app: FastifyInstance) {
       legacy_details: linkResult,
     });
   });
+
+  // ── PUT /customers/:id/service-number ── Edit customer service number
+  app.put('/:id/service-number', {
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'accountant', 'camp_officer')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      service_number: z.string().min(1).max(50),
+      reason: z.string().optional(),
+    }).safeParse(request.body);
+
+    if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
+
+    const supabase = getSupabase();
+
+    // Fetch old value for audit
+    const { data: existing } = await supabase
+      .from('customers')
+      .select('service_number')
+      .eq('id', id)
+      .single();
+
+    const { data, error } = await supabase
+      .from('customers')
+      .update({ service_number: body.data.service_number, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id, service_number, full_name')
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+
+    await writeAuditLog({
+      user_id: request.user!.id,
+      action: AuditActions.CUSTOMER_UPDATED,
+      entity_type: 'customers',
+      entity_id: id,
+      old_values: { service_number: existing?.service_number },
+      new_values: { service_number: body.data.service_number, reason: body.data.reason },
+    });
+
+    return reply.send({ data });
+  });
+
+  // ── GET /customers/:id/agreement-photo ── Get agreement photo URL
+  app.get('/:id/agreement-photo', {
+    preHandler: [authenticate, requireStaff],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const supabase = getSupabase();
+
+    const { data } = await supabase
+      .from('customers')
+      .select('agreement_photo_url, full_name')
+      .eq('id', id)
+      .single();
+
+    return reply.send({
+      agreement_photo_url: (data as any)?.agreement_photo_url ?? null,
+      customer_name: (data as any)?.full_name ?? '',
+    });
+  });
+
+  // ── POST /customers/:id/agreement-photo ── Upload agreement photo (base64)
+  app.post('/:id/agreement-photo', {
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'accountant', 'camp_officer')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      photo_url: z.string().url(),  // Caller uploads to storage and passes URL
+    }).safeParse(request.body);
+
+    if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('customers')
+      .update({ agreement_photo_url: body.data.photo_url, updated_at: new Date().toISOString() } as any)
+      .eq('id', id)
+      .select('id, agreement_photo_url')
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+
+    await writeAuditLog({
+      user_id: request.user!.id,
+      action: AuditActions.CUSTOMER_UPDATED,
+      entity_type: 'customers',
+      entity_id: id,
+      new_values: { agreement_photo_url: body.data.photo_url },
+    });
+
+    return reply.send({ data });
+  });
 }
+
