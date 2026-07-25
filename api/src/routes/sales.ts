@@ -24,7 +24,7 @@ export default async function salesRoutes(app: FastifyInstance) {
 
     // Commissions for the period
     let commQuery = sb.from('commissions')
-      .select('*,application:applications(ref_number,phone_model,monthly_amount),officer:users!sales_officer_id(phone_number)')
+      .select('*,application:applications(ref_number,phone_model_id,monthly_amount),officer:users!sales_officer_id(phone_number)')
       .gte('created_at', monthStart)
       .lte('created_at', monthEnd + 'T23:59:59Z');
 

@@ -319,6 +319,39 @@ export default async function customerRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
+  // ── Delete customer (soft delete) ──────────────────────────
+  app.delete('/:id', {
+    preHandler: [authenticate, requireAdmin],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const supabase = getSupabase();
+
+    // Prevent deletion if customer has active applications
+    const { data: activeApps } = await supabase.from('applications')
+      .select('id').eq('customer_id', id).in('status', ['active', 'approved', 'pending_handover']).limit(1);
+    if (activeApps && activeApps.length > 0) {
+      return reply.status(409).send({ error: 'Cannot delete customer with active applications. Close or cancel applications first.' });
+    }
+
+    const { data: old } = await supabase.from('customers').select('full_name').eq('id', id).single();
+    const { error } = await supabase.from('customers')
+      .update({ deleted_at: new Date().toISOString(), is_active: false })
+      .eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+
+    writeAuditLog({
+      user_id:     request.user!.id,
+      action:      AuditActions.CUSTOMER_UPDATED,
+      entity_type: 'customers',
+      entity_id:   id,
+      old_values:  old ?? undefined,
+      new_values:  { deleted: true },
+      ip_address:  request.ip,
+    });
+
+    return reply.send({ success: true });
+  });
+
   // ── Refresh risk score ──────────────────────────────────────
   app.post('/:id/refresh-risk', {
     preHandler: [authenticate, requireStaff],

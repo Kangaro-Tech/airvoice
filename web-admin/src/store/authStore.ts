@@ -42,6 +42,7 @@ export interface StaffUser {
   preferred_language: 'en' | 'si' | 'ta';
   full_name?: string;
   auth_method?: 'phone' | 'email' | 'both';
+  custom_modules?: string[];
 }
 
 interface AuthState {

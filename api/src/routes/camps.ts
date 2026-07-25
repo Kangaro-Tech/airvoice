@@ -73,6 +73,24 @@ export default async function campRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
+  // ── DELETE /camps/:id — deactivate camp (super_admin) ──────
+  app.delete('/:id', { preHandler: [authenticate, requireSuperAdmin] },
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const { id } = req.params as { id: string };
+    const sb = getSupabase();
+    // Check if camp has active customers
+    const { count } = await sb.from('customers').select('id', { count: 'exact', head: true })
+      .eq('camp_id', id).is('deleted_at', null);
+    if ((count ?? 0) > 0) {
+      return reply.status(409).send({ error: `Cannot delete camp with ${count} active customers assigned to it.` });
+    }
+    const { data: old } = await sb.from('camps').select('*').eq('id', id).single();
+    const { error } = await sb.from('camps').update({ is_active: false }).eq('id', id);
+    if (error) return reply.status(404).send({ error: 'Camp not found' });
+    writeAuditLog({ user_id: req.user!.id, action: AuditActions.CAMP_UPDATED, entity_type: 'camps', entity_id: id, old_values: old ?? undefined, new_values: { is_active: false } });
+    return reply.send({ success: true });
+  });
+
   // ── GET /camps/:id/officers — list assigned officers ───────
   app.get('/:id/officers', { preHandler: [authenticate, requireAdmin] },
   async (req: FastifyRequest, reply: FastifyReply) => {

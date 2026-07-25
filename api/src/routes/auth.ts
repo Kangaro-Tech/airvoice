@@ -36,7 +36,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const { data: existing } = await supabase
       .from('users')
       .select(`
-        id, role, is_active, phone_number, is_verified, preferred_language,
+        id, role, is_active, phone_number, is_verified, preferred_language, custom_modules,
         staff:staff_registry(full_name)
       `)
       .eq('firebase_uid', decoded.uid)
@@ -69,7 +69,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const { data: phoneDup } = await supabase
       .from('users')
       .select(`
-        id, role, is_active, phone_number, is_verified, preferred_language,
+        id, role, is_active, phone_number, is_verified, preferred_language, custom_modules,
         staff:staff_registry(full_name)
       `)
       .eq('phone_number', decoded.phone_number)
@@ -295,7 +295,7 @@ export default async function authRoutes(app: FastifyInstance) {
       .from('users')
       .select(`
         id, email, password_hash, role, is_active, is_verified,
-        preferred_language, auth_method,
+        preferred_language, auth_method, custom_modules,
         staff:staff_registry(full_name)
       `)
       .eq('email', body.data.email)
@@ -367,6 +367,7 @@ export default async function authRoutes(app: FastifyInstance) {
         is_verified:        user.is_verified,
         preferred_language: user.preferred_language,
         auth_method:        user.auth_method,
+        custom_modules:     (user as any).custom_modules ?? null,
         full_name,
       },
       token,

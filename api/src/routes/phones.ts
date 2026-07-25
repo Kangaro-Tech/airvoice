@@ -48,10 +48,35 @@ export default async function phoneRoutes(app: FastifyInstance) {
 
   app.patch('/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin')] }, async (req:FastifyRequest, reply:FastifyReply) => {
     const {id} = req.params as {id:string};
-    const body = z.object({status:z.enum(['in_stock','allocated','sold','returned','written_off']).optional(),stock_location:z.string().optional(),notes:z.string().optional()}).safeParse(req.body);
+    // Note: added imei_1, imei_2, purchase_cost, etc. to allowed updates for editing a device
+    const body = z.object({
+      status:z.enum(['in_stock','allocated','sold','returned','written_off']).optional(),
+      stock_location:z.string().optional(),
+      notes:z.string().optional(),
+      imei_1: z.string().optional(),
+      imei_2: z.string().optional(),
+      purchase_cost: z.number().optional(),
+      warranty_months: z.number().optional(),
+      supplier_id: z.string().uuid().optional(),
+    }).safeParse(req.body);
     if (!body.success) return reply.status(400).send({error:'Validation Error'});
     const {data,error} = await getSupabase().from('phones').update(body.data as any).eq('id',id).select().single();
     if (error) return reply.status(500).send({error:error.message});
     return reply.send({data});
+  });
+
+  // ── DELETE /phones/:id — soft delete a physical device ─
+  app.delete('/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin')] }, async (req:FastifyRequest, reply:FastifyReply) => {
+    const {id} = req.params as {id:string};
+    const sb = getSupabase();
+    // Prevent deletion if the device is not in_stock (e.g. sold or allocated)
+    const { data: phone } = await sb.from('phones').select('status').eq('id', id).single();
+    if (!phone) return reply.status(404).send({ error: 'Device not found' });
+    if (phone.status !== 'in_stock') {
+      return reply.status(409).send({ error: `Cannot delete device because its status is ${phone.status}. Only 'in_stock' devices can be deleted.` });
+    }
+    const { error } = await sb.from('phones').update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send({ success: true });
   });
 }

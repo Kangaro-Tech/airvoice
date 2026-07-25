@@ -1,6 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import * as XLSX from 'xlsx';
-import { authenticate, requireFinance } from '../middleware/auth';
+import { authenticate, requireRole } from '../middleware/auth';
 import { getSupabase } from '../config/supabase';
 
 function toXLSX(rows: Record<string,unknown>[], sheetName='Report'): Buffer {
@@ -33,9 +33,10 @@ function sendReport(reply:FastifyReply, data:Record<string,unknown>[], format:st
 }
 
 export default async function reportRoutes(app: FastifyInstance) {
+  const requireReportsAccess = requireRole('finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin');
 
   // Monthly deduction report
-  app.get('/monthly-deductions', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+  app.get('/monthly-deductions', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {year?:string;month?:string;camp_id?:string;format?:string};
     const sb = getSupabase();
     let query = sb.from('installments')
@@ -53,7 +54,7 @@ export default async function reportRoutes(app: FastifyInstance) {
   });
 
   // Arrears report
-  app.get('/arrears', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+  app.get('/arrears', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {format?:string};
     const {data} = await getSupabase().from('installments')
       .select('arrears_amount,due_year,due_month,status,customer:customers(full_name,service_number,phone_number,camp:camps(name)),application:applications(ref_number)')
@@ -66,7 +67,7 @@ export default async function reportRoutes(app: FastifyInstance) {
   });
 
   // Commissions report
-  app.get('/commissions', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+  app.get('/commissions', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {status?:string;format?:string};
     let query = getSupabase().from('commissions')
       .select('*,officer:users!sales_officer_id(phone_number),customer:customers(full_name,service_number),application:applications(ref_number)').order('created_at',{ascending:false}).limit(2000);
@@ -80,7 +81,7 @@ export default async function reportRoutes(app: FastifyInstance) {
   });
 
   // Legacy import error report
-  app.get('/legacy-errors/:batchId', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+  app.get('/legacy-errors/:batchId', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const {batchId} = req.params as {batchId:string};
     const q = req.query as {format?:string};
     const {data} = await getSupabase().from('legacy_import_rows')
@@ -94,7 +95,7 @@ export default async function reportRoutes(app: FastifyInstance) {
   });
 
   // Risk report
-  app.get('/risk', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+  app.get('/risk', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {level?:string;format?:string};
     let query = getSupabase().from('customers')
       .select('full_name,nic_number,service_number,branch,rank,risk_level,risk_score,retirement_date,phone_number,camp:camps(name)').is('deleted_at',null).order('risk_score',{ascending:false});
@@ -105,7 +106,7 @@ export default async function reportRoutes(app: FastifyInstance) {
   });
 
   // Retirement risk
-  app.get('/retirement-risk', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+  app.get('/retirement-risk', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {format?:string};
     const now = new Date();
     const in24mo = new Date(now.getFullYear(),now.getMonth()+24,now.getDate()).toISOString().split('T')[0];

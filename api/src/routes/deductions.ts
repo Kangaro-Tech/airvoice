@@ -461,9 +461,9 @@ export default async function deductionRoutes(app: FastifyInstance) {
       }
     });
 
-    const svcColIdx     = headers.findIndex(h => /service\s*no/i.test(h.trim()));
-    const nameColIdx    = headers.findIndex(h => /^name$/i.test(h.trim()) || /customer\s*name/i.test(h.trim()));
-    const monthlyColIdx = headers.findIndex(h => /^int\s*$/i.test(h.trim()) || /monthly/i.test(h.trim()) || /installment/i.test(h.trim()));
+    const svcColIdx     = headers.findIndex(h => /service|svc|reg|no\.?/i.test(h.trim()));
+    const nameColIdx    = headers.findIndex(h => /name|soldier|customer/i.test(h.trim()));
+    const monthlyColIdx = headers.findIndex(h => /int|installment|monthly|amount|deduction/i.test(h.trim()));
 
     const targetMonthCol = monthCols.find(mc => mc.key === monthKey);
     if (!targetMonthCol) {
@@ -510,17 +510,75 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
       let customerId = svcNo ? custBySvcNo.get(svcNo) : undefined;
       if (!customerId && custName) customerId = custByName.get(custName);
-      if (!customerId) { notFound++; continue; }
+      
+      let isNewCustomer = false;
+
+      if (!customerId) { 
+        const fallbackName = custName || svcNo || 'Unknown Customer';
+        if (!custName && !svcNo) { notFound++; continue; }
+        
+        // Find camp branch
+        const { data: campData } = await sb.from('camps').select('branch').eq('id', campId).single();
+        const campBranch = campData?.branch ?? 'army';
+
+        const { data: newCust, error: err } = await sb.from('customers').insert({
+           full_name: fallbackName,
+           service_number: svcNo || null,
+           camp_id: campId,
+           branch: campBranch,
+           rank: 'Unknown',
+           created_by: request.user!.id
+        }).select('id').single();
+        
+        if (err || !newCust) { notFound++; continue; }
+        customerId = newCust.id;
+        
+        // Add to our maps so subsequent rows in same sheet match
+        if (svcNo) custBySvcNo.set(svcNo, customerId as string);
+        if (custName) custByName.set(custName, customerId as string);
+        
+        isNewCustomer = true;
+      }
 
       matched++;
       const cellVal = row[targetMonthCol.idx];
       const { status, amount } = parseCellLocal(cellVal, monthly || 0);
 
-      const { data: application } = await sb
-        .from('applications').select('id')
-        .eq('customer_id', customerId)
-        .not('status', 'eq', 'rejected')
-        .limit(1).single();
+      let application: any = null;
+
+      if (isNewCustomer) {
+        // Create dummy application
+        const { data: defaultPhone } = await sb.from('phone_models').select('id, sale_price').limit(1).single();
+        if (defaultPhone) {
+          const saleDate = new Date(year, month - 1, 1);
+          const planEnd = new Date(saleDate);
+          planEnd.setMonth(planEnd.getMonth() + 12);
+
+          const { data: newApp } = await sb.from('applications').insert({
+            customer_id: customerId,
+            phone_model_id: defaultPhone.id,
+            sales_officer_id: request.user!.id,
+            sale_price: defaultPhone.sale_price || (monthly * 12) || 0,
+            down_payment: 0,
+            financed_amount: monthly * 12,
+            monthly_amount: monthly || 0,
+            term_months: 12,
+            sale_date: saleDate.toISOString().split('T')[0],
+            plan_end_date: planEnd.toISOString().split('T')[0],
+            status: 'approved',
+            notes: 'Auto-created from Excel import'
+          }).select('id').single();
+          application = newApp;
+        }
+      } else {
+        const { data: appData } = await sb
+          .from('applications').select('id')
+          .eq('customer_id', customerId)
+          .not('status', 'eq', 'rejected')
+          .limit(1).single();
+        application = appData;
+      }
+
       if (!application) continue;
 
       const { data: installment } = await sb

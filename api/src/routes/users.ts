@@ -11,7 +11,7 @@ export default async function userRoutes(app: FastifyInstance) {
     const sb = getSupabase();
     const page=parseInt(q.page??'1'), limit=parseInt(q.limit??'50');
     let query = sb.from('users')
-      .select('id,firebase_uid,phone_number,role,is_active,is_verified,two_fa_enabled,last_login_at,created_at',{count:'exact'})
+      .select('id,firebase_uid,phone_number,role,is_active,is_verified,two_fa_enabled,last_login_at,created_at,custom_modules',{count:'exact'})
       .is('deleted_at',null).order('created_at',{ascending:false})
       .range((page-1)*limit,page*limit-1);
     if (q.role) query = query.eq('role',q.role);
@@ -44,6 +44,17 @@ export default async function userRoutes(app: FastifyInstance) {
     const {id} = req.params as {id:string};
     await getSupabase().from('users').update({is_active:false} as any).eq('id',id);
     writeAuditLog({user_id:req.user!.id,action:AuditActions.USER_DEACTIVATED,entity_type:'users',entity_id:id});
+    return reply.send({success:true});
+  });
+
+  // Change custom modules
+  app.patch('/:id/modules', { preHandler:[authenticate,requireAdmin] }, async (req:FastifyRequest, reply:FastifyReply) => {
+    const {id} = req.params as {id:string};
+    const body = z.object({custom_modules: z.array(z.string()).nullable()}).safeParse(req.body);
+    if (!body.success) return reply.status(400).send({error:'Invalid custom_modules'});
+    const sb = getSupabase();
+    await sb.from('users').update({custom_modules:body.data.custom_modules} as any).eq('id',id);
+    writeAuditLog({user_id:req.user!.id,action:AuditActions.USER_UPDATED,entity_type:'users',entity_id:id,new_values:{custom_modules:body.data.custom_modules}});
     return reply.send({success:true});
   });
 

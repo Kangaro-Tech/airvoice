@@ -15,6 +15,7 @@ export interface AuthenticatedUser {
   role: UserRole;
   is_active: boolean;
   is_verified: boolean;
+  custom_modules?: string[];
 }
 
 declare module 'fastify' {

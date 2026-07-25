@@ -309,5 +309,21 @@ export default async function inventoryRoutes(app: FastifyInstance) {
 
     return reply.send({ success: true, removed: pathToDelete });
   });
+
+  // ── DELETE /inventory/models/:id — deactivate phone model ─
+  app.delete('/models/:id', { preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin')] },
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const { id } = req.params as { id: string };
+    const sb = getSupabase();
+    // Check if any phones in stock are linked to this model
+    const { count } = await sb.from('phones').select('id', { count: 'exact', head: true })
+      .eq('model_id', id).eq('status', 'in_stock');
+    if ((count ?? 0) > 0) {
+      return reply.status(409).send({ error: 'Cannot delete model with units currently in stock. Remove stock first.' });
+    }
+    const { error } = await sb.from('phone_models').update({ is_active: false }).eq('id', id);
+    if (error) return reply.status(404).send({ error: 'Phone model not found' });
+    return reply.send({ success: true });
+  });
 }
 

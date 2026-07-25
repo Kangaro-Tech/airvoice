@@ -48,7 +48,7 @@ export async function authenticateDual(
       const supabase = getSupabase();
       const { data: user } = await supabase
         .from('users')
-        .select('id, firebase_uid, phone_number, email, role, is_active, is_verified, auth_method')
+        .select('id, firebase_uid, phone_number, email, role, is_active, is_verified, auth_method, custom_modules')
         .eq('id', payload.userId)
         .single();
 
@@ -66,6 +66,7 @@ export async function authenticateDual(
         role: user.role,
         is_active: user.is_active,
         is_verified: user.is_verified,
+        custom_modules: user.custom_modules as string[] | undefined,
       };
       return;
     }
@@ -81,7 +82,7 @@ export async function authenticateDual(
     const supabase = getSupabase();
     const { data: user } = await supabase
       .from('users')
-      .select('id, firebase_uid, phone_number, email, role, is_active, is_verified')
+      .select('id, firebase_uid, phone_number, email, role, is_active, is_verified, custom_modules')
       .eq('firebase_uid', decoded.uid)
       .single();
 
@@ -102,6 +103,7 @@ export async function authenticateDual(
       role: user.role,
       is_active: user.is_active,
       is_verified: user.is_verified,
+      custom_modules: user.custom_modules as string[] | undefined,
     };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Invalid token';
