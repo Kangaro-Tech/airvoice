@@ -32,6 +32,12 @@ export default function RecoveryPage() {
   const [showLogModal, setShowLogModal] = useState(false);
   const [showWaModal, setShowWaModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showLetterModal, setShowLetterModal] = useState(false);
+  
+  const [letterForm, setLetterForm] = useState({
+    letter_type: 'reminder',
+    notes: ''
+  });
   
   const [logForm, setLogForm] = useState({
     contact_method: 'phone_call',
@@ -83,6 +89,16 @@ export default function RecoveryPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['recovery-overdue'] });
       alert('Legal Notice successfully issued!');
+    }
+  });
+
+  const sendLetterMutation = useMutation({
+    mutationFn: (payload: { customer_id: string; letter_type: string; notes?: string }) => api.post('/recovery/letters', payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['recovery-logs'] });
+      setShowLetterModal(false);
+      setLetterForm({ letter_type: 'reminder', notes: '' });
+      alert('Recovery letter drafted successfully!');
     }
   });
 
@@ -272,6 +288,9 @@ export default function RecoveryPage() {
                   <button onClick={() => handleSendSms(c)} className="btn btn-secondary py-1.5 px-3 text-xs flex items-center gap-1">
                     <MessageCircle size={13} /> Send SMS
                   </button>
+                  <button onClick={() => { setSelectedCustomer(c); setShowLetterModal(true); }} className="btn btn-secondary py-1.5 px-3 text-xs flex items-center gap-1">
+                    <AlertTriangle size={13} /> Draft Letter
+                  </button>
                 </div>
 
                 <div className="flex gap-2">
@@ -446,16 +465,61 @@ export default function RecoveryPage() {
                 />
               </div>
             </div>
-            <div className="p-4 surface-2 border-t border-base flex justify-end gap-2">
-              <button onClick={() => setShowTransferModal(false)} className="btn btn-secondary py-1.5 text-xs">Cancel</button>
+            <div className="p-5 flex justify-end gap-3 border-t border-base">
+              <button onClick={() => setShowTransferModal(false)} className="px-4 py-2 text-sm font-semibold text-base-muted hover:text-base-primary">Cancel</button>
               <button 
-                onClick={() => {
-                  if (!transferReason.trim()) return alert('Please enter a reason');
-                  transferGuarantorMutation.mutate({ customer_id: selectedCustomer.id, reason: transferReason });
-                }} 
-                className="px-4 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700"
+                onClick={() => selectedCustomer && transferGuarantorMutation.mutate({ customer_id: selectedCustomer.id, reason: transferReason })}
+                disabled={transferGuarantorMutation.isPending || !transferReason}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
               >
-                Submit Transfer
+                {transferGuarantorMutation.isPending ? 'Submitting...' : 'Confirm Transfer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Draft Letter Modal */}
+      {showLetterModal && selectedCustomer && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="surface rounded-xl max-w-md w-full border border-base shadow-xl overflow-hidden">
+            <div className="p-5 border-b border-base flex justify-between items-center">
+              <h3 className="font-bold text-base-primary">Draft Recovery Letter</h3>
+              <button onClick={() => setShowLetterModal(false)} className="text-base-muted hover:text-[var(--text-primary)] text-lg">×</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="form-label">Letter Type</label>
+                <select
+                  value={letterForm.letter_type}
+                  onChange={(e) => setLetterForm({ ...letterForm, letter_type: e.target.value })}
+                  className="form-input"
+                >
+                  <option value="reminder">Reminder Letter</option>
+                  <option value="warning">Warning Letter</option>
+                  <option value="final_notice">Final Notice</option>
+                  <option value="legal_intent">Legal Intent</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label">Additional Notes / Custom Message</label>
+                <textarea
+                  value={letterForm.notes}
+                  onChange={(e) => setLetterForm({ ...letterForm, notes: e.target.value })}
+                  className="form-input h-24"
+                  placeholder="Optional custom text to append to the letter..."
+                />
+              </div>
+            </div>
+            <div className="p-5 flex justify-end gap-3 border-t border-base">
+              <button onClick={() => setShowLetterModal(false)} className="px-4 py-2 text-sm font-semibold text-base-muted hover:text-base-primary">Cancel</button>
+              <button 
+                onClick={() => sendLetterMutation.mutate({ customer_id: selectedCustomer.id, letter_type: letterForm.letter_type, notes: letterForm.notes })}
+                disabled={sendLetterMutation.isPending}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+              >
+                {sendLetterMutation.isPending ? 'Drafting...' : 'Draft Letter'}
               </button>
             </div>
           </div>

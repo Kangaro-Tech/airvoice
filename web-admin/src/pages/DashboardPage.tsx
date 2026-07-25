@@ -185,6 +185,7 @@ export default function DashboardPage() {
           <ActionCard icon={<Coins size={20} />} title="Manage Expenses" description="Create & approve expenses" link="/expenses" />
           <ActionCard icon={<BarChart2 size={20} />} title="Payroll" description="Manage staff payroll" link="/payroll" />
           <ActionCard icon={<TrendingDown size={20} />} title="Recovery" description="Track recovery operations" link="/recovery" />
+          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
         <FinanceAIRiskAlerts />
         <TaskNotepad />
@@ -220,6 +221,7 @@ export default function DashboardPage() {
           <ActionCard icon={<ClipboardList size={20} />} title="Create Application" description="New customer application" link="/applications" />
           <ActionCard icon={<Users size={20} />} title="Manage Customers" description="View & edit customers" link="/customers" />
           <ActionCard icon={<Package size={20} />} title="Inventory" description="Check stock availability" link="/inventory" />
+          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
         <CommissionTargetTracker />
         <TaskNotepad />
@@ -255,6 +257,7 @@ export default function DashboardPage() {
           <ActionCard icon={<Package size={20} />} title="Manage Inventory" description="View & update stock" link="/inventory" />
           <ActionCard icon={<TrendingUp size={20} />} title="Stock Orders" description="Create stock orders" link="/stock-orders" />
           <ActionCard icon={<BarChart2 size={20} />} title="Reports" description="Inventory reports" link="/reports" />
+          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
         <TaskNotepad />
       </div>
@@ -289,6 +292,7 @@ export default function DashboardPage() {
           <ActionCard icon={<TrendingDown size={20} />} title="Manage Recovery" description="Track phone returns" link="/recovery" />
           <ActionCard icon={<Users size={20} />} title="Guarantors" description="Guarantor details" link="/guarantors" />
           <ActionCard icon={<AlertCircle size={20} />} title="High Risk Cases" description="Priority recovery" link="/recovery?filter=high-risk" />
+          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
         <TaskNotepad />
       </div>
@@ -323,6 +327,7 @@ export default function DashboardPage() {
           <ActionCard icon={<Users size={20} />} title="Camp Portal" description="Access camp management" link="/camp" />
           <ActionCard icon={<ClipboardList size={20} />} title="Applications" description="View camp applications" link="/applications?filter=camp" />
           <ActionCard icon={<Bell size={20} />} title="Notifications" description="View alerts & messages" link="/notifications" />
+          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
         <TaskNotepad />
       </div>

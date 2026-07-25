@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import {
   CheckCircle, XCircle, Minus, Download, AlertTriangle,
   FileText, Clock, ChevronDown, Send, TrendingUp, Eye,
-  Building2, Lock, Users, Percent, PauseCircle, History, CalendarClock, MapPin
+  Building2, Lock, Users, Percent, PauseCircle, History, CalendarClock, MapPin, Trash2, Loader2, Plus, X,
 } from 'lucide-react';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -103,177 +103,95 @@ function StatusBadge({ status }: { status: string }) {
 
 /* ─── Deduction row ─────────────────────────────────────────── */
 function InstRow({
-  inst, idx, isLocked, isPending, onUpdate,
+  inst, isLocked, isPending, onUpdate,
 }: {
   inst: Record<string, unknown>;
-  idx: number;
   isLocked: boolean;
   isPending: boolean;
   onUpdate: (status: string, amount?: number, reason?: string, notes?: string) => void;
 }) {
   const app   = inst.application as Record<string, unknown> | null;
   const cust  = app?.customer   as Record<string, unknown> | null;
-  const model = app?.phone_model as Record<string, unknown> | null;
-  const [editing, setEditing] = useState(false);
-  const [localStatus, setLocalStatus] = useState((inst.status as string) ?? 'pending');
-  const [amountCollected, setAmountCollected] = useState(
-    inst.deducted_amount ? String(inst.deducted_amount) : String(inst.expected_amount || '')
-  );
-  const [reason, setReason]     = useState('');
-  const [notes, setNotes]       = useState('');
+  
+  const [localStatus, setLocalStatus] = useState(inst.status as string);
+  const [localReason, setLocalReason] = useState((inst.not_deducted_reason as string) || '');
+  const [localAmount, setLocalAmount] = useState(inst.deducted_amount ? Number(inst.deducted_amount) : Number(inst.expected_amount || 0));
 
-  // Local saved state — updates immediately when Save is clicked
-  const [savedStatus,  setSavedStatus]  = useState((inst.status as string) ?? 'pending');
-  const [savedAmount,  setSavedAmount]  = useState(inst.deducted_amount as number | undefined);
-  const [savedReason,  setSavedReason]  = useState(inst.not_deducted_reason as string | undefined);
+  useEffect(() => {
+    setLocalStatus(inst.status as string);
+    setLocalReason((inst.not_deducted_reason as string) || '');
+    setLocalAmount(inst.deducted_amount ? Number(inst.deducted_amount) : Number(inst.expected_amount || 0));
+  }, [inst.status, inst.not_deducted_reason, inst.deducted_amount, inst.expected_amount]);
 
-  const retiringSoon = cust?.retirement_date
-    ? new Date(cust.retirement_date as string) <= new Date(Date.now() + 180 * 86400000)
-    : false;
-
-  const handleSubmit = () => {
+  const handleStatusChange = (newStatus: string) => {
+    setLocalStatus(newStatus);
     let amount: number | undefined;
-    let rsn: string | undefined;
-    let nts: string | undefined;
-
-    console.log('[CampPortal] handleSubmit called, localStatus=', localStatus, 'inst.id=', inst.id);
-
-    if (localStatus === 'deducted') {
-      amount = parseFloat(amountCollected) || undefined;
-      console.log('[CampPortal] calling onUpdate deducted, amount=', amount);
-      onUpdate('deducted', amount);
-    } else if (localStatus === 'partial') {
-      amount = parseFloat(amountCollected) || 0;
-      onUpdate('partial', amount);
-    } else if (localStatus === 'not_deducted') {
+    if (newStatus === 'deducted') {
+      amount = Number(inst.expected_amount || 0);
+      setLocalAmount(amount);
+      onUpdate(newStatus, amount);
+    } else if (newStatus === 'pending') {
+      onUpdate(newStatus, 0);
+    } else if (newStatus === 'partial') {
+      onUpdate(newStatus, localAmount);
+    } else if (newStatus === 'not_deducted') {
       amount = 0;
-      rsn = reason;
-      nts = notes;
-      onUpdate('not_deducted', 0, reason, notes);
+      setLocalAmount(amount);
+      // Wait for reason to be selected before hitting API
+      if (localReason) {
+        onUpdate(newStatus, amount, localReason);
+      }
     }
-
-    // Update local display immediately
-    setSavedStatus(localStatus);
-    setSavedAmount(amount);
-    setSavedReason(rsn);
-    setEditing(false);
   };
 
-  const isSubmitted = savedStatus !== 'pending';
+  const handleReasonChange = (newReason: string) => {
+    setLocalReason(newReason);
+    onUpdate('not_deducted', 0, newReason);
+  };
 
   return (
-    <tr className={`border-b border-gray-50 hover:bg-gray-50/60 transition-colors ${retiringSoon ? 'bg-amber-50/30' : ''}`}>
-      <td className="px-4 py-3 text-xs text-base-muted">{idx}</td>
-      <td className="px-4 py-3 text-xs font-mono text-base-secondary">{(cust?.service_number as string) || '—'}</td>
-      <td className="px-4 py-3">
-        <span className="text-xs surface-2 text-gray-600 px-1.5 py-0.5 rounded font-medium">
-          {(cust?.rank as string) || '—'}
-        </span>
+    <tr
+      className="transition-colors"
+      style={{ backgroundColor: 'var(--bg-surface)' }}
+      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-surface-2)')}
+      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--bg-surface)')}
+    >
+      <td className="px-4 py-3 font-mono text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+        {(cust?.service_number as string) || '—'}
+      </td>
+      <td className="px-4 py-3 capitalize" style={{ color: 'var(--text-secondary)' }}>
+        {(cust?.rank as string) || '—'}
+      </td>
+      <td className="px-4 py-3 font-semibold" style={{ color: 'var(--text-primary)' }}>
+        {(cust?.full_name as string) || '—'}
+      </td>
+      <td className="px-4 py-3 font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
+        LKR {Number(inst.expected_amount || 0).toLocaleString()}
       </td>
       <td className="px-4 py-3">
-        <div className="font-semibold text-sm text-base-primary">{(cust?.full_name as string) || '—'}</div>
-        {model && (
-          <div className="text-xs text-base-muted">
-            {model.brand as string} {model.model as string}
-          </div>
-        )}
+        <select
+          className="form-input text-xs py-1.5 px-2 min-w-[130px]"
+          value={localStatus}
+          disabled={isLocked || isPending}
+          onChange={e => handleStatusChange(e.target.value)}
+        >
+          <option value="pending">Pending</option>
+          <option value="deducted">Deducted</option>
+          <option value="partial">Partial</option>
+          <option value="not_deducted">Not Deducted</option>
+        </select>
       </td>
       <td className="px-4 py-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-bold text-base-secondary">
-            LKR {Number(inst.expected_amount || 0).toLocaleString()}
-          </span>
-          {isLocked && (
-            <span className="text-[10px] surface-3 text-base-muted px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5">
-              <Lock size={9} /> LOCKED
-            </span>
-          )}
-        </div>
-      </td>
-      {/* Status badge uses local savedStatus so it updates instantly */}
-      <td className="px-4 py-3"><StatusBadge status={savedStatus} /></td>
-      <td className="px-4 py-3 text-xs text-base-muted">
-        {savedReason ? REASONS_LABELS[savedReason] ?? savedReason : '—'}
-      </td>
-      <td className="px-4 py-3 text-sm font-mono text-base-secondary">
-        {(savedAmount as number) > 0 ? `LKR ${Number(savedAmount).toLocaleString()}` : '—'}
-      </td>
-      <td className="px-4 py-3">
-        {retiringSoon && (
-          <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded flex items-center gap-0.5 w-fit">
-            <AlertTriangle size={9} /> Soon
-          </span>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        {isLocked ? (
-          <span className="text-xs text-base-muted italic flex items-center gap-1"><Lock size={11} /> Locked</span>
-        ) : !editing ? (
-          <button
-            onClick={() => setEditing(true)}
-            className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border font-semibold transition-colors ${
-              isSubmitted
-                ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-            }`}
+        {localStatus === 'not_deducted' && (
+          <select
+            className="form-input text-xs py-1.5 px-2 min-w-[180px]"
+            value={localReason}
+            disabled={isLocked || isPending}
+            onChange={e => handleReasonChange(e.target.value)}
           >
-            {isSubmitted ? <><CheckCircle size={12} /> Edit</> : <><ChevronDown size={12} /> Update</>}
-          </button>
-        ) : (
-          <div className="flex flex-col gap-1.5 min-w-[200px]">
-            <select
-              className="text-xs border border-base rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
-              value={localStatus}
-              onChange={e => setLocalStatus(e.target.value)}
-            >
-              <option value="deducted">Deducted in Full</option>
-              <option value="partial">Partial Deduction</option>
-              <option value="not_deducted">Not Deducted</option>
-            </select>
-            {(localStatus === 'deducted' || localStatus === 'partial') && (
-              <input
-                type="number"
-                placeholder="Amount collected"
-                className={`text-xs border border-base rounded px-2 py-1 focus:outline-none focus:ring-1 ${localStatus === 'deducted' ? 'focus:ring-blue-400' : 'focus:ring-amber-400'}`}
-                value={amountCollected}
-                onChange={e => setAmountCollected(e.target.value)}
-              />
-            )}
-            {localStatus === 'not_deducted' && (
-              <>
-                <select
-                  className="text-xs border border-base rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400"
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                >
-                  <option value="">Select reason…</option>
-                  {REASONS.map(r => <option key={r} value={r}>{REASONS_LABELS[r]}</option>)}
-                </select>
-                <input
-                  type="text"
-                  placeholder="Additional notes…"
-                  className="text-xs border border-base rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-red-400"
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                />
-              </>
-            )}
-            <div className="flex gap-1">
-              <button
-                disabled={isPending || (localStatus === 'not_deducted' && !reason)}
-                onClick={handleSubmit}
-                className="flex-1 text-xs px-2 py-1.5 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:opacity-40 flex items-center justify-center gap-1"
-              >
-                <CheckCircle size={11} className="text-white" />Save
-              </button>
-              <button
-                onClick={() => setEditing(false)}
-                className="text-xs px-2 py-1.5 surface-2 text-gray-600 rounded hover:bg-[var(--bg-surface-3)]"
-              >
-                <XCircle size={11} />
-              </button>
-            </div>
-          </div>
+            <option value="">Select reason…</option>
+            {REASONS.map(r => <option key={r} value={r}>{REASONS_LABELS[r]}</option>)}
+          </select>
         )}
       </td>
     </tr>
@@ -289,12 +207,21 @@ export default function CampPortalPage() {
   const [year, setYear]   = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [campId, setCampId] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [showAddCamp, setShowAddCamp] = useState(false);
+  const [addCampForm, setAddCampForm] = useState({
+    name: '', name_si: '', branch: 'army' as 'army' | 'navy' | 'air_force',
+    district: '', province: '', address: '',
+  });
+  const [addCampError, setAddCampError] = useState('');
+  const [addCampSubmitting, setAddCampSubmitting] = useState(false);
   const qc = useQueryClient();
 
   const isLocked = now.getDate() > 25;
 
   // Camps list
-  const { data: campsRes } = useQuery({
+  const { data: campsRes, isLoading: campsLoading, isError: campsError } = useQuery({
     queryKey: ['camps'],
     queryFn: () => api.get('/camps').then(r => r.data.data as Record<string, unknown>[]),
   });
@@ -304,7 +231,7 @@ export default function CampPortalPage() {
   const branchStyle = BRANCH_COLORS[branch ?? ''] ?? { bg: 'surface-2', text: 'text-gray-600', label: 'Unknown Branch' };
 
   // Monthly deduction sheet
-  const { data: sheet, isLoading } = useQuery({
+  const { data: sheet, isLoading, isError: sheetError } = useQuery({
     queryKey: ['camp-sheet', activeCamp, year, month],
     queryFn: () => activeCamp
       ? api.get(`/deductions/camp/${activeCamp}/sheet`, { params: { year, month } }).then(r => r.data)
@@ -385,6 +312,41 @@ export default function CampPortalPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['camp-sheet', activeCamp, year, month] }),
   });
 
+  const deleteCamp = useMutation({
+    mutationFn: () => api.delete(`/camps/${activeCamp}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['camps'] });
+      setDeleteConfirm(false);
+      setDeleteError('');
+      setCampId(''); // Reset selection
+    },
+    onError: (err: any) => {
+      setDeleteError(err?.response?.data?.error ?? 'Failed to delete camp');
+    }
+  });
+
+  const submitAddCamp = async () => {
+    if (!addCampForm.name.trim()) { setAddCampError('Camp name is required.'); return; }
+    setAddCampError(''); setAddCampSubmitting(true);
+    try {
+      const res = await api.post('/camps', {
+        name:     addCampForm.name.trim(),
+        ...(addCampForm.name_si.trim()  ? { name_si:  addCampForm.name_si.trim()  } : {}),
+        branch:   addCampForm.branch,
+        ...(addCampForm.district.trim() ? { district: addCampForm.district.trim() } : {}),
+        ...(addCampForm.province.trim() ? { province: addCampForm.province.trim() } : {}),
+        ...(addCampForm.address.trim()  ? { address:  addCampForm.address.trim()  } : {}),
+      });
+      qc.invalidateQueries({ queryKey: ['camps'] });
+      setCampId(res.data.data.id); // Auto-select new camp
+      setShowAddCamp(false);
+      setAddCampForm({ name: '', name_si: '', branch: 'army', district: '', province: '', address: '' });
+    } catch (e: any) {
+      setAddCampError(e?.response?.data?.error ?? 'Failed to create camp');
+    } finally { setAddCampSubmitting(false); }
+  };
+
+
   const handleExport = async () => {
     try {
       const res = await api.get('/reports/monthly-deductions', {
@@ -426,8 +388,8 @@ export default function CampPortalPage() {
 
   return (
     <div className="p-6 space-y-5">
-      {/* Guard: show spinner while camps are loading to avoid blank page */}
-      {!campsRes && (
+      {/* Guard: show spinner while camps are loading or handle errors */}
+      {campsLoading && !campsRes && (
         <div className="flex items-center justify-center py-24 text-base-muted text-sm gap-2">
           <svg className="animate-spin h-5 w-5 text-amber-500" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -436,7 +398,17 @@ export default function CampPortalPage() {
           Loading camp data…
         </div>
       )}
-      {campsRes && <>
+      {campsError && (
+        <div className="flex items-center justify-center py-24 text-red-500 text-sm font-semibold">
+          Failed to load camps. You might not have access, or the server is unreachable.
+        </div>
+      )}
+      {campsRes && campsRes.length === 0 && (
+        <div className="flex items-center justify-center py-24 text-base-muted text-sm">
+          No camps found.
+        </div>
+      )}
+      {campsRes && campsRes.length > 0 && <>
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -478,6 +450,24 @@ export default function CampPortalPage() {
             <Send size={14} className="text-white" />
             {bulkSubmitMutation.isPending ? 'Submitting…' : 'Submit Sheet'}
           </button>
+          {(user?.role === 'super_admin' || user?.role === 'admin') && (
+            <button
+              onClick={() => { setShowAddCamp(true); setAddCampError(''); }}
+              className="flex items-center gap-1.5 text-sm px-4 py-2 bg-[#2563ea] text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+            >
+              <Plus size={14} className="text-white" />
+              Camp Entry
+            </button>
+          )}
+          {user?.role === 'super_admin' && (
+            <button
+              onClick={() => { setDeleteConfirm(true); setDeleteError(''); }}
+              className="flex items-center gap-1.5 text-sm px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors"
+            >
+              <Trash2 size={14} className="text-white" />
+              Delete Camp
+            </button>
+          )}
         </div>
       </div>
 
@@ -572,30 +562,27 @@ export default function CampPortalPage() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="surface-2 border-b border-base">
+              <thead style={{ backgroundColor: 'var(--bg-sidebar)', color: '#e6edf3' }} className="text-xs uppercase tracking-wider">
                 <tr>
-                  {['#', 'Service No', 'Rank', 'Customer / Phone', 'Monthly', 'Status', 'Reason', 'Collected', 'Retiring?', 'Action'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-base-muted uppercase tracking-wide whitespace-nowrap">
-                      {h}
-                    </th>
+                  {['Service No', 'Rank', 'Customer', 'Expected (LKR)', 'Deduction Status', 'Reason (if not deducted)', 'Amount Deducted'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left font-bold">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
                 {isLoading ? (
-                  <tr><td colSpan={10} className="py-12 text-center text-base-muted text-sm">Loading…</td></tr>
+                  <tr><td colSpan={7} className="py-12 text-center text-base-muted text-sm">Loading…</td></tr>
                 ) : installments.length === 0 ? (
-                  <tr><td colSpan={10} className="py-12 text-center text-base-muted text-sm">No records for this period</td></tr>
+                  <tr><td colSpan={7} className="py-12 text-center text-base-muted text-sm">No records for this period</td></tr>
                 ) : (
                   installments.map((inst, i) => (
                     <InstRow
                       key={inst.id as string}
                       inst={inst}
-                      idx={i + 1}
                       isLocked={isLocked}
                       isPending={updateMutation.isPending}
-                      onUpdate={(status, amount, reason, notes) =>
-                        updateMutation.mutate({ instId: inst.id as string, status, amount, reason, notes })
+                      onUpdate={(status, amount, reason) =>
+                        updateMutation.mutate({ instId: inst.id as string, status, amount, reason })
                       }
                     />
                   ))
@@ -719,6 +706,166 @@ export default function CampPortalPage() {
         </div>
       )}
       </>}
+
+      {/* ── Add Camp Modal ── */}
+      {showAddCamp && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden">
+
+            {/* Header */}
+            <div className="bg-[#0f172a] text-white flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-3">
+                <Building2 size={20} className="text-blue-400" />
+                <h3 className="font-bold text-lg tracking-tight">Camp Entry</h3>
+              </div>
+              <button onClick={() => setShowAddCamp(false)} className="text-base-muted hover:text-white transition bg-[#1e293b] p-1.5 rounded-lg border border-slate-700">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6 overflow-y-auto max-h-[80vh]">
+              {/* Info banner */}
+              <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+                <MapPin size={18} className="text-blue-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-slate-800 mb-0.5">Register a new camp</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">Once created, the camp will appear in the portal selector and can be assigned to deduction officers and customers.</p>
+                </div>
+              </div>
+
+              {addCampError && (
+                <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{addCampError}</div>
+              )}
+
+              {/* Form grid */}
+              <div className="grid grid-cols-12 gap-x-6 gap-y-5">
+
+                {/* Camp Name */}
+                <div className="col-span-8">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Camp Name <span className="text-red-500">*</span></label>
+                  <input
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 placeholder-slate-400 text-slate-700 transition"
+                    placeholder="e.g. Panagoda Cantonment"
+                    value={addCampForm.name}
+                    onChange={e => setAddCampForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+
+                {/* Branch */}
+                <div className="col-span-4">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Branch <span className="text-red-500">*</span></label>
+                  <select
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 surface text-slate-700 transition"
+                    value={addCampForm.branch}
+                    onChange={e => setAddCampForm(f => ({ ...f, branch: e.target.value as 'army' | 'navy' | 'air_force' }))}
+                  >
+                    <option value="army">Sri Lanka Army</option>
+                    <option value="navy">Sri Lanka Navy</option>
+                    <option value="air_force">Sri Lanka Air Force</option>
+                  </select>
+                </div>
+
+                {/* Sinhala Name */}
+                <div className="col-span-12">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Sinhala Name (Optional)</label>
+                  <input
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 placeholder-slate-400 text-slate-700 transition"
+                    placeholder="සිංහල නාමය"
+                    value={addCampForm.name_si}
+                    onChange={e => setAddCampForm(f => ({ ...f, name_si: e.target.value }))}
+                  />
+                </div>
+
+                {/* District */}
+                <div className="col-span-6">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">District</label>
+                  <input
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 placeholder-slate-400 text-slate-700 transition"
+                    placeholder="e.g. Colombo"
+                    value={addCampForm.district}
+                    onChange={e => setAddCampForm(f => ({ ...f, district: e.target.value }))}
+                  />
+                </div>
+
+                {/* Province */}
+                <div className="col-span-6">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Province</label>
+                  <select
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 surface text-slate-700 transition"
+                    value={addCampForm.province}
+                    onChange={e => setAddCampForm(f => ({ ...f, province: e.target.value }))}
+                  >
+                    <option value="">Select province…</option>
+                    {['Western','Central','Southern','Northern','Eastern','North Western','North Central','Uva','Sabaragamuwa'].map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Address */}
+                <div className="col-span-12">
+                  <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Address</label>
+                  <textarea
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 resize-none text-slate-700 transition"
+                    rows={2}
+                    placeholder="Full postal address…"
+                    value={addCampForm.address}
+                    onChange={e => setAddCampForm(f => ({ ...f, address: e.target.value }))}
+                  />
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-8 py-4 border-t border-base surface-2 flex justify-end gap-3">
+              <button
+                onClick={() => { setShowAddCamp(false); setAddCampError(''); }}
+                className="px-5 py-2.5 text-sm font-semibold border border-base rounded-lg hover:bg-slate-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitAddCamp}
+                disabled={addCampSubmitting}
+                className="px-5 py-2.5 text-sm font-semibold bg-[#2563ea] text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition"
+              >
+                {addCampSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                {addCampSubmitting ? 'Creating…' : 'Create Camp'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Camp Modal */}
+      {deleteConfirm && campInfo && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-red-600" />
+              </div>
+              <div>
+                <div className="font-bold text-base-primary">Delete Camp?</div>
+                <div className="text-xs text-base-muted mt-0.5">{campInfo.name as string}</div>
+              </div>
+            </div>
+            <p className="text-sm text-base-secondary mb-4">This will deactivate the camp. It cannot be undone easily. Ensure no active customers are assigned before proceeding.</p>
+            {deleteError && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{deleteError}</div>}
+            <div className="flex gap-2">
+              <button onClick={() => { setDeleteConfirm(false); setDeleteError(''); }} className="flex-1 py-2 text-sm font-semibold border border-base rounded-lg hover:bg-slate-50">Cancel</button>
+              <button
+                onClick={() => deleteCamp.mutate()}
+                disabled={deleteCamp.isPending}
+                className="flex-1 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
+              >
+                {deleteCamp.isPending ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />} Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

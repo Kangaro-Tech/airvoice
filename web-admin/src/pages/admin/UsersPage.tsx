@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { ROLES } from '@/config/roles';
+import { ModuleAccessModal } from '@/components/admin/ModuleAccessModal';
 import {
   Edit2,
   Check,
@@ -21,6 +22,7 @@ import {
   UserCheck,
   UserX,
   Lock,
+  Trash2,
 } from 'lucide-react';
 
 export default function AdminUsersPage() {
@@ -29,6 +31,7 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editingRole, setEditingRole] = useState<string>('');
+  const [selectedUserForModules, setSelectedUserForModules] = useState<any | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     phone_number: '',
@@ -168,7 +171,7 @@ export default function AdminUsersPage() {
             </div>
           </div>
           <button
-            onClick={() => navigate('/register')}
+            onClick={() => setShowCreateModal(true)}
             className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 flex items-center gap-2"
           >
             <Plus size={18} />
@@ -348,6 +351,13 @@ export default function AdminUsersPage() {
                               >
                                 <Check size={16} />
                               </button>
+                              <button
+                                onClick={() => setSelectedUserForModules(user)}
+                                className="p-2 text-purple-600 hover:bg-purple-50 rounded"
+                                title="Configure Custom Modules"
+                              >
+                                <Settings size={16} />
+                              </button>
                             </>
                           )}
                         </div>
@@ -479,6 +489,13 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
+
+      {selectedUserForModules && (
+        <ModuleAccessModal
+          user={selectedUserForModules}
+          onClose={() => setSelectedUserForModules(null)}
+        />
+      )}
     </div>
   );
 }

@@ -399,4 +399,91 @@ export default async function guarantorRoutes(app: FastifyInstance) {
     }, 0);
     return reply.send({ data, total_monthly_liability: totalLiability });
   });
+
+  // ── POST /guarantors/pay ── Record guarantor payment for customer
+  app.post('/pay', { preHandler: [authenticate, requireStaff] },
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const body = z.object({
+      customer_id: z.string().uuid(),
+      application_id: z.string().uuid(),
+      guarantor_id: z.string().uuid(),
+      installment_id: z.string().uuid().optional(),
+      amount: z.number().positive(),
+      notes: z.string().optional(),
+    }).safeParse(req.body);
+
+    if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
+
+    const sb = getSupabase();
+
+    // Insert guarantor payment record
+    const { data: payment, error: payErr } = await sb
+      .from('guarantor_payments')
+      .insert({
+        ...body.data,
+        processed_by: req.user!.id,
+        paid_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (payErr) return reply.status(500).send({ error: payErr.message });
+
+    // If linked to installment, update its deducted amount
+    if (body.data.installment_id) {
+      const { data: inst } = await sb
+        .from('installments')
+        .select('deducted_amount, expected_amount')
+        .eq('id', body.data.installment_id)
+        .single();
+
+      if (inst) {
+        const newDeducted = Number(inst.deducted_amount ?? 0) + body.data.amount;
+        const isFullyPaid = newDeducted >= Number(inst.expected_amount);
+        await sb.from('installments').update({
+          deducted_amount: newDeducted,
+          status: isFullyPaid ? 'deducted' : 'partial',
+          updated_at: new Date().toISOString(),
+        } as any).eq('id', body.data.installment_id);
+      }
+    }
+
+    // Write audit log
+    await writeAuditLog(sb, {
+      user_id: req.user!.id,
+      action: 'GUARANTOR_PAYMENT_RECORDED',
+      entity_type: 'guarantor_payments',
+      entity_id: payment.id,
+      new_values: body.data,
+    });
+
+    return reply.status(201).send({ data: payment });
+  });
+
+  // ── GET /guarantors/payments ── List all guarantor payments
+  app.get('/payments', { preHandler: [authenticate, requireStaff] },
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const q = req.query as { customer_id?: string; application_id?: string };
+    const sb = getSupabase();
+
+    let query = sb
+      .from('guarantor_payments')
+      .select(`
+        *,
+        customer:customers(full_name, service_number, phone_number),
+        application:applications(ref_number),
+        processed_by_user:users!processed_by(phone_number)
+      `)
+      .order('paid_at', { ascending: false })
+      .limit(100);
+
+    if (q.customer_id) query = query.eq('customer_id', q.customer_id);
+    if (q.application_id) query = query.eq('application_id', q.application_id);
+
+    const { data, error } = await query;
+    if (error) return reply.status(500).send({ error: error.message });
+
+    return reply.send({ data });
+  });
 }
+

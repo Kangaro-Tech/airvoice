@@ -45,10 +45,11 @@ const DOC_LABELS: Record<string, string> = {
   paysheet_1:  'Paysheet — 1',
   paysheet_2:  'Paysheet — 2',
   paysheet_3:  'Paysheet — 3',
+  agreement_photo: 'Agreement Photo',
 };
 const DOC_ICON: Record<string, string> = {
   nic_front:'🪪', nic_back:'🪪', military_id:'🎖', selfie:'📷',
-  paysheet_1:'📄', paysheet_2:'📄', paysheet_3:'📄',
+  paysheet_1:'📄', paysheet_2:'📄', paysheet_3:'📄', agreement_photo:'📸',
 };
 const DOC_TYPES = Object.keys(DOC_LABELS);
 
@@ -353,7 +354,23 @@ export default function CustomerProfilePage() {
               <div className="px-4 py-2">
                 <InfoRow label="Branch"         value={(c.branch as string)?.replace('_', ' ')} />
                 <InfoRow label="Rank"           value={c.rank as string} />
-                <InfoRow label="Service No"     value={c.service_number as string} mono />
+                <div className="flex justify-between items-start py-2 border-b border-base last:border-0 text-sm">
+                  <span className="text-base-muted shrink-0 mr-3">Service No</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-base-secondary font-mono text-xs">{c.service_number as string}</span>
+                    <button onClick={() => {
+                      const newNo = prompt('Enter new service number:', c.service_number as string);
+                      if (newNo && newNo !== c.service_number) {
+                        const reason = prompt('Reason for change:');
+                        api.put(`/customers/${c.id}/service-number`, { service_number: newNo, reason }).then(() => {
+                          qc.invalidateQueries({ queryKey: ['customer', id] });
+                        }).catch(e => alert(e.response?.data?.error || 'Failed to update'));
+                      }
+                    }} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-1 rounded">
+                      <Pencil size={12} />
+                    </button>
+                  </div>
+                </div>
                 <InfoRow label="Military ID"    value={c.military_id_number ? String(c.military_id_number) : undefined} mono />
                 <InfoRow label="Camp / Base"    value={camp?.name} />
                 <InfoRow label="Joined Service" value={c.joined_service as string} />

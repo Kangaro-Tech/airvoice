@@ -80,6 +80,11 @@ export default function GuarantorsPage() {
   } | null>(null);
   const [monthlySalary, setMonthlySalary] = useState('');
 
+  // ── Pay Guarantor Modal state ─────────────────────────────────────────
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payNotes, setPayNotes] = useState('');
+
   // 1. Fetch guarantors list
   const { data: guarantorsRes, isLoading: guarantorsLoading } = useQuery({
     queryKey: ['guarantors'],
@@ -134,6 +139,22 @@ export default function GuarantorsPage() {
     },
     onError: (err: any) => {
       alert(err.response?.data?.error || 'Failed to perform transfer');
+    },
+  });
+
+  // 6. Mutation for guarantor payment
+  const payMutation = useMutation({
+    mutationFn: (payload: { customer_id: string; application_id: string; guarantor_id: string; amount: number; notes?: string }) =>
+      api.post('/guarantors/pay', payload),
+    onSuccess: () => {
+      alert('Guarantor payment recorded successfully.');
+      qc.invalidateQueries({ queryKey: ['guarantors'] });
+      setShowPayModal(false);
+      setPayAmount('');
+      setPayNotes('');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.error || 'Failed to record payment');
     },
   });
 
@@ -580,6 +601,12 @@ export default function GuarantorsPage() {
                 >
                   <Share2 size={14} /> Share
                 </button>
+                <button
+                  onClick={() => setShowPayModal(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors"
+                >
+                  <Coins size={14} /> Record Payment
+                </button>
               </div>
             </div>
           </div>
@@ -727,6 +754,71 @@ export default function GuarantorsPage() {
                 ) : (
                   <><Shield size={14} /> Register Guarantor</>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pay Guarantor Modal ──────────────────────────────────────────── */}
+      {showPayModal && selectedGuarantor && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-base">
+              <h3 className="font-bold text-base-primary text-sm flex items-center gap-2">
+                <Coins size={16} className="text-blue-600" /> Record Payment
+              </h3>
+              <button onClick={() => setShowPayModal(false)} className="text-base-muted hover:text-base-secondary p-1">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm">
+                <div className="font-semibold text-blue-900">{selectedGuarantor.full_name}</div>
+                <div className="text-blue-700 text-xs mt-0.5">Paying on behalf of customer</div>
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-base-muted uppercase tracking-widest mb-1.5">Amount (LKR)</label>
+                <input
+                  type="number"
+                  value={payAmount}
+                  onChange={e => setPayAmount(e.target.value)}
+                  min={1}
+                  className="w-full border border-base rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-base-muted uppercase tracking-widest mb-1.5">Notes</label>
+                <textarea
+                  value={payNotes}
+                  onChange={e => setPayNotes(e.target.value)}
+                  rows={2}
+                  className="w-full border border-base rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+            </div>
+            <div className="px-6 pb-5 flex gap-2 justify-end">
+              <button onClick={() => setShowPayModal(false)} className="px-4 py-2 border border-base rounded-xl text-sm font-medium">Cancel</button>
+              <button
+                onClick={() => {
+                  const activeReq = selectedGuarantor.guarantor_requests?.find(r => r.status === 'accepted');
+                  if (!activeReq) return alert('No active guaranteed application found.');
+                  if (!payAmount || Number(payAmount) <= 0) return alert('Enter a valid amount.');
+                  
+                  payMutation.mutate({
+                    customer_id: activeReq.application.customer.id,
+                    application_id: activeReq.application.id,
+                    guarantor_id: selectedGuarantor.id,
+                    amount: Number(payAmount),
+                    notes: payNotes
+                  });
+                }}
+                disabled={payMutation.isPending || !payAmount}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50"
+              >
+                {payMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : 'Confirm Payment'}
               </button>
             </div>
           </div>

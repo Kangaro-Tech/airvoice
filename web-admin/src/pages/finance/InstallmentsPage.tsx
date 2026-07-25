@@ -7,27 +7,27 @@ import {
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 const REASONS = [
-  { v: 'salary_insufficient',  l: 'Salary insufficient' },
-  { v: 'absent_authorised',    l: 'Absent (authorised)' },
-  { v: 'absent_unauthorised',  l: 'Absent (unauthorised)' },
-  { v: 'retired',              l: 'Retired' },
-  { v: 'transferred',         l: 'Transferred' },
-  { v: 'deceased',             l: 'Deceased' },
-  { v: 'left_service',        l: 'Left service' },
-  { v: 'wrong_details',       l: 'Wrong bank details' },
-  { v: 'other',               l: 'Other' },
+  { v: 'salary_insufficient', l: 'Salary insufficient' },
+  { v: 'absent_authorised', l: 'Absent (authorised)' },
+  { v: 'absent_unauthorised', l: 'Absent (unauthorised)' },
+  { v: 'retired', l: 'Retired' },
+  { v: 'transferred', l: 'Transferred' },
+  { v: 'deceased', l: 'Deceased' },
+  { v: 'left_service', l: 'Left service' },
+  { v: 'wrong_details', l: 'Wrong bank details' },
+  { v: 'other', l: 'Other' },
 ];
 
 const STATUS_BADGES: Record<string, string> = {
-  deducted:     'bg-green-500/20 text-green-400 border-green-500/30',
-  pending:      'bg-slate-500/20 text-slate-400 border-slate-500/30',
+  deducted: 'bg-green-500/20 text-green-400 border-green-500/30',
+  pending: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
   not_deducted: 'bg-red-500/20 text-red-400 border-red-500/30',
-  partial:      'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  arrears:      'bg-red-500/20 text-red-400 border-red-500/30',
+  partial: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  arrears: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -37,11 +37,11 @@ const STATUS_LABELS: Record<string, string> = {
 
 // small icon per status, shown inside the badge
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  deducted:     <CheckCircle size={11} className="text-green-400" />,
-  pending:      <Clock size={11} className="text-slate-400" />,
+  deducted: <CheckCircle size={11} className="text-green-400" />,
+  pending: <Clock size={11} className="text-slate-400" />,
   not_deducted: <AlertTriangle size={11} className="text-red-400" />,
-  partial:      <RefreshCw size={11} className="text-amber-400" />,
-  arrears:      <AlertTriangle size={11} className="text-red-400" />,
+  partial: <RefreshCw size={11} className="text-amber-400" />,
+  arrears: <AlertTriangle size={11} className="text-red-400" />,
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ export default function InstallmentsPage() {
 
   // ── View state ─────────────────────────────────────────────────────────────
   const [view, setView] = useState<'dashboard' | 'camp_entry'>('dashboard');
-  const [year, setYear]   = useState(now.getFullYear());
+  const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [campId, setCampId] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -167,18 +167,18 @@ export default function InstallmentsPage() {
     enabled: view === 'camp_entry' && !!campId,
   });
   const sheetRows = (campSheetRes?.data ?? []) as Installment[];
-  const summary   = campSheetRes?.summary as CampSheetSummary | undefined;
+  const summary = campSheetRes?.summary as CampSheetSummary | undefined;
 
   const resetEdits = useCallback(() => setRowEdits({}), []);
 
   // ── Metrics (dashboard) ─────────────────────────────────────────────────────
   const deductedCount = allInstallments.filter(i => i.status === 'deducted').length;
-  const pendingCount  = allInstallments.filter(i => i.status === 'pending').length;
-  const missedCount   = allInstallments.filter(i => i.status === 'not_deducted').length;
-  const partialCount  = allInstallments.filter(i => i.status === 'partial').length;
-  const deductedSum   = allInstallments.filter(i => i.status === 'deducted').reduce((s, i) => s + Number(i.deducted_amount ?? 0), 0);
-  const pendingSum    = allInstallments.filter(i => i.status === 'pending').reduce((s, i) => s + Number(i.expected_amount ?? 0), 0);
-  const missedSum     = allInstallments.filter(i => i.status === 'not_deducted').reduce((s, i) => s + Number(i.expected_amount ?? 0), 0);
+  const pendingCount = allInstallments.filter(i => i.status === 'pending').length;
+  const missedCount = allInstallments.filter(i => i.status === 'not_deducted').length;
+  const partialCount = allInstallments.filter(i => i.status === 'partial').length;
+  const deductedSum = allInstallments.filter(i => i.status === 'deducted').reduce((s, i) => s + Number(i.deducted_amount ?? 0), 0);
+  const pendingSum = allInstallments.filter(i => i.status === 'pending').reduce((s, i) => s + Number(i.expected_amount ?? 0), 0);
+  const missedSum = allInstallments.filter(i => i.status === 'not_deducted').reduce((s, i) => s + Number(i.expected_amount ?? 0), 0);
 
   const tabFiltered = statusFilter === 'all'
     ? allInstallments
@@ -190,10 +190,10 @@ export default function InstallmentsPage() {
   });
 
   const effectiveSummary = {
-    deducted:     resolvedRows.filter(r => r.status === 'deducted').length,
-    pending:      resolvedRows.filter(r => r.status === 'pending').length,
+    deducted: resolvedRows.filter(r => r.status === 'deducted').length,
+    pending: resolvedRows.filter(r => r.status === 'pending').length,
     not_deducted: resolvedRows.filter(r => r.status === 'not_deducted').length,
-    partial:      resolvedRows.filter(r => r.status === 'partial').length,
+    partial: resolvedRows.filter(r => r.status === 'partial').length,
   };
 
   const submitableRows = resolvedRows.filter(r => ['deducted', 'partial', 'not_deducted'].includes(r.status));
@@ -314,8 +314,8 @@ export default function InstallmentsPage() {
       ].join(',');
     });
     const blob = new Blob([[headers.join(','), ...csvRows].join('\n')], { type: 'text/csv' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
     a.href = url;
     a.download = `deductions_${MONTHS[month - 1]}_${year}${campId ? '_' + (camps.find(c => c.id === campId)?.name ?? campId) : ''}.csv`;
     a.click();
@@ -356,17 +356,15 @@ export default function InstallmentsPage() {
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => { setView('dashboard'); setSubmitResult(null); }}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold border flex items-center gap-1.5 transition-colors ${
-              view === 'dashboard' ? 'bg-slate-900 text-white border-slate-900' : 'btn-secondary'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold border flex items-center gap-1.5 transition-colors ${view === 'dashboard' ? 'bg-slate-900 text-white border-slate-900' : 'btn-secondary'
+              }`}
           >
             <FileText size={14} className={view === 'dashboard' ? 'text-white' : ''} /> Dashboard
           </button>
           <button
             onClick={() => { setView('camp_entry'); setSubmitResult(null); resetEdits(); }}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold border flex items-center gap-1.5 transition-colors ${
-              view === 'camp_entry' ? 'bg-amber-500 text-slate-900 border-amber-500' : 'btn-secondary'
-            }`}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold border flex items-center gap-1.5 transition-colors ${view === 'camp_entry' ? 'bg-amber-500 text-slate-900 border-amber-500' : 'btn-secondary'
+              }`}
           >
             <Building size={14} className={view === 'camp_entry' ? 'text-slate-900' : ''} /> Camp Entry
           </button>
@@ -453,10 +451,10 @@ export default function InstallmentsPage() {
               </div>
               <div className="flex gap-8 mt-4 flex-wrap">
                 {[
-                  { label: 'Deducted',     count: effectiveSummary.deducted,     color: 'text-[#2563ea]', icon: <CheckCircle size={14} className="text-[#2563ea]" /> },
-                  { label: 'Pending',      count: effectiveSummary.pending,      color: 'text-[#2563ea]', icon: <Clock size={14} className="text-[#2563ea]" /> },
+                  { label: 'Deducted', count: effectiveSummary.deducted, color: 'text-[#2563ea]', icon: <CheckCircle size={14} className="text-[#2563ea]" /> },
+                  { label: 'Pending', count: effectiveSummary.pending, color: 'text-[#2563ea]', icon: <Clock size={14} className="text-[#2563ea]" /> },
                   { label: 'Not Deducted', count: effectiveSummary.not_deducted, color: 'text-[#2563ea]', icon: <AlertTriangle size={14} className="text-[#2563ea]" /> },
-                  { label: 'Partial',      count: effectiveSummary.partial,      color: 'text-[#2563ea]', icon: <RefreshCw size={14} className="text-[#2563ea]" /> },
+                  { label: 'Partial', count: effectiveSummary.partial, color: 'text-[#2563ea]', icon: <RefreshCw size={14} className="text-[#2563ea]" /> },
                 ].map(st => (
                   <div key={st.label}>
                     <div className={`flex items-center gap-1.5 text-2xl font-bold ${st.color}`}>
@@ -721,10 +719,10 @@ export default function InstallmentsPage() {
           {/* Metric cards — icons now sit in soft colored circles */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Deducted',     value: deductedCount, amount: deductedSum, border: 'border-l-[#2563ea]', icon: <CheckCircle size={18} className="text-[#2563ea]" /> },
-              { label: 'Pending',      value: pendingCount,  amount: pendingSum,  border: 'border-l-[#2563ea]', icon: <Clock size={18} className="text-[#2563ea]" /> },
-              { label: 'Not Deducted', value: missedCount,   amount: missedSum,   border: 'border-l-[#2563ea]', icon: <AlertTriangle size={18} className="text-[#2563ea]" /> },
-              { label: 'Partial',      value: partialCount,  amount: 0,           border: 'border-l-[#2563ea]', icon: <RefreshCw size={18} className="text-[#2563ea]" /> },
+              { label: 'Deducted', value: deductedCount, amount: deductedSum, border: 'border-l-[#2563ea]', icon: <CheckCircle size={18} className="text-[#2563ea]" /> },
+              { label: 'Pending', value: pendingCount, amount: pendingSum, border: 'border-l-[#2563ea]', icon: <Clock size={18} className="text-[#2563ea]" /> },
+              { label: 'Not Deducted', value: missedCount, amount: missedSum, border: 'border-l-[#2563ea]', icon: <AlertTriangle size={18} className="text-[#2563ea]" /> },
+              { label: 'Partial', value: partialCount, amount: 0, border: 'border-l-[#2563ea]', icon: <RefreshCw size={18} className="text-[#2563ea]" /> },
             ].map(m => (
               <div key={m.label} className={`card p-4 border-l-4 ${m.border}`}>
                 <div className="flex items-center justify-between">
