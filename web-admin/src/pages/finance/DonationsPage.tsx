@@ -125,94 +125,96 @@ export default function DonationsPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="surface rounded-xl border border-base shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold mb-4 text-base-primary">Add Donation Item</h2>
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-xl border border-base shadow-2xl w-full max-w-md p-6 max-h-[90vh] flex flex-col">
+            <h2 className="text-xl font-bold mb-4 text-base-primary shrink-0">Add Donation Item</h2>
+            <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
               
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">Date</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="form-input"
-                />
-              </div>
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">6 Month Completed Paid Phone Count</label>
-                <input
-                  type="number"
-                  required
-                  value={formData.completed_paid_phone_count}
-                  onChange={(e) => setFormData({ ...formData, completed_paid_phone_count: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">Percentage</label>
-                <div className="relative">
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">6 Month Completed Paid Phone Count</label>
                   <input
                     type="number"
-                    step="0.1"
                     required
-                    value={formData.percentage}
-                    onChange={(e) => setFormData({ ...formData, percentage: parseFloat(e.target.value) })}
-                    className="form-input pr-8"
+                    value={formData.completed_paid_phone_count}
+                    onChange={(e) => setFormData({ ...formData, completed_paid_phone_count: e.target.value })}
+                    className="form-input"
                   />
-                  <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-base-muted pointer-events-none">%</span>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">Percentage</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.1"
+                      required
+                      value={formData.percentage}
+                      onChange={(e) => setFormData({ ...formData, percentage: parseFloat(e.target.value) })}
+                      className="form-input pr-8"
+                    />
+                    <span className="absolute inset-y-0 right-0 pr-3 flex items-center text-base-muted pointer-events-none">%</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">CHQ NO</label>
+                  <input
+                    type="text"
+                    value={formData.chq_no}
+                    onChange={(e) => setFormData({ ...formData, chq_no: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">CHQ Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.chq_amount}
+                    onChange={(e) => setFormData({ ...formData, chq_amount: e.target.value })}
+                    className="form-input"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">Delivery</label>
+                  <select
+                    value={formData.delivery}
+                    onChange={(e) => setFormData({ ...formData, delivery: e.target.value })}
+                    className="form-input"
+                  >
+                    <option value="POST">POST</option>
+                    <option value="COURIER">COURIER</option>
+                    <option value="OFFICE_COLLECT">OFFICE COLLECT</option>
+                    <option value="CAMP_HAND_OVER">CAMP HAND OVER</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1">Sending Date</label>
+                  <input
+                    type="date"
+                    value={formData.sending_date}
+                    onChange={(e) => setFormData({ ...formData, sending_date: e.target.value })}
+                    className="form-input"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">CHQ NO</label>
-                <input
-                  type="text"
-                  value={formData.chq_no}
-                  onChange={(e) => setFormData({ ...formData, chq_no: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">CHQ Amount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.chq_amount}
-                  onChange={(e) => setFormData({ ...formData, chq_amount: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">Delivery</label>
-                <select
-                  value={formData.delivery}
-                  onChange={(e) => setFormData({ ...formData, delivery: e.target.value })}
-                  className="form-input"
-                >
-                  <option value="POST">POST</option>
-                  <option value="COURIER">COURIER</option>
-                  <option value="OFFICE_COLLECT">OFFICE COLLECT</option>
-                  <option value="CAMP_HAND_OVER">CAMP HAND OVER</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-base-secondary mb-1">Sending Date</label>
-                <input
-                  type="date"
-                  value={formData.sending_date}
-                  onChange={(e) => setFormData({ ...formData, sending_date: e.target.value })}
-                  className="form-input"
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
+              <div className="flex justify-end space-x-3 pt-4 border-t border-base shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
