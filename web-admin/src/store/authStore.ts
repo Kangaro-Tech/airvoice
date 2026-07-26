@@ -41,6 +41,7 @@ export interface StaffUser {
   is_verified: boolean;
   preferred_language: 'en' | 'si' | 'ta';
   full_name?: string;
+  profile_photo_url?: string;
   auth_method?: 'phone' | 'email' | 'both';
   custom_modules?: string[];
 }

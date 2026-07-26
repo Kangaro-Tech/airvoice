@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore, UserRole } from '@/store/authStore';
 import { useThemeStore } from '@/store/themeStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/services/api';
+import { api, authApi } from '@/services/api';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { ROLES } from '@/config/roles';
 import { LanguageSelector } from '@/components/TranslationWidget';
@@ -11,7 +11,7 @@ import {
   LayoutDashboard, Bell, FileText, Users, CreditCard, Package, Truck, Phone,
   BarChart2, DollarSign, RefreshCcw, Shield, Briefcase, TrendingUp,
   Upload, Cpu, Smartphone, LogOut, Menu, AlertCircle, Sun, Moon,
-  Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet
+  Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet, Camera, Loader2
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 
@@ -378,8 +378,8 @@ export default function AppLayout() {
       return {};
     }
   });
-
-  // ── Dynamic DOM Translation System ───────────────────
+  // ── File Upload Handler ───────────────────────────────
+  // Moved to MyProfilePage
   const translationCache = useRef<Record<string, string>>({});
 
   useEffect(() => {
@@ -575,7 +575,7 @@ export default function AppLayout() {
 
   const getBadge = (key?: NavItem['badgeKey']): number => {
     if (!key) return 0;
-    
+
     let apiCount = 0;
     switch (key) {
       case 'applications': apiCount = pendingApps; break;
@@ -616,7 +616,7 @@ export default function AppLayout() {
         case 'finance': apiCount = financeTasks; break;
         case 'customers': apiCount = newCustomersToday; break;
       }
-      
+
       if (seenCounts[key] !== apiCount) {
         const newSeen = { ...seenCounts, [key]: apiCount };
         setSeenCounts(newSeen);
@@ -704,8 +704,8 @@ export default function AppLayout() {
 
                           {!isCollapsed && badge > 0 && (
                             <span className={`ml-auto text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 ${item.badgeKey === 'inventory'
-                                ? 'bg-red-500 text-white animate-pulse'
-                                : 'bg-blue-600 text-white animate-pulse'
+                              ? 'bg-red-500 text-white animate-pulse'
+                              : 'bg-blue-600 text-white animate-pulse'
                               }`}>
                               {badge > 99 ? '99+' : badge}
                             </span>
@@ -713,8 +713,8 @@ export default function AppLayout() {
 
                           {isCollapsed && badge > 0 && (
                             <span className={`absolute -top-1 -right-1 text-[8px] font-black rounded-full w-4 h-4 flex items-center justify-center shadow-md animate-pulse ${item.badgeKey === 'inventory'
-                                ? 'bg-red-500 text-white'
-                                : 'bg-blue-600 text-white'
+                              ? 'bg-red-500 text-white'
+                              : 'bg-blue-600 text-white'
                               }`}>
                               {badge > 9 ? '9+' : badge}
                             </span>
@@ -736,15 +736,30 @@ export default function AppLayout() {
               {/* Enhanced User Profile Card */}
               <div
                 className={`rounded-lg p-3 cursor-pointer transition-all hover:shadow-lg bg-slate-800/50 hover:bg-slate-800`}
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  // If clicking on the avatar area, navigate to profile
+                  if (target.closest('.profile-avatar-btn')) {
+                    navigate('/profile');
+                  } else {
+                    setShowProfileMenu(!showProfileMenu);
+                  }
+                }}
               >
                 {/* Profile Header */}
-                <div className="flex items-start gap-2.5 mb-3">
-                  <div className="w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center text-sm font-bold shrink-0 text-blue-400">
-                    {user?.full_name ? user.full_name.charAt(0).toUpperCase() : (user?.phone_number?.slice(-2) || '?')}
+                <div className="flex items-start gap-2.5 mb-3 relative group">
+                  <div
+                    className="profile-avatar-btn w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-base font-bold shrink-0 text-blue-400 relative overflow-hidden ring-2 ring-transparent group-hover:ring-blue-500/50 transition-all cursor-pointer"
+                    title="Edit Profile"
+                  >
+                    {user?.profile_photo_url ? (
+                      <img src={user.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      user?.full_name ? user.full_name.charAt(0).toUpperCase() : (user?.phone_number?.slice(-2) || '?')
+                    )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold text-white truncate">{user?.full_name || user?.phone_number}</div>
+                    <div className="text-xs font-semibold text-white truncate leading-tight">{user?.full_name || user?.phone_number}</div>
                     {user?.full_name && (
                       <div className="text-[10px] text-slate-400 truncate">{user?.phone_number}</div>
                     )}
@@ -794,11 +809,17 @@ export default function AppLayout() {
             <div className="flex flex-col items-center gap-3">
               {/* Collapsed mode - profile avatar with tooltip */}
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-blue-500/20 text-blue-400 cursor-pointer transition-all hover:shadow-lg`}
-                title={`${user?.full_name || user?.phone_number} (${user?.role})`}
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="relative group cursor-pointer"
+                title={`${user?.full_name || user?.phone_number} (${user?.role}) - Click to edit profile`}
+                onClick={() => navigate('/profile')}
               >
-                {user?.full_name ? user.full_name.charAt(0).toUpperCase() : (user?.phone_number?.slice(-2) || '?')}
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 bg-blue-500/20 text-blue-400 overflow-hidden ring-2 ring-transparent hover:ring-blue-500/50 transition-all">
+                  {user?.profile_photo_url ? (
+                    <img src={user.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    user?.full_name ? user.full_name.charAt(0).toUpperCase() : (user?.phone_number?.slice(-2) || '?')
+                  )}
+                </div>
               </div>
               <button
                 onClick={handleLogout}
@@ -889,6 +910,32 @@ export default function AppLayout() {
         <main className="flex-1 overflow-y-auto">
           <Outlet />
         </main>
+
+        {/* Global Footer — Kangaro-Tech Australia */}
+        <footer
+          className="shrink-0 flex items-center justify-center gap-2 py-2 px-4 text-[10px] font-medium select-none"
+          style={{
+            borderTop: '1px solid var(--border-color)',
+            backgroundColor: 'var(--bg-surface)',
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span>Developed by</span>
+          <span
+            className="font-bold tracking-wide"
+            style={{
+              background: 'linear-gradient(90deg, #3b82f6, #6366f1)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Kangaro-Tech
+          </span>
+
+          <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>Australia</span>
+          <span className="mx-1 opacity-30">·</span>
+          <span>© {new Date().getFullYear()} AirVoice Management System</span>
+        </footer>
       </div>
     </div>
   );

@@ -46,6 +46,18 @@ export default async function payrollRoutes(app: FastifyInstance) {
     return reply.send({ data: filteredData });
   });
 
+  // ── GET /payroll/staff/:id ─── Single staff member full profile
+  app.get('/staff/:id', { preHandler: [authenticate, requireFinance] }, async (req: FastifyRequest, reply) => {
+    const { id } = req.params as { id: string };
+    const { data, error } = await getSupabase()
+      .from('staff_registry')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) return reply.status(404).send({ error: 'Staff member not found' });
+    return reply.send({ data });
+  });
+
   // ── POST /payroll/staff ─── Create staff member
   app.post('/staff', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
@@ -56,13 +68,21 @@ export default async function payrollRoutes(app: FastifyInstance) {
       email: z.string().email().optional(),
       designation: z.string().min(2),
       department: z.string().optional(),
+      address: z.string().optional(),
+      date_of_birth: z.string().optional(),
+      emergency_contact_name: z.string().optional(),
+      emergency_contact_phone: z.string().optional(),
+      bank_name: z.string().optional(),
+      bank_account_no: z.string().optional(),
+      bank_branch: z.string().optional(),
       basic_salary: z.number().nonnegative(),
       transport_allow: z.number().nonnegative().default(0),
       meal_allow: z.number().nonnegative().default(0),
       commission_rate: z.number().nonnegative().max(100).default(0),
       epf_no: z.string().optional(),
       etf_no: z.string().optional(),
-      joined_date: z.string().date().optional(),
+      joined_date: z.string().optional(),
+      profile_photo_url: z.string().optional(),
     }).safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
 
@@ -85,23 +105,96 @@ export default async function payrollRoutes(app: FastifyInstance) {
     return reply.status(201).send({ data });
   });
 
-  // ── PUT /payroll/staff/:id ─── Update staff member
+  // ── PUT /payroll/staff/:id ─── Update staff member (full profile)
   app.put('/staff/:id', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({
       full_name: z.string().min(2).optional(),
+      nic_number: z.string().optional(),
+      phone_number: z.string().optional(),
+      email: z.string().email().optional(),
       designation: z.string().optional(),
       department: z.string().optional(),
+      address: z.string().optional(),
+      date_of_birth: z.string().optional(),
+      emergency_contact_name: z.string().optional(),
+      emergency_contact_phone: z.string().optional(),
+      bank_name: z.string().optional(),
+      bank_account_no: z.string().optional(),
+      bank_branch: z.string().optional(),
       basic_salary: z.number().nonnegative().optional(),
       transport_allow: z.number().nonnegative().optional(),
       meal_allow: z.number().nonnegative().optional(),
       commission_rate: z.number().nonnegative().max(100).optional(),
+      epf_no: z.string().optional(),
+      etf_no: z.string().optional(),
+      joined_date: z.string().optional(),
+      profile_photo_url: z.string().optional(),
       is_active: z.boolean().optional(),
     }).safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
     const { data, error } = await getSupabase().from('staff_registry').update(body.data).eq('id', id).select().single();
     if (error) return reply.status(500).send({ error: error.message });
     return reply.send({ data });
+  });
+
+  // ── POST /payroll/staff/:id/upload-photo ─── Upload staff profile photo
+  app.post('/staff/:id/upload-photo', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+    const { id } = req.params as { id: string };
+    const sb = getSupabase();
+
+    // Verify staff exists
+    const { data: staff, error: staffErr } = await sb.from('staff_registry').select('id,full_name').eq('id', id).single();
+    if (staffErr || !staff) return reply.status(404).send({ error: 'Staff member not found' });
+
+    let file: any;
+    try {
+      file = await (req as any).file();
+    } catch {
+      return reply.status(400).send({ error: 'No file uploaded' });
+    }
+
+    if (!file) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return reply.status(400).send({ error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' });
+    }
+
+    const buffer = await file.toBuffer();
+    if (buffer.length > 5 * 1024 * 1024) {
+      return reply.status(400).send({ error: 'File too large. Maximum 5MB allowed.' });
+    }
+
+    const ext = file.mimetype === 'image/webp' ? 'webp' : file.mimetype === 'image/png' ? 'png' : 'jpg';
+    const fileName = `staff-${id}-${Date.now()}.${ext}`;
+    const filePath = `profiles/${fileName}`;
+
+    let photoUrl: string;
+
+    const { error: uploadError } = await sb.storage
+      .from('staff-photos')
+      .upload(filePath, buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return reply.status(500).send({ error: `Storage upload failed: ${uploadError.message}` });
+    }
+    
+    const { data: publicUrlData } = sb.storage.from('staff-photos').getPublicUrl(filePath);
+    photoUrl = publicUrlData?.publicUrl ?? filePath;
+
+    const { data: updated, error: updateErr } = await sb
+      .from('staff_registry')
+      .update({ profile_photo_url: photoUrl })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) return reply.status(500).send({ error: updateErr.message });
+    return reply.send({ data: updated, photo_url: photoUrl });
   });
 
   // ── GET /payroll/runs ─── List payroll runs

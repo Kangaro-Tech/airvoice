@@ -37,7 +37,7 @@ export default async function authRoutes(app: FastifyInstance) {
       .from('users')
       .select(`
         id, role, is_active, phone_number, is_verified, preferred_language, custom_modules,
-        staff:staff_registry(full_name)
+        staff:staff_registry(full_name, profile_photo_url)
       `)
       .eq('firebase_uid', decoded.uid)
       .single();
@@ -61,7 +61,8 @@ export default async function authRoutes(app: FastifyInstance) {
       });
       const staffArr = (existing as any)?.staff;
       const full_name = Array.isArray(staffArr) ? staffArr[0]?.full_name : staffArr?.full_name;
-      const responseData = { ...existing, staff: undefined, full_name };
+      const profile_photo_url = Array.isArray(staffArr) ? staffArr[0]?.profile_photo_url : staffArr?.profile_photo_url;
+      const responseData = { ...existing, staff: undefined, full_name, profile_photo_url };
       return reply.send({ data: responseData, is_new: false });
     }
 
@@ -70,7 +71,7 @@ export default async function authRoutes(app: FastifyInstance) {
       .from('users')
       .select(`
         id, role, is_active, phone_number, is_verified, preferred_language, custom_modules,
-        staff:staff_registry(full_name)
+        staff:staff_registry(full_name, profile_photo_url)
       `)
       .eq('phone_number', decoded.phone_number)
       .single();
@@ -96,7 +97,8 @@ export default async function authRoutes(app: FastifyInstance) {
       });
       const staffArr = (phoneDup as any)?.staff;
       const full_name = Array.isArray(staffArr) ? staffArr[0]?.full_name : staffArr?.full_name;
-      const responseData = { ...phoneDup, staff: undefined, full_name };
+      const profile_photo_url = Array.isArray(staffArr) ? staffArr[0]?.profile_photo_url : staffArr?.profile_photo_url;
+      const responseData = { ...phoneDup, staff: undefined, full_name, profile_photo_url };
       return reply.send({ data: responseData, is_new: false });
     }
 
@@ -116,7 +118,7 @@ export default async function authRoutes(app: FastifyInstance) {
       })
       .select(`
         id, role, is_active, phone_number, is_verified, preferred_language,
-        staff:staff_registry(full_name)
+        staff:staff_registry(full_name, profile_photo_url)
       `)
       .single();
 
@@ -133,7 +135,8 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const staffArr = (user as any)?.staff;
     const full_name = Array.isArray(staffArr) ? staffArr[0]?.full_name : staffArr?.full_name;
-    const responseData = { ...user, staff: undefined, full_name };
+    const profile_photo_url = Array.isArray(staffArr) ? staffArr[0]?.profile_photo_url : staffArr?.profile_photo_url;
+    const responseData = { ...user, staff: undefined, full_name, profile_photo_url };
     return reply.status(201).send({ data: responseData, is_new: true });
   });
 
@@ -158,7 +161,7 @@ export default async function authRoutes(app: FastifyInstance) {
         id, firebase_uid, phone_number, role, is_active, is_verified,
         preferred_language, two_fa_enabled, last_login_at,
         customer:customers(id, full_name, branch, rank, camp_id, risk_level),
-        staff:staff_registry(full_name)
+        staff:staff_registry(full_name, profile_photo_url)
       `)
       .eq('firebase_uid', decoded.uid)
       .single();
@@ -167,9 +170,60 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const staffArr = (user as any)?.staff;
     const full_name = Array.isArray(staffArr) ? staffArr[0]?.full_name : staffArr?.full_name;
-    const responseData = { ...user, staff: undefined, full_name };
+    const profile_photo_url = Array.isArray(staffArr) ? staffArr[0]?.profile_photo_url : staffArr?.profile_photo_url;
+    const responseData = { ...user, staff: undefined, full_name, profile_photo_url };
 
     return reply.send({ data: responseData });
+  });
+
+  // ── POST /auth/me/photo ───────────────────────────────────
+  // Upload a profile photo for the authenticated user
+  const { authenticate: localAuth } = await import('../middleware/auth');
+  app.post('/me/photo', { preHandler: [localAuth] }, async (req: FastifyRequest, reply) => {
+    const id = req.user!.id; // Authenticated user ID (from users table)
+    let file: any;
+    try {
+      file = await (req as any).file();
+    } catch {
+      return reply.status(400).send({ error: 'No file uploaded' });
+    }
+
+    if (!file) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return reply.status(400).send({ error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' });
+    }
+
+    const buffer = await file.toBuffer();
+    if (buffer.length > 5 * 1024 * 1024) {
+      return reply.status(400).send({ error: 'File too large. Maximum 5MB allowed.' });
+    }
+
+    const ext = file.mimetype === 'image/webp' ? 'webp' : file.mimetype === 'image/png' ? 'png' : 'jpg';
+    const fileName = `user-${id}-${Date.now()}.${ext}`;
+    const filePath = `profiles/${fileName}`;
+    let photoUrl: string;
+
+    const sb = getSupabase();
+    const { error: uploadError } = await sb.storage
+      .from('staff-photos')
+      .upload(filePath, buffer, {
+        contentType: file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return reply.status(500).send({ error: `Storage upload failed: ${uploadError.message}` });
+    }
+    
+    const { data: publicUrlData } = sb.storage.from('staff-photos').getPublicUrl(filePath);
+    photoUrl = publicUrlData?.publicUrl ?? filePath;
+
+    // Try to update staff_registry if they have a record
+    await sb.from('staff_registry').update({ profile_photo_url: photoUrl }).eq('user_id', id);
+
+    return reply.send({ success: true, photo_url: photoUrl });
   });
 
   // ── POST /auth/otp-request (rate-limit tracking) ──────────
@@ -291,15 +345,19 @@ export default async function authRoutes(app: FastifyInstance) {
     const supabase = getSupabase();
 
     // Fetch user by email
-    const { data: user } = await supabase
+    const { data: user, error } = await supabase
       .from('users')
       .select(`
         id, email, password_hash, role, is_active, is_verified,
         preferred_language, auth_method, custom_modules,
-        staff:staff_registry(full_name)
+        staff:staff_registry(full_name, profile_photo_url)
       `)
       .eq('email', body.data.email)
       .single();
+
+    if (error) {
+      console.error('Supabase Login Error:', error);
+    }
 
     if (!user || !user.password_hash) {
       return reply.status(401).send({ error: 'Invalid email or password' });
@@ -357,6 +415,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const staffArr = (user as any)?.staff;
     const full_name = Array.isArray(staffArr) ? staffArr[0]?.full_name : staffArr?.full_name;
+    const profile_photo_url = Array.isArray(staffArr) ? staffArr[0]?.profile_photo_url : staffArr?.profile_photo_url;
 
     return reply.send({
       data: {
@@ -369,6 +428,7 @@ export default async function authRoutes(app: FastifyInstance) {
         auth_method:        user.auth_method,
         custom_modules:     (user as any).custom_modules ?? null,
         full_name,
+        profile_photo_url,
       },
       token,
     });

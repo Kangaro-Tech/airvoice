@@ -15,6 +15,7 @@ import RegisterPage from '@/pages/auth/RegisterPage';
 // Pages — Core
 import DashboardPage from '@/pages/DashboardPage';
 import NotificationsPage from '@/pages/NotificationsPage';
+import MyProfilePage from '@/pages/MyProfilePage';
 
 // Pages — Customers
 import CustomersPage from '@/pages/customers/CustomersPage';
@@ -34,6 +35,7 @@ import PhonesPage from '@/pages/inventory/PhonesPage';
 import FinancePage from '@/pages/finance/FinancePage';
 import ExpensesPage from '@/pages/finance/ExpensesPage';
 import PayrollPage from '@/pages/finance/PayrollPage';
+import StaffProfilePage from '@/pages/payroll/StaffProfilePage';
 import InstallmentsPage from '@/pages/finance/InstallmentsPage';
 import PettyCashPage from '@/pages/finance/PettyCashPage';
 import CompanyPaymentsPage from '@/pages/finance/CompanyPaymentsPage';
@@ -98,6 +100,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/profile" element={<MyProfilePage />} />
 
               {/* Customers */}
               <Route path="/customers" element={<CustomersPage />} />
@@ -128,6 +131,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                 <Route path="/finance" element={<FinancePage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />
+                <Route path="/payroll/staff/:id" element={<StaffProfilePage />} />
                 <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
                 <Route path="/legacy-import" element={<LegacyImportPage />} />
                 <Route path="/legacy-import/upload" element={<LegacyUploadPage />} />

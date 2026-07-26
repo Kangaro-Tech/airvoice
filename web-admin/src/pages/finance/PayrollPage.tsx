@@ -1,39 +1,61 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { api, payrollApi } from '@/services/api';
 import {
   Wallet, Users, Plus, CheckCircle2, ChevronRight, Loader2,
-  Download, XCircle, FileText, DollarSign, Building
+  Download, XCircle, FileText, DollarSign, Building, ExternalLink
 } from 'lucide-react';
 
 interface Staff {
   id: string;
   user_id?: string | null;
   phone_number?: string;
+  email?: string;
   full_name: string;
+  nic_number?: string;
   designation: string;
   department: string;
+  address?: string;
+  date_of_birth?: string;
   basic_salary: number;
   transport_allow: number;
   meal_allow: number;
   commission_rate: number;
   epf_no: string;
   etf_no: string;
+  bank_name?: string;
+  bank_account_no?: string;
+  bank_branch?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  profile_photo_url?: string;
+  joined_date?: string;
   is_active?: boolean;
 }
 
 interface StaffForm {
   user_id?: string;
   phone_number: string;
+  email: string;
   full_name: string;
+  nic_number: string;
   designation: string;
   department: string;
+  address: string;
+  date_of_birth: string;
   basic_salary: string;
   transport_allow: string;
   meal_allow: string;
   commission_rate: string;
   epf_no: string;
   etf_no: string;
+  bank_name: string;
+  bank_account_no: string;
+  bank_branch: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  joined_date: string;
   is_active: boolean;
 }
 
@@ -74,6 +96,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function PayrollPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'slips' | 'staff' | 'costs'>('slips');
   const [deptFilter, setDeptFilter] = useState<string>('All');
@@ -87,15 +110,25 @@ export default function PayrollPage() {
   const initialStaffForm: StaffForm = {
     user_id: undefined,
     phone_number: '',
+    email: '',
     full_name: '',
+    nic_number: '',
     designation: '',
     department: '',
+    address: '',
+    date_of_birth: '',
     basic_salary: '0',
     transport_allow: '0',
     meal_allow: '0',
     commission_rate: '0',
     epf_no: '',
     etf_no: '',
+    bank_name: '',
+    bank_account_no: '',
+    bank_branch: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    joined_date: '',
     is_active: true,
   };
   const [staffForm, setStaffForm] = useState<StaffForm>(initialStaffForm);
@@ -235,15 +268,25 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
       setStaffForm({
         user_id: staffMember.user_id ?? undefined,
         phone_number: staffMember.phone_number ?? '',
+        email: staffMember.email ?? '',
         full_name: staffMember.full_name,
+        nic_number: staffMember.nic_number ?? '',
         designation: staffMember.designation,
         department: staffMember.department ?? '',
+        address: staffMember.address ?? '',
+        date_of_birth: staffMember.date_of_birth ? staffMember.date_of_birth.split('T')[0] : '',
         basic_salary: String(staffMember.basic_salary ?? 0),
         transport_allow: String(staffMember.transport_allow ?? 0),
         meal_allow: String(staffMember.meal_allow ?? 0),
         commission_rate: String(staffMember.commission_rate ?? 0),
         epf_no: staffMember.epf_no ?? '',
         etf_no: staffMember.etf_no ?? '',
+        bank_name: staffMember.bank_name ?? '',
+        bank_account_no: staffMember.bank_account_no ?? '',
+        bank_branch: staffMember.bank_branch ?? '',
+        emergency_contact_name: staffMember.emergency_contact_name ?? '',
+        emergency_contact_phone: staffMember.emergency_contact_phone ?? '',
+        joined_date: staffMember.joined_date ? staffMember.joined_date.split('T')[0] : '',
         is_active: staffMember.is_active ?? true,
       });
     } else {
@@ -257,15 +300,25 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
     const payload = {
       user_id: staffForm.user_id || undefined,
       phone_number: staffForm.phone_number || undefined,
+      email: staffForm.email || undefined,
       full_name: staffForm.full_name,
+      nic_number: staffForm.nic_number || undefined,
       designation: staffForm.designation,
-      department: staffForm.department,
+      department: staffForm.department || undefined,
+      address: staffForm.address || undefined,
+      date_of_birth: staffForm.date_of_birth || undefined,
       basic_salary: Number(staffForm.basic_salary),
       transport_allow: Number(staffForm.transport_allow),
       meal_allow: Number(staffForm.meal_allow),
       commission_rate: Number(staffForm.commission_rate),
       epf_no: staffForm.epf_no || undefined,
       etf_no: staffForm.etf_no || undefined,
+      bank_name: staffForm.bank_name || undefined,
+      bank_account_no: staffForm.bank_account_no || undefined,
+      bank_branch: staffForm.bank_branch || undefined,
+      emergency_contact_name: staffForm.emergency_contact_name || undefined,
+      emergency_contact_phone: staffForm.emergency_contact_phone || undefined,
+      joined_date: staffForm.joined_date || undefined,
       is_active: staffForm.is_active,
     };
     if (selectedStaff) {
@@ -770,10 +823,19 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => openStaffModal(staffMember)}
-                          className="text-amber-600 text-xs font-semibold hover:text-amber-800"
-                        >Edit</button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => navigate(`/payroll/staff/${staffMember.id}`)}
+                            className="flex items-center gap-1 text-blue-600 text-xs font-semibold hover:text-blue-800"
+                            title="View full profile"
+                          >
+                            <ExternalLink size={12} />Profile
+                          </button>
+                          <button
+                            onClick={() => openStaffModal(staffMember)}
+                            className="text-amber-600 text-xs font-semibold hover:text-amber-800"
+                          >Edit</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -940,89 +1002,181 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
       ══════════════════════════════════════════ */}
       {showStaffModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="surface rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+          <div className="surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-base sticky top-0 surface z-10">
-              <h3 className="font-bold text-base-primary flex items-center gap-2">
-                <Users size={18} /> {selectedStaff ? 'Edit Staff Member' : 'Add Staff Member'}
-              </h3>
-              <button onClick={() => setShowStaffModal(false)} className="text-base-muted hover:text-gray-600">
-                <XCircle size={20} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                {!selectedStaff && (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5">Registered User</label>
-                    <select
-                      value={staffForm.user_id ?? ''}
-                      onChange={(e) => {
-                        const userId = e.target.value || undefined;
-                        const selectedUser = staffUsers.find(user => user.id === userId);
-                        setStaffForm(prev => ({
-                          ...prev,
-                          user_id: userId,
-                          phone_number: selectedUser?.phone_number ?? prev.phone_number,
-                          full_name: selectedUser?.full_name ?? selectedUser?.phone_number ?? prev.full_name,
-                          designation: selectedUser ? selectedUser.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : prev.designation,
-                        }));
-                      }}
-                      className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                    >
-                      <option value="">Select registered staff user</option>
-                      {availableStaffUsers.map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.phone_number} — {user.role.replace(/_/g, ' ')}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-base-muted mt-1">Choose an existing registered staff account to link payroll records.</p>
-                  </div>
+              <div className="flex items-center gap-2">
+                <Users size={18} style={{ color: 'var(--accent-primary)' }} />
+                <h3 className="font-bold text-base-primary">
+                  {selectedStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedStaff && (
+                  <button
+                    onClick={() => { setShowStaffModal(false); navigate(`/payroll/staff/${selectedStaff.id}`); }}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 font-semibold transition-colors"
+                  >
+                    <ExternalLink size={12} /> Full Profile
+                  </button>
                 )}
+                <button onClick={() => setShowStaffModal(false)} className="text-base-muted hover:text-gray-600">
+                  <XCircle size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Section: Link System User */}
+              {!selectedStaff && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Full Name</label>
-                  <input value={staffForm.full_name} onChange={e => setStaffForm(prev => ({ ...prev, full_name: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Link System Account (Optional)</div>
+                  <select
+                    value={staffForm.user_id ?? ''}
+                    onChange={(e) => {
+                      const userId = e.target.value || undefined;
+                      const selectedUser = staffUsers.find(user => user.id === userId);
+                      setStaffForm(prev => ({
+                        ...prev,
+                        user_id: userId,
+                        phone_number: selectedUser?.phone_number ?? prev.phone_number,
+                        full_name: selectedUser?.full_name ?? selectedUser?.phone_number ?? prev.full_name,
+                        designation: selectedUser ? selectedUser.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : prev.designation,
+                      }));
+                    }}
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="">— No system account link (standalone staff) —</option>
+                    {availableStaffUsers.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.phone_number} — {user.role.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Linking allows commission auto-calculation for sales officers.</p>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Phone Number</label>
-                  <input value={staffForm.phone_number} onChange={e => setStaffForm(prev => ({ ...prev, phone_number: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              )}
+
+              {/* Section: Personal Information */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Personal Information</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Full Name *</label>
+                    <input value={staffForm.full_name} onChange={e => setStaffForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Full name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>NIC Number</label>
+                    <input value={staffForm.nic_number} onChange={e => setStaffForm(p => ({ ...p, nic_number: e.target.value }))} placeholder="National ID" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Phone Number</label>
+                    <input value={staffForm.phone_number} onChange={e => setStaffForm(p => ({ ...p, phone_number: e.target.value }))} placeholder="+94 71 234 5678" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Email Address</label>
+                    <input type="email" value={staffForm.email} onChange={e => setStaffForm(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Date of Birth</label>
+                    <input type="date" value={staffForm.date_of_birth} onChange={e => setStaffForm(p => ({ ...p, date_of_birth: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Home Address</label>
+                    <input value={staffForm.address} onChange={e => setStaffForm(p => ({ ...p, address: e.target.value }))} placeholder="Full residential address" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Designation</label>
-                  <input value={staffForm.designation} onChange={e => setStaffForm(prev => ({ ...prev, designation: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+
+              {/* Section: Employment */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Employment Details</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Designation *</label>
+                    <input value={staffForm.designation} onChange={e => setStaffForm(p => ({ ...p, designation: e.target.value }))} placeholder="Job title" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Department</label>
+                    <input value={staffForm.department} onChange={e => setStaffForm(p => ({ ...p, department: e.target.value }))} placeholder="Department" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Joined Date</label>
+                    <input type="date" value={staffForm.joined_date} onChange={e => setStaffForm(p => ({ ...p, joined_date: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EPF No.</label>
+                    <input value={staffForm.epf_no} onChange={e => setStaffForm(p => ({ ...p, epf_no: e.target.value }))} placeholder="EPF number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>ETF No.</label>
+                    <input value={staffForm.etf_no} onChange={e => setStaffForm(p => ({ ...p, etf_no: e.target.value }))} placeholder="ETF number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Department</label>
-                  <input value={staffForm.department} onChange={e => setStaffForm(prev => ({ ...prev, department: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+
+              {/* Section: Salary */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Salary &amp; Allowances</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Basic Salary (LKR)</label>
+                    <input type="number" min="0" value={staffForm.basic_salary} onChange={e => setStaffForm(p => ({ ...p, basic_salary: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Transport Allowance (LKR)</label>
+                    <input type="number" min="0" value={staffForm.transport_allow} onChange={e => setStaffForm(p => ({ ...p, transport_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Meal Allowance (LKR)</label>
+                    <input type="number" min="0" value={staffForm.meal_allow} onChange={e => setStaffForm(p => ({ ...p, meal_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Commission Rate (%)</label>
+                    <input type="number" min="0" max="100" value={staffForm.commission_rate} onChange={e => setStaffForm(p => ({ ...p, commission_rate: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">EPF No.</label>
-                  <input value={staffForm.epf_no} onChange={e => setStaffForm(prev => ({ ...prev, epf_no: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+
+              {/* Section: Bank Details */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Bank Details</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Bank Name</label>
+                    <input value={staffForm.bank_name} onChange={e => setStaffForm(p => ({ ...p, bank_name: e.target.value }))} placeholder="e.g. Bank of Ceylon" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Account Number</label>
+                    <input value={staffForm.bank_account_no} onChange={e => setStaffForm(p => ({ ...p, bank_account_no: e.target.value }))} placeholder="Account number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Branch</label>
+                    <input value={staffForm.bank_branch} onChange={e => setStaffForm(p => ({ ...p, bank_branch: e.target.value }))} placeholder="Branch name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">ETF No.</label>
-                  <input value={staffForm.etf_no} onChange={e => setStaffForm(prev => ({ ...prev, etf_no: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Basic Salary</label>
-                  <input type="number" min="0" value={staffForm.basic_salary} onChange={e => setStaffForm(prev => ({ ...prev, basic_salary: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Transport Allow</label>
-                  <input type="number" min="0" value={staffForm.transport_allow} onChange={e => setStaffForm(prev => ({ ...prev, transport_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Meal Allow</label>
-                  <input type="number" min="0" value={staffForm.meal_allow} onChange={e => setStaffForm(prev => ({ ...prev, meal_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1.5">Commission Rate (%)</label>
-                  <input type="number" min="0" max="100" value={staffForm.commission_rate} onChange={e => setStaffForm(prev => ({ ...prev, commission_rate: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+
+              {/* Section: Emergency Contact */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>Emergency Contact</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Contact Name</label>
+                    <input value={staffForm.emergency_contact_name} onChange={e => setStaffForm(p => ({ ...p, emergency_contact_name: e.target.value }))} placeholder="Emergency contact name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Contact Phone</label>
+                    <input value={staffForm.emergency_contact_phone} onChange={e => setStaffForm(p => ({ ...p, emergency_contact_phone: e.target.value }))} placeholder="+94 71 234 5678" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* Modal Footer */}
             <div className="px-6 pb-5 flex gap-2 justify-end sticky bottom-0 surface border-t border-base pt-4">
-              <button onClick={() => setShowStaffModal(false)} className="px-4 py-2.5 border border-base rounded-lg text-sm font-medium hover:bg-[var(--bg-surface-2)]">Cancel</button>
+              <button onClick={() => setShowStaffModal(false)} className="px-4 py-2.5 border border-base rounded-lg text-sm font-medium hover:bg-[var(--bg-surface-2)] transition-colors">Cancel</button>
               <button
                 onClick={saveStaff}
                 disabled={createStaff.isPending || updateStaff.isPending || !staffForm.full_name || !staffForm.designation}

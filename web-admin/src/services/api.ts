@@ -124,9 +124,16 @@ export const payrollApi = {
   markPaidRun:    (id: string) => api.post(`/payroll/runs/${id}/mark-paid`),
   listStaff:      () => api.get('/payroll/staff'),
   listUsers:      () => api.get('/payroll/staff/users'),
+  getStaff:       (id: string) => api.get(`/payroll/staff/${id}`),
   createStaff:    (data: unknown) => api.post('/payroll/staff', data),
   updateStaff:    (id: string, data: unknown) => api.put(`/payroll/staff/${id}`, data),
+  uploadStaffPhoto: (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post(`/payroll/staff/${id}/upload-photo`, form);
+  },
 };
+
 
 export const documentsApi = {
   list: (customerId: string) =>
@@ -144,6 +151,18 @@ export const documentsApi = {
       status,
       rejection_reason: rejectionReason,
     }),
+};
+
+export const authApi = {
+  loginWithPhone: (token: string) => api.post('/auth/register', { firebase_id_token: token }),
+  requestOtp: (phone_number: string) => api.post('/auth/otp-request', { phone_number }),
+  verifyOtp: (phone: string, otp: string) => api.post('/auth/otp-verify', { phone, otp }),
+  getMe: () => api.get('/auth/me'),
+  uploadMePhoto: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/auth/me/photo', form);
+  }
 };
 
 export const tasksApi = {
