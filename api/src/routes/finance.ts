@@ -144,7 +144,7 @@ export default async function financeRoutes(app: FastifyInstance) {
       if (d.getFullYear() === year) {
         const m = d.getMonth();
         if (m >= startMonth && m < startMonth + 6) {
-          const cat = (e.category?.name || '').toLowerCase();
+          const cat = ((e.category as any)?.name || '').toLowerCase();
           const amt = Number(e.amount ?? 0);
           if (cat.includes('fuel') || cat.includes('field')) {
             fuelArr[m - startMonth] += amt;
