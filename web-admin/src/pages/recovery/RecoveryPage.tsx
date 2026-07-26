@@ -698,7 +698,7 @@ export default function RecoveryPage() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => sendLetterMutation.mutate({ customer_id: selectedCustomer.id, letter_type: letterForm.letter_type === 'reminder' ? 'first_notice' : letterForm.letter_type === 'warning' ? 'second_notice' : 'final_notice', letter_body: `Recovery letter (${letterForm.letter_type})${letterForm.notes ? ': ' + letterForm.notes : ''}` })}
+                    onClick={() => sendLetterMutation.mutate({ customer_id: selectedCustomer.id, letter_type: letterForm.letter_type === 'reminder' ? 'first_notice' : letterForm.letter_type === 'warning' ? 'second_notice' : 'final_notice', notes: `Recovery letter (${letterForm.letter_type})${letterForm.notes ? ': ' + letterForm.notes : ''}` })}
                     disabled={sendLetterMutation.isPending}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
                   >

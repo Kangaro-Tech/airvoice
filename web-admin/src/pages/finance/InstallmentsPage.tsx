@@ -670,8 +670,8 @@ export default function InstallmentsPage() {
                     {resolvedRows.filter(r => r.status !== 'pending').length} of {resolvedRows.length} rows updated
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={exportCSV} className="btn-secondary text-sm flex items-center gap-1.5">
-                      <Download size={13} /> Download PDF
+                    <button onClick={exportExcel} className="btn-secondary text-sm flex items-center gap-1.5">
+                      <Download size={13} /> Export Excel
                     </button>
                     <button
                       onClick={() => {
