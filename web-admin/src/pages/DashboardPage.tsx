@@ -217,7 +217,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <ActionCard icon={<ClipboardList size={20} />} title="Create Application" description="New customer application" link="/applications" />
           <ActionCard icon={<Users size={20} />} title="Manage Customers" description="View & edit customers" link="/customers" />
           <ActionCard icon={<Package size={20} />} title="Inventory" description="Check stock availability" link="/inventory" />
@@ -253,7 +253,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <ActionCard icon={<Package size={20} />} title="Manage Inventory" description="View & update stock" link="/inventory" />
           <ActionCard icon={<TrendingUp size={20} />} title="Stock Orders" description="Create stock orders" link="/stock-orders" />
           <ActionCard icon={<BarChart2 size={20} />} title="Reports" description="Inventory reports" link="/reports" />
@@ -288,7 +288,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <ActionCard icon={<TrendingDown size={20} />} title="Manage Recovery" description="Track phone returns" link="/recovery" />
           <ActionCard icon={<Users size={20} />} title="Guarantors" description="Guarantor details" link="/guarantors" />
           <ActionCard icon={<AlertCircle size={20} />} title="High Risk Cases" description="Priority recovery" link="/recovery?filter=high-risk" />
@@ -323,7 +323,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <ActionCard icon={<Users size={20} />} title="Camp Portal" description="Access camp management" link="/camp" />
           <ActionCard icon={<ClipboardList size={20} />} title="Applications" description="View camp applications" link="/applications?filter=camp" />
           <ActionCard icon={<Bell size={20} />} title="Notifications" description="View alerts & messages" link="/notifications" />
