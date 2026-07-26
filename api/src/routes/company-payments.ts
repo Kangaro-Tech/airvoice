@@ -73,7 +73,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
         .eq('id', body.data.installment_id);
     }
 
-    await writeAuditLog(sb, {
+    await writeAuditLog({
       user_id: req.user!.id,
       action: 'COMPANY_PAYMENT_CREATED',
       entity_type: 'company_payments',
@@ -124,7 +124,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
     if (updateErr) return reply.status(500).send({ error: updateErr.message });
 
-    await writeAuditLog(sb, {
+    await writeAuditLog({
       user_id: req.user!.id,
       action: 'COMPANY_PAYMENT_RECOVERED',
       entity_type: 'company_payments',
