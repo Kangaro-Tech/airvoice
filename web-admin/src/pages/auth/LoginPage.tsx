@@ -92,63 +92,60 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background decorations */}
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-[#0a0f1c]">
+      {/* Dynamic Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-amber-600/8 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-slate-800/20 rounded-full blur-3xl" />
+        <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[120px]" />
+        <div className="absolute top-[20%] -right-[10%] w-[40%] h-[60%] bg-indigo-600/20 rounded-full blur-[120px]" />
+        <div className="absolute -bottom-[20%] left-[20%] w-[60%] h-[50%] bg-blue-900/30 rounded-full blur-[150px]" />
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4wNSkiLz48L3N2Zz4=')] opacity-50" />
       </div>
 
       {/* reCAPTCHA container — invisible */}
       <div id="recaptcha-container" />
 
-      <div className="w-full max-w-md relative z-10">
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="relative inline-block mb-5">
-            <div className="w-28 h-28 rounded-3xl flex items-center justify-center shadow-2xl shadow-amber-500/20 surface p-2 overflow-hidden">
-              <img src={logoImg} alt="AIRVOICE" className="w-full h-full object-contain" />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-2 border-slate-950 flex items-center justify-center">
-              <div className="w-2 h-2 surface rounded-full" />
+      <div className="w-full max-w-md relative z-10 flex flex-col items-center">
+        {/* Logo & Header */}
+        <div className="text-center mb-8 flex flex-col items-center">
+          <div className="relative mb-6">
+            <div className="w-24 h-24 rounded-2xl flex items-center justify-center bg-white shadow-2xl overflow-hidden p-3 relative">
+              <img src={logoImg} alt="AIRVOICE" className="w-full h-full object-contain relative z-10" />
             </div>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">AIRVOICE</h1>
-          <p className="text-slate-400 mt-1 text-sm font-medium">Defence Finance Management System</p>
-          <div className="flex items-center justify-center gap-2 mt-2 text-xs text-slate-500">
-            <Shield size={11} />
-            <span>Staff Portal — Authorised Personnel Only</span>
+          <h1 className="text-3xl font-black text-white tracking-tight drop-shadow-sm">AIRVOICE</h1>
+          <p className="text-blue-200/70 mt-1.5 text-sm font-medium tracking-wide">Defence Finance Management System</p>
+          <div className="inline-flex items-center gap-1.5 mt-3 text-[11px] font-semibold tracking-widest text-emerald-400 uppercase bg-emerald-400/10 border border-emerald-400/20 px-3 py-1 rounded-full">
+            <Shield size={10} /> Staff Portal
           </div>
         </div>
 
-        {/* Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
-          {/* Top accent bar */}
-          <div className="h-1 bg-gradient-to-r from-amber-400 via-amber-500 to-amber-600" />
-
+        {/* Glass Card */}
+        <div className="w-full bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] overflow-hidden relative">
+          {/* Top highlight */}
+          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+          
           <div className="p-8">
-
             {/* ── Step: Enter Phone or Email ── */}
             {step === 'identifier' && (
               <form onSubmit={handleIdentifierSubmit} className="space-y-6">
                 <div>
-                  <h2 className="text-xl font-bold text-white mb-1">Sign In</h2>
-                  <p className="text-sm text-slate-400">
-                    Enter your mobile number or email address
+                  <h2 className="text-2xl font-bold text-white tracking-tight">Welcome back</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Sign in to access the staff dashboard
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
                     Mobile Number or Email
                   </label>
-                  <div className="relative">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-all">
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200">
                       {identifierType === 'email' ? (
-                        <Mail size={17} className="text-amber-400" />
+                        <Mail size={18} className="text-blue-400" />
                       ) : (
-                        <Phone size={17} className={identifierType === 'phone' ? 'text-amber-400' : 'text-slate-500'} />
+                        <Phone size={18} className={identifierType === 'phone' ? 'text-blue-400' : 'text-slate-500 group-focus-within:text-blue-400'} />
                       )}
                     </div>
                     <input
@@ -156,41 +153,17 @@ export default function LoginPage() {
                       value={identifier}
                       onChange={e => setIdentifier(e.target.value)}
                       placeholder="+94 7X XXX XXXX  or  user@email.com"
-                      className="w-full pl-11 pr-4 py-3.5 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all text-sm"
+                      className="w-full pl-12 pr-4 py-3.5 bg-black/20 border border-white/10 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all text-sm shadow-inner"
                       autoFocus
                       required
                     />
                     {identifierType && (
                       <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <span className={`text-xs font-semibold px-2 py-1 rounded-md ${
-                          identifierType === 'phone'
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-purple-500/20 text-purple-400'
-                        }`}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/20">
                           {identifierType === 'phone' ? 'OTP' : 'PASSWORD'}
                         </span>
                       </div>
                     )}
-                  </div>
-
-                  {/* Visual hint pills */}
-                  <div className="flex gap-3 mt-3">
-                    <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${
-                      identifierType === 'phone'
-                        ? 'bg-blue-500/15 border-blue-500/30 text-blue-400'
-                        : 'bg-slate-800/50 border-slate-700/50 text-slate-500'
-                    }`}>
-                      <Phone size={11} />
-                      <span>Mobile → OTP</span>
-                    </div>
-                    <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-all ${
-                      identifierType === 'email'
-                        ? 'bg-purple-500/15 border-purple-500/30 text-purple-400'
-                        : 'bg-slate-800/50 border-slate-700/50 text-slate-500'
-                    }`}>
-                      <Mail size={11} />
-                      <span>Email → Password</span>
-                    </div>
                   </div>
                 </div>
 
@@ -199,17 +172,20 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading || !identifierType}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 text-sm"
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,234,0.3)] hover:shadow-[0_0_25px_rgba(37,99,234,0.4)] flex items-center justify-center gap-2 text-sm border border-white/10 relative overflow-hidden"
                 >
-                  {isLoading ? (
-                    <><Loader2 size={17} className="animate-spin" /> Processing...</>
-                  ) : identifierType === 'phone' ? (
-                    <><Phone size={17} /> Send OTP<ChevronRight size={15} /></>
-                  ) : identifierType === 'email' ? (
-                    <><Lock size={17} /> Enter Password<ChevronRight size={15} /></>
-                  ) : (
-                    <>Continue<ChevronRight size={15} /></>
-                  )}
+                  <div className="absolute inset-0 bg-white/20 translate-y-full hover:translate-y-0 transition-transform duration-300 ease-out" />
+                  <span className="relative flex items-center gap-2">
+                    {isLoading ? (
+                      <><Loader2 size={17} className="animate-spin" /> Processing...</>
+                    ) : identifierType === 'phone' ? (
+                      <><Phone size={17} /> Send OTP<ChevronRight size={15} /></>
+                    ) : identifierType === 'email' ? (
+                      <><Lock size={17} /> Enter Password<ChevronRight size={15} /></>
+                    ) : (
+                      <>Continue<ChevronRight size={15} /></>
+                    )}
+                  </span>
                 </button>
               </form>
             )}
@@ -218,25 +194,25 @@ export default function LoginPage() {
             {step === 'otp' && (
               <form onSubmit={handleOtpSubmit} className="space-y-6">
                 <div>
-                  <div className="w-12 h-12 bg-blue-500/15 rounded-2xl flex items-center justify-center mb-4">
+                  <div className="w-12 h-12 bg-blue-500/20 border border-blue-500/30 rounded-2xl flex items-center justify-center mb-5 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
                     <Phone size={22} className="text-blue-400" />
                   </div>
-                  <h2 className="text-xl font-bold text-white mb-1">Enter OTP</h2>
-                  <p className="text-sm text-slate-400">
-                    Code sent to <span className="text-amber-400 font-semibold">{identifier}</span>
+                  <h2 className="text-2xl font-bold text-white tracking-tight">Verify Identity</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Enter the code sent to <span className="text-blue-300 font-semibold">{identifier}</span>
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">6-Digit Code</label>
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">6-Digit OTP Code</label>
                   <div className="relative">
-                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
+                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
                     <input
                       type="text"
                       value={otp}
                       onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="000000"
-                      className="w-full pl-11 pr-4 py-4 bg-slate-800 border border-slate-700 text-white rounded-xl text-3xl tracking-[0.5em] text-center font-mono focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+                      className="w-full pl-12 pr-4 py-4 bg-black/20 border border-white/10 text-white rounded-xl text-3xl tracking-[0.4em] font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all shadow-inner placeholder-slate-700"
                       maxLength={6}
                       inputMode="numeric"
                       autoFocus
@@ -244,10 +220,10 @@ export default function LoginPage() {
                     />
                   </div>
                   {/* Progress dots */}
-                  <div className="flex justify-center gap-2 mt-2">
+                  <div className="flex justify-center gap-3 mt-3">
                     {[0,1,2,3,4,5].map(i => (
-                      <div key={i} className={`w-2 h-2 rounded-full transition-all ${
-                        i < otp.length ? 'bg-amber-500 scale-110' : 'bg-slate-700'
+                      <div key={i} className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                        i < otp.length ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] scale-125' : 'bg-slate-700'
                       }`} />
                     ))}
                   </div>
@@ -258,7 +234,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading || otp.length < 6}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 text-sm"
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,234,0.3)] hover:shadow-[0_0_25px_rgba(37,99,234,0.4)] flex items-center justify-center gap-2 text-sm border border-white/10"
                 >
                   {isLoading ? (
                     <><Loader2 size={17} className="animate-spin" /> Verifying...</>
@@ -270,9 +246,9 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={goBack}
-                  className="w-full text-sm text-slate-500 hover:text-slate-300 transition-colors"
+                  className="w-full text-sm text-slate-400 hover:text-white transition-colors"
                 >
-                  ← Change phone number
+                  ← Use a different number
                 </button>
               </form>
             )}
@@ -281,35 +257,35 @@ export default function LoginPage() {
             {step === 'password' && (
               <form onSubmit={handleEmailLogin} className="space-y-6">
                 <div>
-                  <div className="w-12 h-12 bg-purple-500/15 rounded-2xl flex items-center justify-center mb-4">
-                    <Mail size={22} className="text-purple-400" />
+                  <div className="w-12 h-12 bg-indigo-500/20 border border-indigo-500/30 rounded-2xl flex items-center justify-center mb-5 shadow-[0_0_15px_rgba(99,102,241,0.3)]">
+                    <Mail size={22} className="text-indigo-400" />
                   </div>
-                  <h2 className="text-xl font-bold text-white mb-1">Enter Password</h2>
-                  <p className="text-sm text-slate-400">
-                    Sign in as <span className="text-amber-400 font-semibold">{identifier}</span>
+                  <h2 className="text-2xl font-bold text-white tracking-tight">Enter Password</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Signing in as <span className="text-blue-300 font-semibold">{identifier}</span>
                   </p>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-300">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Account Password</label>
+                  <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors duration-200" size={18} />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="w-full pl-11 pr-12 py-3.5 bg-slate-800 border border-slate-700 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all text-sm"
+                      className="w-full pl-12 pr-12 py-3.5 bg-black/20 border border-white/10 text-white placeholder-slate-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all text-sm shadow-inner"
                       autoFocus
                       required
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(p => !p)}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors"
                       tabIndex={-1}
                     >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
@@ -319,29 +295,29 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading || !password}
-                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:opacity-40 disabled:cursor-not-allowed text-slate-900 font-bold rounded-xl transition-all shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 text-sm"
+                  className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(37,99,234,0.3)] hover:shadow-[0_0_25px_rgba(37,99,234,0.4)] flex items-center justify-center gap-2 text-sm border border-white/10"
                 >
                   {isLoading ? (
                     <><Loader2 size={17} className="animate-spin" /> Signing in...</>
                   ) : (
-                    <><Shield size={17} /> Sign In</>
+                    <><Shield size={17} /> Secure Sign In</>
                   )}
                 </button>
 
                 <button
                   type="button"
                   onClick={goBack}
-                  className="w-full text-sm text-slate-500 hover:text-slate-300 transition-colors"
+                  className="w-full text-sm text-slate-400 hover:text-white transition-colors"
                 >
-                  ← Change email
+                  ← Use a different email
                 </button>
               </form>
             )}
           </div>
         </div>
 
-        <p className="text-center text-xs text-slate-600 mt-6">
-          Unauthorised access is a criminal offence. All activity is monitored and logged.
+        <p className="text-center text-[11px] font-medium text-slate-500 mt-8 tracking-wide">
+          Unauthorised access is a criminal offence.<br />All activity is monitored and securely logged.
         </p>
       </div>
     </div>

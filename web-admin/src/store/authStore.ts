@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
@@ -52,6 +52,7 @@ interface AuthState {
   idToken: string | null;          // Firebase token (phone users)
   emailToken: string | null;       // AIRVOICE JWT (email users)
   loginMethod: LoginMethod | null;
+  loginTimestamp: number | null;
   isLoading: boolean;
   isInitializing: boolean;
   error: string | null;
@@ -82,6 +83,7 @@ export const useAuthStore = create<AuthState>()(
       idToken:            null,
       emailToken:         null,
       loginMethod:        null,
+      loginTimestamp:     null,
       isLoading:          false,
       isInitializing:     true,
       error:              null,
@@ -150,6 +152,7 @@ export const useAuthStore = create<AuthState>()(
             idToken,
             emailToken:    null,
             loginMethod:   'phone',
+            loginTimestamp: Date.now(),
             isLoading:     false,
             error:         null,
           });
@@ -171,6 +174,7 @@ export const useAuthStore = create<AuthState>()(
             idToken:     null,
             emailToken:  token,
             loginMethod: 'email',
+            loginTimestamp: Date.now(),
             isLoading:   false,
             error:       null,
           });
@@ -207,7 +211,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null, firebaseUser: null,
           idToken: null, emailToken: null,
-          confirmationResult: null, loginMethod: null,
+          confirmationResult: null, loginMethod: null, loginTimestamp: null,
         });
       },
 
@@ -216,11 +220,13 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'airvoice-auth',
+      storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         user:        state.user,
         idToken:     state.idToken,
         emailToken:  state.emailToken,
         loginMethod: state.loginMethod,
+        loginTimestamp: state.loginTimestamp,
       }),
     }
   )

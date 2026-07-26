@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import * as XLSX from 'xlsx';
 import {
   DollarSign, Plus, Pencil, Trash2, TrendingUp, TrendingDown,
-  Loader2, AlertCircle, X, Check, Wallet
+  Loader2, AlertCircle, X, Check, Wallet, Download
 } from 'lucide-react';
 
 interface PettyCashEntry {
@@ -105,6 +106,21 @@ export default function PettyCashPage() {
   const totalCredits = entries.filter(e => e.type === 'credit').reduce((s, e) => s + e.amount, 0);
   const totalDebits = entries.filter(e => e.type === 'debit').reduce((s, e) => s + e.amount, 0);
 
+  function exportExcel() {
+    const rows = entries.map(e => ({
+      'Date': e.entry_date,
+      'Description': e.description,
+      'Category': e.category ?? '',
+      'Reference': e.reference_number ?? '',
+      'Type': e.type === 'credit' ? 'IN' : 'OUT',
+      'Amount (LKR)': Number(e.amount ?? 0),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Petty Cash ${month}`);
+    XLSX.writeFile(wb, `petty_cash_${month}.xlsx`);
+  }
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
@@ -122,6 +138,12 @@ export default function PettyCashPage() {
             onChange={e => setMonth(e.target.value)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
+          <button
+            onClick={exportExcel}
+            className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+          >
+            <Download size={15} /> Export
+          </button>
           <button
             onClick={openCreate}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"

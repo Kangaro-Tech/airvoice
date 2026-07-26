@@ -81,6 +81,31 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
       new_values: body.data,
     });
 
+    // --- Automatically create an expense for company payment ---
+    try {
+      let catRes = await sb.from('expense_categories').select('id').eq('name', 'Company Payments').single();
+      let catId = catRes.data?.id;
+      if (!catId) {
+        const newCat = await sb.from('expense_categories').insert({ name: 'Company Payments', type: 'expense' }).select('id').single();
+        catId = newCat.data?.id;
+      }
+
+      if (catId) {
+        await sb.from('expenses').insert({
+          category_id: catId,
+          amount: body.data.amount,
+          description: `Company Payment for Customer ID: ${body.data.customer_id} ${body.data.notes ? '- ' + body.data.notes : ''}`,
+          expense_date: new Date().toISOString().split('T')[0],
+          status: 'approved',
+          payment_method: 'Bank Transfer',
+          submitted_by: req.user!.id
+        });
+      }
+    } catch (err) {
+      console.error('Failed to create expense for company payment:', err);
+    }
+    // -----------------------------------------------------------
+
     return reply.status(201).send({ data: payment });
   });
 

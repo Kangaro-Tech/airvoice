@@ -23,19 +23,19 @@ export default async function salesRoutes(app: FastifyInstance) {
     ).toISOString().split('T')[0];
 
     // Commissions for the period — include customer name via application
+    // Also fetch all-time to show officer's full history when month filter returns empty
     let commQuery = sb.from('commissions')
       .select(`
         *,
         application:applications(
           ref_number,
           phone_model_id,
-          phone_model,
           monthly_amount,
           customer:customers(full_name)
         ),
-        officer:users!sales_officer_id(phone_number, full_name)
+        officer:users!sales_officer_id(phone_number, staff_registry(full_name))
       `)
-      .gte('created_at', monthStart)
+      .gte('created_at', monthStart + 'T00:00:00Z')
       .lte('created_at', monthEnd + 'T23:59:59Z');
 
     if (req.user!.role === 'sales_officer') {
@@ -65,10 +65,13 @@ export default async function salesRoutes(app: FastifyInstance) {
       const customer = application?.customer as Record<string, unknown> | null;
 
       if (!officerMap[oid]) {
+        const staffReg = Array.isArray(officer?.staff_registry) ? officer?.staff_registry[0] : officer?.staff_registry;
+        const fullName = staffReg?.full_name || officer?.full_name;
+        
         officerMap[oid] = {
           officer_id: oid,
           officer_phone: officer?.phone_number as string ?? '—',
-          officer_name: (officer?.full_name as string) || (officer?.phone_number as string) || '—',
+          officer_name: (fullName as string) || (officer?.phone_number as string) || '—',
           phones_sold: 0,
           commission_pending: 0,
           commission_payable: 0,

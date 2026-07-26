@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, deductionsApi } from '@/services/api';
+import * as XLSX from 'xlsx';
 import {
   Download, FileText, CheckCircle, Clock, AlertTriangle,
   X, Building, Check, RefreshCw, ChevronDown, Send, Loader2, Upload, FileSpreadsheet, CreditCard
@@ -301,25 +302,27 @@ export default function InstallmentsPage() {
     bulkSubmitMutation.mutate({ camp_id: campId, year, month, deductions });
   };
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     const rows = view === 'camp_entry' ? resolvedRows : allInstallments;
-    const headers = ['Service No', 'Rank', 'Customer', 'App ID', 'Expected (LKR)', 'Deducted (LKR)', 'Status', 'Reason'];
-    const csvRows = rows.map(i => {
+    const data = rows.map(i => {
       const c = i.application?.customer;
-      return [
-        c?.service_number ?? '—', c?.rank ?? '—', c?.full_name ?? '—',
-        i.application?.ref_number ?? '—',
-        i.expected_amount, i.deducted_amount ?? 0,
-        i.status, i.not_deducted_reason ?? '—'
-      ].join(',');
+      return {
+        'Service No': c?.service_number ?? '—',
+        'Rank': c?.rank ?? '—',
+        'Customer': c?.full_name ?? '—',
+        'App ID': i.application?.ref_number ?? '—',
+        'Expected (LKR)': i.expected_amount,
+        'Deducted (LKR)': i.deducted_amount ?? 0,
+        'Status': i.status,
+        'Reason': i.not_deducted_reason ?? '—'
+      };
     });
-    const blob = new Blob([[headers.join(','), ...csvRows].join('\n')], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `deductions_${MONTHS[month - 1]}_${year}${campId ? '_' + (camps.find(c => c.id === campId)?.name ?? campId) : ''}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Deductions');
+    const filename = `deductions_${MONTHS[month - 1]}_${year}${campId ? '_' + (camps.find(c => c.id === campId)?.name ?? campId) : ''}.xlsx`;
+    XLSX.writeFile(wb, filename);
   };
 
   const selectedCamp = camps.find(c => c.id === campId);
@@ -368,8 +371,8 @@ export default function InstallmentsPage() {
           >
             <Building size={14} className={view === 'camp_entry' ? 'text-slate-900' : ''} /> Camp Entry
           </button>
-          <button onClick={exportCSV} className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5">
-            <Download size={14} /> Export Sheet
+          <button onClick={exportExcel} className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5">
+            <FileSpreadsheet size={14} /> Export Excel
           </button>
         </div>
       </div>

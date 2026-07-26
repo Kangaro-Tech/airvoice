@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Search,
   Users,
+  User,
   Shield,
   Phone,
   Calendar,
@@ -194,7 +195,19 @@ export default function AdminUsersPage() {
                 <th className="px-6 py-3 text-left text-sm font-semibold text-base-primary">
                   <span className="flex items-center gap-1.5">
                     <Phone size={13} className="text-base-muted" />
-                    Identifier (Phone / Email)
+                    Identifier
+                  </span>
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-base-primary">
+                  <span className="flex items-center gap-1.5">
+                    <User size={13} className="text-base-muted" />
+                    First Name
+                  </span>
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold text-base-primary">
+                  <span className="flex items-center gap-1.5">
+                    <User size={13} className="text-base-muted" />
+                    Last Name
                   </span>
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold text-base-primary">
@@ -232,13 +245,13 @@ export default function AdminUsersPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-base-muted">
+                  <td colSpan={8} className="px-6 py-8 text-center text-base-muted">
                     Loading staff...
                   </td>
                 </tr>
               ) : filteredStaff.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-base-muted">
+                  <td colSpan={8} className="px-6 py-8 text-center text-base-muted">
                     No staff members found
                   </td>
                 </tr>
@@ -246,11 +259,22 @@ export default function AdminUsersPage() {
                 filteredStaff.map((user: any) => {
                   const roleConfig = ROLES[user.role as keyof typeof ROLES];
                   const isEditing = editingUserId === user.id;
+                  const staffReg = Array.isArray(user.staff_registry) ? user.staff_registry[0] : user.staff_registry;
+                  const fullName = staffReg?.full_name || user.full_name || user.name || '';
+                  const nameParts = fullName.trim().split(' ');
+                  const firstName = nameParts[0] || '—';
+                  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '—';
 
                   return (
                     <tr key={user.id} className="border-b hover:bg-[var(--bg-surface-2)]">
                       <td className="px-6 py-4 text-sm text-base-primary font-medium">
                         {user.phone_number || user.email || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-base-primary">
+                        {firstName}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-base-primary">
+                        {lastName}
                       </td>
                       <td className="px-6 py-4 text-sm">
                         {isEditing ? (

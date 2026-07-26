@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import * as XLSX from 'xlsx';
 import {
   Building2, Plus, Loader2, AlertCircle, X, Check,
-  RefreshCw, User, ChevronDown
+  RefreshCw, User, ChevronDown, Download
 } from 'lucide-react';
 
 interface CompanyPayment {
@@ -103,6 +104,24 @@ export default function CompanyPaymentsPage() {
   const summary = summaryData?.data ?? [];
   const totalOutstanding = summary.reduce((s: number, c: any) => s + c.outstanding, 0);
 
+  function exportExcel() {
+    const rows = payments.map(p => ({
+      'Date': p.paid_at ? new Date(p.paid_at).toLocaleDateString() : '',
+      'Customer': p.customer?.full_name ?? '',
+      'Service No': p.customer?.service_number ?? '',
+      'Application Ref': p.application?.ref_number ?? '',
+      'Amount Paid (LKR)': Number(p.amount ?? 0),
+      'Recovered (LKR)': Number(p.recovered_amount ?? 0),
+      'Outstanding (LKR)': Number(p.amount ?? 0) - Number(p.recovered_amount ?? 0),
+      'Status': STATUS_LABELS[p.status] ?? p.status,
+      'Notes': p.notes ?? '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Company Payments');
+    XLSX.writeFile(wb, `company_payments_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
@@ -115,12 +134,20 @@ export default function CompanyPaymentsPage() {
             Track payments made by AirVoice on behalf of customers — recovered when customer pays
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
-        >
-          <Plus size={16} /> Record Payment
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={exportExcel}
+            className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+          >
+            <Download size={15} /> Export
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+          >
+            <Plus size={16} /> Record Payment
+          </button>
+        </div>
       </div>
 
       {/* Outstanding Summary */}

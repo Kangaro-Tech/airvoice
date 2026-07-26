@@ -1,5 +1,6 @@
-import { FastifyInstance } from 'fastify';
+import { FastifyInstance, FastifyRequest } from 'fastify';
 import { getSupabase } from '../config/supabase';
+import { authenticate } from '../middleware/auth';
 
 interface DonationBody {
   date: string;
@@ -26,9 +27,11 @@ export default async function (app: FastifyInstance) {
     return reply.send(data);
   });
 
-  app.post<{ Body: DonationBody }>('/', async (request, reply) => {
+  app.post<{ Body: DonationBody }>('/', {
+    preHandler: [authenticate]
+  }, async (req: FastifyRequest<{ Body: DonationBody }>, reply) => {
     const supabase = getSupabase();
-    const body = request.body;
+    const body = req.body;
 
     const { data, error } = await supabase
       .from('donations')
@@ -47,6 +50,34 @@ export default async function (app: FastifyInstance) {
     if (error) {
       return reply.status(400).send({ error: 'DatabaseError', message: error.message });
     }
+
+    // --- Automatically create an expense for the donation ---
+    if (body.chq_amount && body.chq_amount > 0) {
+      try {
+        let catRes = await supabase.from('expense_categories').select('id').eq('name', 'Donations').single();
+        let catId = catRes.data?.id;
+        if (!catId) {
+          const newCat = await supabase.from('expense_categories').insert({ name: 'Donations', type: 'expense' }).select('id').single();
+          catId = newCat.data?.id;
+        }
+
+        if (catId) {
+          await supabase.from('expenses').insert({
+            category_id: catId,
+            amount: body.chq_amount,
+            description: `Donation (CHQ: ${body.chq_no || 'N/A'}, Date: ${body.date})`,
+            expense_date: body.date,
+            status: 'approved',
+            payment_method: 'Cheque',
+            submitted_by: req.user?.id
+          });
+        }
+      } catch (err) {
+        console.error('Failed to create expense for donation:', err);
+      }
+    }
+    // --------------------------------------------------------
+
     return reply.status(201).send(data);
   });
 

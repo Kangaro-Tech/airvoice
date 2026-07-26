@@ -889,111 +889,15 @@ function FinanceAIRiskAlerts() {
         </h3>
         <div className="flex items-center gap-1.5 bg-red-50 px-2.5 py-1 rounded-md border border-red-100">
           <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-          <span className="text-xs font-bold text-red-700">2 Critical</span>
+          <span className="text-xs font-bold text-red-700">0 Critical</span>
         </div>
       </div>
 
       {/* Alerts List */}
-      <div className="divide-y divide-base">
-        {/* Alert 1 */}
-        <div className="p-4 relative">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-600" />
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={18} className="text-red-600 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-base-primary">High Risk — Galle Naval</h4>
-              <p className="text-sm text-base-secondary mt-1 leading-relaxed">
-                Able Seaman Dilshan risk score 72. 2 consecutive missed deductions. Guarantor deduction transfer pending admin approval.
-              </p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-slate-400">2h ago</span>
-                <button className="text-xs font-semibold px-3 py-1.5 border border-base rounded-full text-base-secondary hover:bg-slate-50 transition-colors flex items-center gap-1">
-                  Review <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Alert 2 */}
-        <div className="p-4 relative">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-600" />
-          <div className="flex items-start gap-3">
-            <Calendar size={18} className="text-orange-600 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-base-primary">Retirement Risk Alert</h4>
-              <p className="text-sm text-base-secondary mt-1 leading-relaxed">
-                6 customers across Galle Naval & Trincomalee retire within 12 months with LKR 247,800 outstanding balance.
-              </p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-slate-400">6h ago</span>
-                <button className="text-xs font-semibold px-3 py-1.5 border border-base rounded-full text-base-secondary hover:bg-slate-50 transition-colors flex items-center gap-1">
-                  View Report <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Alert 3 */}
-        <div className="p-4 relative">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
-          <div className="flex items-start gap-3">
-            <Flag size={18} className="text-amber-500 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-base-primary">Expense Anomaly</h4>
-              <p className="text-sm text-base-secondary mt-1 leading-relaxed">
-                Kamal Jayawardena fuel claim LKR 28,000 — 240% above monthly average. Awaiting finance officer review.
-              </p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-slate-400">1d ago</span>
-                <button className="text-xs font-semibold px-3 py-1.5 border border-base rounded-full text-base-secondary hover:bg-slate-50 transition-colors flex items-center gap-1">
-                  Review <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Alert 4 */}
-        <div className="p-4 relative">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-yellow-400" />
-          <div className="flex items-start gap-3">
-            <TrendingDown size={18} className="text-yellow-500 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-base-primary">Camp Performance Dip</h4>
-              <p className="text-sm text-base-secondary mt-1 leading-relaxed">
-                Diyatalawa deduction rate: 88.5% vs 94% last quarter. 19 affected customers.
-              </p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-slate-400">2d ago</span>
-                <button className="text-xs font-semibold px-3 py-1.5 border border-base rounded-full text-base-secondary hover:bg-slate-50 transition-colors flex items-center gap-1">
-                  View Camp <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Alert 5 */}
-        <div className="p-4 relative">
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600" />
-          <div className="flex items-start gap-3">
-            <CircleDollarSign size={18} className="text-blue-600 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-bold text-base-primary">Commission Approval Due</h4>
-              <p className="text-sm text-base-secondary mt-1 leading-relaxed">
-                130 commissions payable (LKR 32,500) awaiting finance officer approval.
-              </p>
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-xs text-slate-400">3d ago</span>
-                <button className="text-xs font-semibold px-3 py-1.5 border border-base rounded-full text-base-secondary hover:bg-slate-50 transition-colors flex items-center gap-1">
-                  Approve <ArrowRight size={12} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="p-8 text-center text-slate-500">
+        <Bot size={32} className="mx-auto mb-3 text-slate-300 opacity-50" />
+        <p className="text-sm font-medium">No active risk alerts</p>
+        <p className="text-xs mt-1 opacity-70">AI analysis is running in the background. We will notify you if any anomalies are detected.</p>
       </div>
     </div>
   );

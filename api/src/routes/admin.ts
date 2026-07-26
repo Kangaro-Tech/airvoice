@@ -57,7 +57,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     const sb = getSupabase();
     const { data, error } = await sb
       .from('users')
-      .select('id,phone_number,email,role,is_active,is_verified,created_at,last_login_at')
+      .select('id,phone_number,email,role,is_active,is_verified,created_at,last_login_at, staff_registry(full_name)')
       .in('role', ['admin', 'super_admin', 'finance_officer', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager', 'accountant'])
       .order('created_at', { ascending: false });
     

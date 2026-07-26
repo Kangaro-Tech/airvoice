@@ -5,7 +5,8 @@ import { useAuthStore } from '@/store/authStore';
 import {
   AlertTriangle, Phone, MessageCircle, Clock,
   Search, RefreshCw, Download, User, Shield,
-  TrendingDown, CheckCircle, PlusCircle, Scale, Users
+  TrendingDown, CheckCircle, PlusCircle, Scale, Users,
+  FileText, Mail, Check, X, Loader2, ChevronDown
 } from 'lucide-react';
 
 interface OverdueCustomer {
@@ -39,6 +40,17 @@ export default function RecoveryPage() {
     notes: ''
   });
   
+  // PDF viewer state
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfContent, setPdfContent] = useState('');
+  const [pdfTitle, setPdfTitle] = useState('');
+  
+  // After transfer, store the draft letter returned from server
+  const [transferDraftLetter, setTransferDraftLetter] = useState('');
+  const [transferDone, setTransferDone] = useState(false);
+  const [legalNoticeLetter, setLegalNoticeLetter] = useState('');
+  const [legalNoticeDone, setLegalNoticeDone] = useState(false);
+  
   const [logForm, setLogForm] = useState({
     contact_method: 'phone_call',
     outcome: 'pending',
@@ -51,10 +63,39 @@ export default function RecoveryPage() {
   const [waCustomMessage, setWaCustomMessage] = useState('');
   const [transferReason, setTransferReason] = useState('');
 
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
   const { data: overdueRes, isLoading } = useQuery({
     queryKey: ['recovery-overdue'],
     queryFn: () => api.get('/recovery/overdue').then(r => r.data),
     refetchOnWindowFocus: true,
+  });
+
+  const { data: pendingTransfersRes } = useQuery({
+    queryKey: ['pending-transfers'],
+    queryFn: () => api.get('/recovery/transfer-requests').then(r => r.data),
+    enabled: isAdmin,
+    refetchOnWindowFocus: true,
+  });
+  const pendingTransfers = pendingTransfersRes?.data ?? [];
+
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/recovery/transfer-requests/${id}/approve`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending-transfers'] });
+      qc.invalidateQueries({ queryKey: ['recovery-overdue'] });
+      alert('Transfer approved! Installments moved to guarantor.');
+    },
+    onError: (e: any) => alert(e?.response?.data?.error ?? 'Approval failed'),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/recovery/transfer-requests/${id}/reject`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pending-transfers'] });
+      alert('Transfer request rejected.');
+    },
   });
 
   const { data: logsRes } = useQuery({
@@ -75,21 +116,26 @@ export default function RecoveryPage() {
 
   const transferGuarantorMutation = useMutation({
     mutationFn: (payload: { customer_id: string; reason: string }) => api.post('/recovery/transfer-guarantor', payload),
-    onSuccess: () => {
-      setShowTransferModal(false);
-      setTransferReason('');
+    onSuccess: (res) => {
+      const data = res?.data;
+      setTransferDraftLetter(data?.draft_letter ?? '');
+      setTransferDone(true);
       qc.invalidateQueries({ queryKey: ['recovery-overdue'] });
       qc.invalidateQueries({ queryKey: ['guarantors'] });
-      alert('Guarantor transfer request submitted!');
-    }
+      if (isAdmin) qc.invalidateQueries({ queryKey: ['pending-transfers'] });
+    },
+    onError: (e: any) => alert(e?.response?.data?.error ?? 'Failed to submit transfer request'),
   });
 
   const sendLegalNoticeMutation = useMutation({
-    mutationFn: (customerId: string) => api.post('/recovery/legal-notice', { customer_id: customerId }),
-    onSuccess: () => {
+    mutationFn: (payload: { customer_id: string; notes?: string }) => api.post('/recovery/legal-notice', payload),
+    onSuccess: (res) => {
+      const data = res?.data;
+      setLegalNoticeLetter(data?.letter_body ?? '');
+      setLegalNoticeDone(true);
       qc.invalidateQueries({ queryKey: ['recovery-overdue'] });
-      alert('Legal Notice successfully issued!');
-    }
+    },
+    onError: (e: any) => alert(e?.response?.data?.error ?? 'Failed to issue legal notice'),
   });
 
   const sendLetterMutation = useMutation({
@@ -134,9 +180,20 @@ export default function RecoveryPage() {
   };
 
   const handleLegalNotice = (c: OverdueCustomer) => {
-    if (confirm(`Are you sure you want to issue a Legal Notice to ${c.full_name}?`)) {
-      sendLegalNoticeMutation.mutate(c.id);
+    setSelectedCustomer(c);
+    setLegalNoticeLetter('');
+    setLegalNoticeDone(false);
+    // Open a confirm then issue
+    if (confirm(`Issue a Legal Notice to ${c.full_name}? This will generate a formal letter.`)) {
+      sendLegalNoticeMutation.mutate({ customer_id: c.id });
     }
+  };
+
+  // PDF download helper using window.print on a styled div
+  const downloadPDF = (content: string, title: string) => {
+    setPdfContent(content);
+    setPdfTitle(title);
+    setShowPdfModal(true);
   };
 
   const handleLogAction = (c: OverdueCustomer) => {
@@ -191,6 +248,55 @@ export default function RecoveryPage() {
           </button>
         </div>
       </div>
+
+      {/* Admin Pending Transfer Approvals */}
+      {isAdmin && pendingTransfers.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3.5 border-b border-amber-200 bg-amber-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield size={16} className="text-amber-700" />
+              <span className="font-bold text-amber-800 text-sm">Pending Guarantor Transfer Approvals ({pendingTransfers.length})</span>
+            </div>
+            <span className="text-xs text-amber-600">Action required by Admin</span>
+          </div>
+          <div className="divide-y divide-amber-100">
+            {pendingTransfers.map((t: any) => (
+              <div key={t.id} className="p-4 flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm">{t.customer?.full_name} <span className="text-slate-400 font-normal">→ Guarantor: {t.meta?.guarantor_name ?? '—'}</span></div>
+                    <div className="text-xs text-slate-500 mt-0.5">{t.customer?.service_number} · {(t.customer?.camp as any)?.name ?? '—'} · App: {t.application?.ref_number ?? '—'}</div>
+                    <div className="text-xs text-amber-700 mt-1 font-medium">Reason: {t.meta?.reason}</div>
+                    <div className="text-xs text-slate-400 mt-0.5">Requested: {new Date(t.created_at).toLocaleDateString()}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => downloadPDF(t.letter_text, `Transfer - ${t.customer?.full_name}`)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      <FileText size={13} /> View Letter
+                    </button>
+                    <button
+                      onClick={() => { if (confirm('Approve this guarantor transfer? Installments will be moved to guarantor.')) approveMutation.mutate(t.id); }}
+                      disabled={approveMutation.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+                    >
+                      <Check size={13} /> Approve
+                    </button>
+                    <button
+                      onClick={() => { if (confirm('Reject this transfer request?')) rejectMutation.mutate(t.id); }}
+                      disabled={rejectMutation.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+                    >
+                      <X size={13} /> Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-3 gap-4">
@@ -446,34 +552,66 @@ export default function RecoveryPage() {
       {/* Guarantor Transfer Modal */}
       {showTransferModal && selectedCustomer && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="surface rounded-xl max-w-md w-full border border-base shadow-xl overflow-hidden">
+          <div className="surface rounded-xl max-w-lg w-full border border-base shadow-xl overflow-hidden">
             <div className="p-5 border-b border-base flex justify-between items-center">
               <h3 className="font-bold text-base-primary">Escalate to Guarantor</h3>
-              <button onClick={() => setShowTransferModal(false)} className="text-base-muted hover:text-[var(--text-primary)] text-lg">×</button>
+              <button onClick={() => { setShowTransferModal(false); setTransferDone(false); setTransferDraftLetter(''); setTransferReason(''); }} className="text-base-muted hover:text-[var(--text-primary)] text-lg">×</button>
             </div>
-            <div className="p-5 space-y-4">
-              <p className="text-sm text-base-muted">
-                You are requesting to transfer payment deduction responsibility from <strong>{selectedCustomer.full_name}</strong> to their guarantor <strong>{selectedCustomer.guarantor?.name || 'N/A'}</strong>.
-              </p>
-              <div>
-                <label className="form-label">Reason / Justification</label>
-                <textarea
-                  value={transferReason}
-                  onChange={(e) => setTransferReason(e.target.value)}
-                  className="form-input h-24 resize-none"
-                  placeholder="Explain why client recovery is failing and guarantor deduction is required..."
-                />
+            {!transferDone ? (
+              <div className="p-5 space-y-4">
+                <p className="text-sm text-base-muted">
+                  You are requesting to transfer payment deduction responsibility from <strong>{selectedCustomer.full_name}</strong> to their guarantor <strong>{selectedCustomer.guarantor?.name || 'N/A'}</strong>.
+                </p>
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  ⚠ This request will be sent to an Admin for approval before the transfer is executed.
+                </p>
+                <div>
+                  <label className="form-label">Reason / Justification</label>
+                  <textarea
+                    value={transferReason}
+                    onChange={(e) => setTransferReason(e.target.value)}
+                    className="form-input h-24 resize-none"
+                    placeholder="Explain why client recovery is failing and guarantor deduction is required..."
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="p-5 space-y-4">
+                <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                  <CheckCircle size={16} />
+                  <span className="text-sm font-semibold">Transfer request submitted! Awaiting admin approval.</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-base-muted uppercase tracking-wider mb-2">Generated Draft Letter</p>
+                  <pre className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">{transferDraftLetter}</pre>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => downloadPDF(transferDraftLetter, `Transfer Notice - ${selectedCustomer.full_name}`)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold"
+                  >
+                    <Download size={13} /> Download PDF
+                  </button>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(transferDraftLetter); alert('Letter copied to clipboard!'); }}
+                    className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    <FileText size={13} /> Copy Text
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="p-5 flex justify-end gap-3 border-t border-base">
-              <button onClick={() => setShowTransferModal(false)} className="px-4 py-2 text-sm font-semibold text-base-muted hover:text-base-primary">Cancel</button>
-              <button 
-                onClick={() => selectedCustomer && transferGuarantorMutation.mutate({ customer_id: selectedCustomer.id, reason: transferReason })}
-                disabled={transferGuarantorMutation.isPending || !transferReason}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
-              >
-                {transferGuarantorMutation.isPending ? 'Submitting...' : 'Confirm Transfer'}
-              </button>
+              <button onClick={() => { setShowTransferModal(false); setTransferDone(false); setTransferDraftLetter(''); setTransferReason(''); }} className="px-4 py-2 text-sm font-semibold text-base-muted hover:text-base-primary">Close</button>
+              {!transferDone && (
+                <button
+                  onClick={() => selectedCustomer && transferGuarantorMutation.mutate({ customer_id: selectedCustomer.id, reason: transferReason })}
+                  disabled={transferGuarantorMutation.isPending || !transferReason || transferReason.length < 10}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                >
+                  {transferGuarantorMutation.isPending ? <Loader2 size={14} className="animate-spin inline" /> : null} {transferGuarantorMutation.isPending ? 'Submitting...' : 'Submit for Approval'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -485,42 +623,118 @@ export default function RecoveryPage() {
           <div className="surface rounded-xl max-w-md w-full border border-base shadow-xl overflow-hidden">
             <div className="p-5 border-b border-base flex justify-between items-center">
               <h3 className="font-bold text-base-primary">Draft Recovery Letter</h3>
-              <button onClick={() => setShowLetterModal(false)} className="text-base-muted hover:text-[var(--text-primary)] text-lg">×</button>
+              <button onClick={() => { setShowLetterModal(false); setLegalNoticeDone(false); setLegalNoticeLetter(''); }} className="text-base-muted hover:text-[var(--text-primary)] text-lg">×</button>
             </div>
-            <div className="p-5 space-y-4">
-              <div>
-                <label className="form-label">Letter Type</label>
-                <select
-                  value={letterForm.letter_type}
-                  onChange={(e) => setLetterForm({ ...letterForm, letter_type: e.target.value })}
-                  className="form-input"
-                >
-                  <option value="reminder">Reminder Letter</option>
-                  <option value="warning">Warning Letter</option>
-                  <option value="final_notice">Final Notice</option>
-                  <option value="legal_intent">Legal Intent</option>
-                </select>
+            {!legalNoticeDone ? (
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="form-label">Letter Type</label>
+                  <select
+                    value={letterForm.letter_type}
+                    onChange={(e) => setLetterForm({ ...letterForm, letter_type: e.target.value })}
+                    className="form-input"
+                  >
+                    <option value="reminder">Reminder Letter</option>
+                    <option value="warning">Warning Letter</option>
+                    <option value="final_notice">Final Notice</option>
+                    <option value="legal_notice">Legal Notice</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Additional Notes / Custom Message</label>
+                  <textarea
+                    value={letterForm.notes}
+                    onChange={(e) => setLetterForm({ ...letterForm, notes: e.target.value })}
+                    className="form-input h-24"
+                    placeholder="Optional custom text to append to the letter..."
+                  />
+                </div>
               </div>
-
-              <div>
-                <label className="form-label">Additional Notes / Custom Message</label>
-                <textarea
-                  value={letterForm.notes}
-                  onChange={(e) => setLetterForm({ ...letterForm, notes: e.target.value })}
-                  className="form-input h-24"
-                  placeholder="Optional custom text to append to the letter..."
-                />
+            ) : (
+              <div className="p-5 space-y-4">
+                <div className="flex items-center gap-2 text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
+                  <CheckCircle size={16} /><span className="text-sm font-semibold">Legal notice created successfully!</span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-base-muted uppercase tracking-wider mb-2">Letter Content</p>
+                  <pre className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap max-h-52 overflow-y-auto">{legalNoticeLetter}</pre>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => downloadPDF(legalNoticeLetter, `Legal Notice - ${selectedCustomer.full_name}`)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold"
+                  >
+                    <Download size={13} /> Download PDF
+                  </button>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(legalNoticeLetter); alert('Letter copied!'); }}
+                    className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    <FileText size={13} /> Copy Text
+                  </button>
+                  <button
+                    onClick={() => {
+                      const subject = encodeURIComponent(`Legal Notice - ${selectedCustomer.full_name}`);
+                      const body = encodeURIComponent(legalNoticeLetter);
+                      window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    <Mail size={13} /> Send Email
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
             <div className="p-5 flex justify-end gap-3 border-t border-base">
-              <button onClick={() => setShowLetterModal(false)} className="px-4 py-2 text-sm font-semibold text-base-muted hover:text-base-primary">Cancel</button>
-              <button 
-                onClick={() => sendLetterMutation.mutate({ customer_id: selectedCustomer.id, letter_type: letterForm.letter_type, notes: letterForm.notes })}
-                disabled={sendLetterMutation.isPending}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
-              >
-                {sendLetterMutation.isPending ? 'Drafting...' : 'Draft Letter'}
-              </button>
+              <button onClick={() => { setShowLetterModal(false); setLegalNoticeDone(false); setLegalNoticeLetter(''); }} className="px-4 py-2 text-sm font-semibold text-base-muted hover:text-base-primary">Close</button>
+              {!legalNoticeDone && (
+                letterForm.letter_type === 'legal_notice' ? (
+                  <button
+                    onClick={() => sendLegalNoticeMutation.mutate({ customer_id: selectedCustomer.id, notes: letterForm.notes })}
+                    disabled={sendLegalNoticeMutation.isPending}
+                    className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                  >
+                    {sendLegalNoticeMutation.isPending ? 'Generating...' : '⚖ Issue Legal Notice'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => sendLetterMutation.mutate({ customer_id: selectedCustomer.id, letter_type: letterForm.letter_type === 'reminder' ? 'first_notice' : letterForm.letter_type === 'warning' ? 'second_notice' : 'final_notice', letter_body: `Recovery letter (${letterForm.letter_type})${letterForm.notes ? ': ' + letterForm.notes : ''}` })}
+                    disabled={sendLetterMutation.isPending}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                  >
+                    {sendLetterMutation.isPending ? 'Drafting...' : 'Draft Letter'}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Print Modal */}
+      {showPdfModal && (
+        <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-800 text-white">
+              <span className="font-bold text-sm">{pdfTitle}</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const printWindow = window.open('', '_blank');
+                    if (!printWindow) return;
+                    printWindow.document.write(`<html><head><title>${pdfTitle}</title><style>body{font-family:monospace;white-space:pre-wrap;padding:40px;font-size:13px;line-height:1.6;}</style></head><body>${pdfContent.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</body></html>`);
+                    printWindow.document.close();
+                    printWindow.print();
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs font-semibold"
+                >
+                  <Download size={12} /> Print / Save PDF
+                </button>
+                <button onClick={() => setShowPdfModal(false)} className="p-1.5 hover:bg-slate-700 rounded-lg"><X size={16} /></button>
+              </div>
+            </div>
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              <pre className="text-xs font-mono whitespace-pre-wrap text-slate-800 leading-relaxed">{pdfContent}</pre>
             </div>
           </div>
         </div>

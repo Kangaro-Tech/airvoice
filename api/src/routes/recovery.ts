@@ -28,21 +28,22 @@ export default async function recoveryRoutes(app: FastifyInstance) {
 
     if (!customers || customers.length === 0) return reply.send({ data: [] });
 
-    // Fetch guarantors for all these customers in one query
-    const customerIds = customers.map((c: any) => c.id);
-    const { data: guarantorRows } = await sb
-      .from('guarantors')
-      .select('customer_id, full_name, phone_number, service_number, branch')
-      .in('customer_id', customerIds)
-      .is('deleted_at', null);
+    // Fetch accepted guarantor requests for these applications
+    const appIds = customers.map((c: any) => c.applications?.[0]?.id).filter(Boolean);
+    let reqMap = new Map<string, any>();
+    if (appIds.length > 0) {
+      const { data: reqRows } = await sb
+        .from('guarantor_requests')
+        .select('application_id, guarantor_name, guarantor_phone, guarantor_customer_id, guarantor_customer:customers!guarantor_customer_id(service_number)')
+        .in('application_id', appIds)
+        .eq('status', 'accepted');
 
-    // Build a map: customer_id -> guarantor info
-    const guarantorMap = new Map<string, any>();
-    (guarantorRows ?? []).forEach((g: any) => {
-      if (!guarantorMap.has(g.customer_id)) {
-        guarantorMap.set(g.customer_id, g);
-      }
-    });
+      (reqRows ?? []).forEach((r: any) => {
+        if (!reqMap.has(r.application_id)) {
+          reqMap.set(r.application_id, r);
+        }
+      });
+    }
 
     const result = (customers ?? []).map((c: any) => {
       const app = c.applications?.[0];
@@ -52,12 +53,12 @@ export default async function recoveryRoutes(app: FastifyInstance) {
 
       if (missed < minMissed) return null;
 
-      // Guarantor data comes directly from guarantors table
-      const gRow = guarantorMap.get(c.id);
-      const guarantor = gRow ? {
-        name: gRow.full_name ?? '—',
-        phone: gRow.phone_number ?? '—',
-        service_number: gRow.service_number ?? '—',
+      // Guarantor data comes from guarantor_requests
+      const reqRow = app ? reqMap.get(app.id) : null;
+      const guarantor = reqRow ? {
+        name: reqRow.guarantor_name ?? '—',
+        phone: reqRow.guarantor_phone ?? '—',
+        service_number: reqRow.guarantor_customer?.service_number ?? '—',
       } : null;
 
       const sortedLogs = c.recovery_logs ? [...c.recovery_logs].sort((a: any, b: any) => new Date(b.contacted_at).getTime() - new Date(a.contacted_at).getTime()) : [];
@@ -111,60 +112,265 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     return reply.status(201).send({data});
   });
 
-  // ── POST /recovery/transfer-guarantor ──
-  app.post('/transfer-guarantor', { preHandler:[authenticate,requireRole('admin','super_admin','recovery_officer')] }, async (req:FastifyRequest, reply) => {
+  // ── POST /recovery/transfer-guarantor ── (creates a pending approval request)
+  app.post('/transfer-guarantor', { preHandler:[authenticate,requireRole('admin','super_admin','recovery_officer','finance_officer')] }, async (req:FastifyRequest, reply) => {
     const body = z.object({
       customer_id: z.string().uuid(),
-      reason: z.string()
+      reason: z.string().min(10),
+      draft_letter: z.string().optional(),
     }).safeParse(req.body);
 
-    if (!body.success) return reply.status(400).send({error:'Validation Error'});
+    if (!body.success) return reply.status(400).send({error:'Validation Error', details: body.error.flatten()});
     const sb = getSupabase();
 
-    // Guarantors table is keyed by customer_id (the customer being guaranteed)
-    const { data: guarantorData } = await sb
-      .from('guarantors')
-      .select('id')
+    // Fetch customer + active application + accepted guarantor request
+    const { data: customer } = await sb.from('customers')
+      .select('id, full_name, service_number, phone_number, rank, branch, camp:camps(name)')
+      .eq('id', body.data.customer_id).single();
+
+    const { data: activeApp } = await sb.from('applications')
+      .select('id, ref_number, monthly_amount, arrears_amount:installments(arrears_amount)')
       .eq('customer_id', body.data.customer_id)
-      .is('deleted_at', null)
-      .maybeSingle();
+      .eq('status', 'active').maybeSingle();
+
+    let guarantorCustomerId: string | null = null;
+    let guarantorName = 'Unknown';
+    if (activeApp) {
+      const { data: gr } = await sb.from('guarantor_requests')
+        .select('guarantor_customer_id, guarantor_name, guarantor_customer:customers!guarantor_customer_id(full_name, service_number)')
+        .eq('application_id', activeApp.id).eq('status', 'accepted').maybeSingle();
+      if (gr) {
+        guarantorCustomerId = gr.guarantor_customer_id;
+        guarantorName = (gr.guarantor_customer as any)?.full_name ?? gr.guarantor_name ?? 'Unknown';
+      }
+    }
+
+    // Build a professional draft letter if none provided
+    const today = new Date().toLocaleDateString('en-LK', { year: 'numeric', month: 'long', day: 'numeric' });
+    const letterContent = body.data.draft_letter || `AIRVOICE DEFENCE FINANCE
+GUARANTOR LIABILITY TRANSFER NOTICE
+Date: ${today}
+
+To: ${guarantorName}
+Re: Guarantor Liability Transfer — Customer: ${customer?.full_name ?? ''} (${customer?.service_number ?? ''})
+
+Dear ${guarantorName},
+
+This letter is to formally notify you that we are initiating a liability transfer request from the primary account holder to you as their registered guarantor with AIRVOICE Defence Finance.
+
+Primary Customer: ${customer?.full_name ?? ''}
+Service Number: ${customer?.service_number ?? ''}
+Camp: ${(customer?.camp as any)?.name ?? '—'}
+Application Ref: ${activeApp?.ref_number ?? '—'}
+
+Reason for Transfer:
+${body.data.reason}
+
+This transfer request is pending approval from an authorised AIRVOICE Finance Administrator. Once approved, your salary deductions will be updated accordingly.
+
+For queries, please contact our Recovery Department.
+
+Sincerely,
+AIRVOICE Defence Finance Recovery Department`;
+
+    // Store the transfer request as a recovery_letter with draft status
+    // We embed transfer metadata as a JSON prefix in letter_body so we can filter/parse later
+    const metaPrefix = JSON.stringify({
+      __transfer: true,
+      customer_id: body.data.customer_id,
+      guarantor_customer_id: guarantorCustomerId,
+      guarantor_name: guarantorName,
+      application_id: activeApp?.id ?? null,
+      reason: body.data.reason,
+      requested_by: req.user!.id,
+    });
+    const fullBody = `${metaPrefix}
+---LETTER---
+${letterContent}`;
+
+    const { data: letter, error: letterErr } = await sb.from('recovery_letters').insert({
+      customer_id: body.data.customer_id,
+      application_id: activeApp?.id ?? null,
+      letter_type: 'final_notice',
+      letter_body: fullBody,
+      status: 'draft',
+    }).select().single();
+
+    if (letterErr) return reply.status(500).send({ error: letterErr.message });
 
     // Write audit log
-    const { error: logError } = await sb.from('audit_logs').insert({
-      user_id:     req.user!.id,
-      action:      'GUARANTOR_TRANSFER_INITIATED',
+    await sb.from('audit_logs').insert({
+      user_id: req.user!.id,
+      action: 'GUARANTOR_TRANSFER_REQUESTED',
       entity_type: 'customers',
-      entity_id:   body.data.customer_id,
-      new_values:  { reason: body.data.reason, transferred_by: req.user!.id, guarantor_id: guarantorData?.id ?? null },
+      entity_id: body.data.customer_id,
+      new_values: { reason: body.data.reason, letter_id: letter.id, guarantor_customer_id: guarantorCustomerId },
     } as any);
 
-    if (logError) return reply.status(500).send({error: logError.message});
-    return reply.send({ 
-      success: true, 
-      message: guarantorData ? 'Guarantor transfer submitted successfully' : 'Transfer logged — no guarantor linked to this customer',
+    return reply.send({
+      success: true,
+      letter_id: letter.id,
+      message: 'Transfer request submitted and is pending admin/super-admin approval.',
+      draft_letter: letterContent,
+      guarantor_name: guarantorName,
     });
+  });
+
+  // ── GET /recovery/transfer-requests ── List pending transfer approval requests
+  app.get('/transfer-requests', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+    const sb = getSupabase();
+    const { data, error } = await sb.from('recovery_letters')
+      .select(`
+        id, letter_body, created_at,
+        customer:customers(id, full_name, service_number, phone_number, rank, camp:camps(name)),
+        application:applications(id, ref_number, monthly_amount)
+      `)
+      .eq('letter_type', 'final_notice')
+      .eq('status', 'draft')
+      .like('letter_body', '%"__transfer":true%')
+      .order('created_at', { ascending: false });
+
+    if (error) return reply.status(500).send({ error: error.message });
+
+    const parsed = (data ?? []).map((row: any) => {
+      try {
+        const metaStr = row.letter_body.split('\n---LETTER---\n')[0];
+        const letterText = row.letter_body.split('\n---LETTER---\n')[1] ?? '';
+        const meta = JSON.parse(metaStr);
+        return { ...row, meta, letter_text: letterText };
+      } catch {
+        return { ...row, meta: {}, letter_text: row.letter_body };
+      }
+    });
+
+    return reply.send({ data: parsed });
+  });
+
+  // ── POST /recovery/transfer-requests/:id/approve ── Admin approves a pending transfer
+  app.post('/transfer-requests/:id/approve', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+    const { id } = req.params as { id: string };
+    const sb = getSupabase();
+
+    const { data: letter, error: fetchErr } = await sb.from('recovery_letters')
+      .select('id, letter_body, customer_id, application_id, status').eq('id', id).single();
+
+    if (fetchErr || !letter) return reply.status(404).send({ error: 'Transfer request not found' });
+    if (letter.status !== 'draft') return reply.status(400).send({ error: 'This transfer has already been processed' });
+
+    let meta: any = {};
+    try {
+      const metaStr = letter.letter_body.split('\n---LETTER---\n')[0];
+      meta = JSON.parse(metaStr);
+    } catch {
+      return reply.status(400).send({ error: 'Invalid transfer request format' });
+    }
+
+    const { guarantor_customer_id, application_id } = meta;
+
+    if (guarantor_customer_id && application_id) {
+      // 1. Transfer unpaid installments to the guarantor
+      await sb.from('installments')
+        .update({ customer_id: guarantor_customer_id } as any)
+        .eq('application_id', application_id)
+        .in('status', ['pending', 'not_deducted', 'arrears']);
+
+      // 2. Add recovery log
+      await sb.from('recovery_logs').insert({
+        application_id: application_id,
+        customer_id: letter.customer_id,
+        officer_id: req.user!.id,
+        contact_method: 'letter',
+        contacted_at: new Date().toISOString(),
+        outcome: 'transferred_to_guarantor',
+        notes: `Liability officially transferred to guarantor (approved by admin). Reason: ${meta.reason ?? ''}`
+      } as any);
+    }
+
+    // Mark the letter as sent (approved)
+    await sb.from('recovery_letters').update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      sent_by: req.user!.id,
+    }).eq('id', id);
+
+    await sb.from('audit_logs').insert({
+      user_id: req.user!.id,
+      action: 'GUARANTOR_TRANSFER_APPROVED',
+      entity_type: 'customers',
+      entity_id: letter.customer_id,
+      new_values: { letter_id: id, approved_by: req.user!.id, guarantor_customer_id },
+    } as any);
+
+    return reply.send({ success: true, message: 'Transfer approved and installments transferred to guarantor.' });
+  });
+
+  // ── POST /recovery/transfer-requests/:id/reject ── Admin rejects a pending transfer
+  app.post('/transfer-requests/:id/reject', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+    const { id } = req.params as { id: string };
+    const sb = getSupabase();
+    await sb.from('recovery_letters').update({ status: 'cancelled' }).eq('id', id);
+    return reply.send({ success: true, message: 'Transfer request rejected.' });
   });
 
   // ── POST /recovery/legal-notice ──
   app.post('/legal-notice', { preHandler:[authenticate,requireRole('recovery_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
     const body = z.object({
       customer_id: z.string().uuid(),
+      notes: z.string().optional(),
     }).safeParse(req.body);
 
     if (!body.success) return reply.status(400).send({error:'Validation Error'});
     const sb = getSupabase();
 
-    // Write proper audit log using correct columns
-    const { error: logError } = await sb.from('audit_logs').insert({
-      user_id:     req.user!.id,
-      action:      'LEGAL_NOTICE_SENT',
+    // Fetch customer for the letter
+    const { data: cust } = await sb.from('customers')
+      .select('full_name, service_number, rank, branch, camp:camps(name)')
+      .eq('id', body.data.customer_id).single();
+
+    const { data: activeApp } = await sb.from('applications').select('id, ref_number')
+      .eq('customer_id', body.data.customer_id).eq('status', 'active').maybeSingle();
+
+    const today = new Date().toLocaleDateString('en-LK', { year: 'numeric', month: 'long', day: 'numeric' });
+    const letterBody = `AIRVOICE DEFENCE FINANCE
+LEGAL NOTICE OF DEFAULT
+Date: ${today}
+
+To: ${cust?.full_name ?? 'Unknown'}
+Rank: ${cust?.rank ?? ''} | Service No: ${cust?.service_number ?? ''}
+Camp: ${(cust?.camp as any)?.name ?? '—'} | Branch: ${cust?.branch ?? ''}
+Application Ref: ${activeApp?.ref_number ?? '—'}
+
+Dear ${cust?.full_name ?? 'Sir/Madam'},
+
+Despite previous notices and communications, your AIRVOICE Defence Finance account remains in arrears. This letter constitutes a formal LEGAL NOTICE that if the outstanding balance is not cleared within 14 days of the date above, AIRVOICE Defence Finance reserves the right to take legal action and notify your commanding officer.
+
+${body.data.notes ? `Additional Notes:\n${body.data.notes}\n\n` : ''}Sincerely,
+AIRVOICE Defence Finance Legal Department`;
+
+    // Create legal notice letter
+    const { data: letter, error: letterErr } = await sb.from('recovery_letters').insert({
+      customer_id: body.data.customer_id,
+      application_id: activeApp?.id ?? null,
+      letter_type: 'legal_notice',
+      letter_body: letterBody,
+      status: 'draft',
+    }).select().single();
+
+    // Write audit log
+    await sb.from('audit_logs').insert({
+      user_id: req.user!.id,
+      action: 'LEGAL_NOTICE_SENT',
       entity_type: 'customers',
-      entity_id:   body.data.customer_id,
-      new_values:  { issued_by: req.user!.id, issued_at: new Date().toISOString() },
+      entity_id: body.data.customer_id,
+      new_values: { issued_by: req.user!.id, issued_at: new Date().toISOString(), letter_id: letter?.id },
     } as any);
 
-    if (logError) return reply.status(500).send({error: logError.message});
-    return reply.send({ success: true, message: 'Legal notice issued' });
+    return reply.send({
+      success: true,
+      message: 'Legal notice drafted',
+      letter_id: letter?.id,
+      letter_body: letterBody,
+    });
   });
 
   // ── GET /recovery/letters ── List recovery letters

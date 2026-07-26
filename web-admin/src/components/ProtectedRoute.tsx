@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore, UserRole } from '@/store/authStore';
 
 interface ProtectedRouteProps {
@@ -6,7 +7,17 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ roles }: ProtectedRouteProps) {
-  const { user, isInitializing } = useAuthStore();
+  const { user, isInitializing, loginTimestamp, logout } = useAuthStore();
+  const location = useLocation();
+
+  useEffect(() => {
+    if (loginTimestamp) {
+      const isExpired = Date.now() - loginTimestamp > 30 * 60 * 1000; // 30 minutes
+      if (isExpired) {
+        logout();
+      }
+    }
+  }, [loginTimestamp, logout, location.pathname]);
 
   // ── Wait for Firebase to restore session before making any routing decision.
   // Without this, a hard refresh sends the user to /login even when they are
@@ -23,8 +34,6 @@ export default function ProtectedRoute({ roles }: ProtectedRouteProps) {
       </div>
     );
   }
-
-  const location = useLocation();
 
   // Not authenticated → go to login
   if (!user) {

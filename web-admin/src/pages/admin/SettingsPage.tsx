@@ -110,8 +110,6 @@ const BUSINESS_RULES = [
 const TABS = [
   { key: 'business', Icon: SlidersHorizontal, label: 'Business Rules' },
   { key: 'templates', Icon: MessageSquare, label: 'Message Templates' },
-  { key: 'users', Icon: Users, label: 'User Management' },
-  { key: 'camps', Icon: Building2, label: 'Camp Setup' },
   { key: 'system', Icon: Server, label: 'System Info' },
 ] as const;
 
@@ -142,7 +140,7 @@ const MAINTENANCE_ACTIONS = [
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'business'|'templates'|'users'|'camps'|'system'>('business');
+  const [tab, setTab] = useState<'business'|'templates'|'system'>('business');
   const [ruleValues, setRuleValues] = useState<Record<string, any>>(
     Object.fromEntries(BUSINESS_RULES.map(r => [r.key, r.defaultVal]))
   );
@@ -373,161 +371,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* USER MANAGEMENT */}
-      {tab === 'users' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Users size={15} color="var(--text-muted)" />
-              {users.length} system users
-            </div>
-            <button
-              onClick={() => setShowAddUser(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
-            >
-              <Plus size={16} /> Invite User
-            </button>
-          </div>
 
-          {usersLoading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading users…</div>
-          ) : (
-            <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-                <thead>
-                  <tr style={{ background: '#0d1f3c', color: '#fff' }}>
-                    {USER_TABLE_HEADERS.map(h => (
-                      <th key={h.label} style={{ padding: '10px 14px', textAlign: 'left', fontWeight: 700, fontSize: 11, letterSpacing: 0.4 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                          <h.Icon size={12} style={{ opacity: 0.8 }} />{h.label}
-                        </span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user, idx) => {
-                    const roleColor = ROLE_COLORS[user.role] ?? '#6b7280';
-                    return (
-                      <tr key={user.id} style={{ borderBottom: '1px solid var(--border-color)', background: idx % 2 === 0 ? 'var(--bg-surface)' : 'var(--bg-surface-2)', opacity: user.is_active ? 1 : 0.55 }}>
-                        <td style={{ padding: '12px 14px' }}>
-                          <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>{user.full_name ?? '—'}</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'JetBrains Mono, monospace', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Phone size={10} />{user.phone_number}
-                          </div>
-                        </td>
-                        <td style={{ padding: '12px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, background: `${roleColor}18`, color: roleColor, borderRadius: 5, padding: '3px 8px', textTransform: 'capitalize' }}>
-                            {user.role.replace(/_/g, ' ')}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 14px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, background: user.is_active ? 'rgba(22,163,74,0.15)' : 'rgba(220,38,38,0.15)', color: user.is_active ? '#16a34a' : '#dc2626', borderRadius: 5, padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            {user.is_active ? <CircleCheck size={11} /> : <CircleX size={11} />}
-                            {user.is_active ? 'Active' : 'Suspended'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Clock size={11} />{user.last_login ?? '—'}
-                        </td>
-                        <td style={{ padding: '12px 14px' }}>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: 'var(--bg-surface-2)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 11.5, fontWeight: 600, cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                              <Pencil size={12} /> Edit
-                            </button>
-                            <button
-                              onClick={() => updateUserMutation.mutate({ id: user.id, is_active: !user.is_active })}
-                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: user.is_active ? 'rgba(220,38,38,0.15)' : 'rgba(22,163,74,0.15)', border: 'none', borderRadius: 6, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', color: user.is_active ? '#dc2626' : '#16a34a' }}
-                            >
-                              {user.is_active ? <Pause size={12} /> : <Play size={12} />} {user.is_active ? 'Suspend' : 'Activate'}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* CAMP SETUP */}
-      {tab === 'camps' && (
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Building2 size={15} color="#2563ea" />
-              {camps.length} registered camps
-            </div>
-            <button style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
-              <Plus size={16} /> Add Camp
-            </button>
-          </div>
-
-          {campsLoading ? (
-            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Loading camps…</div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-              {camps.map(camp => {
-                const branchColor = camp.branch === 'army' ? '#16a34a' : camp.branch === 'navy' ? '#0d1f3c' : '#1d4ed8';
-                const rateColor = camp.collection_rate >= 95 ? '#16a34a' : camp.collection_rate >= 80 ? '#d97706' : '#dc2626';
-                return (
-                  <div key={camp.id} style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden', opacity: camp.is_active ? 1 : 0.6 }}>
-                    <div style={{ padding: '14px 16px', borderBottom: '3px solid ' + branchColor }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Landmark size={15} color="#2563ea" />
-                            {camp.name}
-                          </div>
-                          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <MapPin size={11} />{camp.location}
-                          </div>
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, background: camp.is_active ? 'rgba(22,163,74,0.15)' : 'var(--bg-surface-2)', color: camp.is_active ? '#16a34a' : 'var(--text-muted)', borderRadius: 5, padding: '2px 7px' }}>
-                          {camp.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>{camp.total_customers}</div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
-                            <Users size={10} />Customers
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 18, fontWeight: 800, color: rateColor }}>{camp.collection_rate}%</div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
-                            <TrendingUp size={10} />Collection
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: branchColor, textTransform: 'capitalize' }}>
-                            {camp.branch.replace('_', ' ')}
-                          </div>
-                          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'center' }}>
-                            <BadgeCheck size={10} />Branch
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ height: 6, borderRadius: 3, background: 'var(--bg-surface-3)', overflow: 'hidden', marginBottom: 10 }}>
-                        <div style={{ height: '100%', borderRadius: 3, background: rateColor, width: `${camp.collection_rate}%`, transition: 'width 0.7s' }} />
-                      </div>
-                      <button style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '7px', background: 'var(--bg-surface-2)', border: '1px solid var(--border-color)', borderRadius: 8, fontWeight: 600, fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)' }}>
-                        <Pencil size={13} /> Edit Camp
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* SYSTEM INFO */}
       {tab === 'system' && (

@@ -57,6 +57,9 @@ export default async function deductionRoutes(app: FastifyInstance) {
         id, status, expected_amount, deducted_amount, arrears_amount,
         not_deducted_reason, not_deducted_notes, month_number,
         due_year, due_month, due_date, confirmed_at,
+        customer:customers!installments_customer_id_fkey(
+          id, full_name, service_number, rank, nic_number, camp_id
+        ),
         application:applications(
           id, ref_number, monthly_amount, term_months,
           customer:customers(
@@ -69,7 +72,14 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
     // Filter to only installments belonging to this camp and sort client-side
     const data = rawData
-      ?.filter((i: any) => i.application?.customer?.camp_id === campId)
+      ?.filter((i: any) => (i.customer?.camp_id || i.application?.customer?.camp_id) === campId)
+      .map((i: any) => {
+        // Overwrite application.customer with the installment's liable customer (e.g. guarantor)
+        if (i.application && i.customer) {
+          i.application.customer = i.customer;
+        }
+        return i;
+      })
       .sort((a: any, b: any) =>
         (a.application?.customer?.full_name ?? '').localeCompare(b.application?.customer?.full_name ?? '')
       ) ?? [];
@@ -357,12 +367,12 @@ export default async function deductionRoutes(app: FastifyInstance) {
     const trend = await Promise.all(months.map(async ({ year, month, label }) => {
       const { data: installments } = await supabase
         .from('installments')
-        .select('status, application:applications(customer:customers(camp_id))')
+        .select('status, customer:customers!installments_customer_id_fkey(camp_id), application:applications(customer:customers(camp_id))')
         .eq('due_year', year)
         .eq('due_month', month);
 
       const campInstallments = (installments ?? []).filter(
-        (i: any) => i.application?.customer?.camp_id === campId
+        (i: any) => (i.customer?.camp_id || i.application?.customer?.camp_id) === campId
       );
       const total = campInstallments.length;
       const deducted = campInstallments.filter((i: any) => i.status === 'deducted').length;

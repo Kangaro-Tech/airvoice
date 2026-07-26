@@ -24,7 +24,7 @@ export default async function financeRoutes(app: FastifyInstance) {
 
     // 3. Fetch Expenses
     const { data: exps } = await sb.from('expenses')
-      .select('amount,expense_date,status,category')
+      .select('amount,expense_date,status,category:expense_categories(name)')
       .eq('status', 'approved');
     const approvedExpenses = exps ?? [];
 
@@ -106,6 +106,7 @@ export default async function financeRoutes(app: FastifyInstance) {
     const commArr = get6Mo();
     const fuelArr = get6Mo();
     const officeArr = get6Mo();
+    const donationCompanyArr = get6Mo();
     const otherExpArr = get6Mo();
 
     // Populate collections
@@ -143,12 +144,14 @@ export default async function financeRoutes(app: FastifyInstance) {
       if (d.getFullYear() === year) {
         const m = d.getMonth();
         if (m >= startMonth && m < startMonth + 6) {
-          const cat = (e.category || '').toLowerCase();
+          const cat = (e.category?.name || '').toLowerCase();
           const amt = Number(e.amount ?? 0);
           if (cat.includes('fuel') || cat.includes('field')) {
             fuelArr[m - startMonth] += amt;
           } else if (cat.includes('office') || cat.includes('admin')) {
             officeArr[m - startMonth] += amt;
+          } else if (cat.includes('donation') || cat.includes('company payment')) {
+            donationCompanyArr[m - startMonth] += amt;
           } else {
             otherExpArr[m - startMonth] += amt;
           }
@@ -157,7 +160,7 @@ export default async function financeRoutes(app: FastifyInstance) {
     });
 
     const incomeArr = collectionsArr;
-    const totalExpArr = payrollArr.map((p, i) => p + commArr[i] + fuelArr[i] + officeArr[i] + otherExpArr[i]);
+    const totalExpArr = payrollArr.map((p, i) => p + commArr[i] + fuelArr[i] + officeArr[i] + donationCompanyArr[i] + otherExpArr[i]);
     const netProfitArr = incomeArr.map((inc, i) => inc - totalExpArr[i]);
 
     const plRows = [
@@ -167,6 +170,7 @@ export default async function financeRoutes(app: FastifyInstance) {
       { label: 'Sales Commissions', values: commArr },
       { label: 'Fuel & Field Expenses', values: fuelArr },
       { label: 'Office & Admin', values: officeArr },
+      { label: 'Donations & Company Payments', values: donationCompanyArr },
       { label: 'Other Expenses', values: otherExpArr },
       { label: 'Total Expenses', values: totalExpArr, bold: true, color: 'text-red-600' },
       { label: 'NET PROFIT', values: netProfitArr, bold: true, color: 'text-green-700', isTotal: true },

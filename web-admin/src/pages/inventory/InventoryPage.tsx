@@ -577,8 +577,15 @@ function EditDeviceModal({ device, models, onClose, onSuccess }: {
     supplier:       device.notes?.replace('Supplier: ', '') || '',
     stock_location: device.stock_location || 'Colombo HQ',
   });
+  const [scanning, setScanning] = useState<'imei1' | 'imei2' | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const handleScanSuccess = (text: string) => {
+    if (scanning === 'imei1') setForm(f => ({ ...f, imei_1: text }));
+    if (scanning === 'imei2') setForm(f => ({ ...f, imei_2: text }));
+    setScanning(null);
+  };
 
   const submit = async () => {
     if (!form.imei_1 || form.imei_1.length < 14) { setError('IMEI 1 is required and must be at least 14 digits.'); return; }
@@ -631,6 +638,13 @@ function EditDeviceModal({ device, models, onClose, onSuccess }: {
             </div>
           </div>
 
+          {/* Scanner Overlay */}
+          {scanning && (
+            <div className="mb-4 rounded-xl overflow-hidden border-2 border-slate-800">
+              <BarcodeScanner onScan={handleScanSuccess} onClose={() => setScanning(null)} />
+            </div>
+          )}
+
           {error && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
 
           {/* Form Grid — same 12-col layout as Add Device */}
@@ -676,6 +690,13 @@ function EditDeviceModal({ device, models, onClose, onSuccess }: {
                   value={form.imei_1}
                   onChange={e => setForm(f => ({ ...f, imei_1: e.target.value.replace(/\D/g, '').slice(0, 15) }))}
                 />
+                <button
+                  type="button"
+                  onClick={() => setScanning('imei1')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition"
+                >
+                  <Barcode size={18} />
+                </button>
               </div>
             </div>
 
@@ -690,6 +711,13 @@ function EditDeviceModal({ device, models, onClose, onSuccess }: {
                   value={form.imei_2}
                   onChange={e => setForm(f => ({ ...f, imei_2: e.target.value.replace(/\D/g, '').slice(0, 15) }))}
                 />
+                <button
+                  type="button"
+                  onClick={() => setScanning('imei2')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition"
+                >
+                  <Barcode size={18} />
+                </button>
               </div>
             </div>
 
