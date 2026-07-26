@@ -143,6 +143,12 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['recovery_officer', 'finance_officer', 'admin', 'super_admin']
       },
       {
+        label: 'Donations',
+        to: '/donations',
+        icon: <CreditCard size={16} />,
+        roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
+      },
+      {
         label: 'Guarantors',
         to: '/guarantors',
         icon: <Shield size={16} />,

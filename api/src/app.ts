@@ -290,6 +290,11 @@ export async function buildApp() {
     prefix:"/schedule"
   });
 
+  const donationsRoutes = require('./routes/donations').default;
+  await app.register(donationsRoutes,{
+    prefix:"/donations"
+  });
+
 
 
 

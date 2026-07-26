@@ -37,6 +37,7 @@ import PayrollPage from '@/pages/finance/PayrollPage';
 import InstallmentsPage from '@/pages/finance/InstallmentsPage';
 import PettyCashPage from '@/pages/finance/PettyCashPage';
 import CompanyPaymentsPage from '@/pages/finance/CompanyPaymentsPage';
+import DonationsPage from '@/pages/finance/DonationsPage';
 
 // Pages — Recovery & Sales
 import RecoveryPage from '@/pages/recovery/RecoveryPage';
@@ -139,6 +140,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               {/* Installments & Reports (Finance + Camp Officer) */}
               <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin']} />}>
                 <Route path="/installments" element={<InstallmentsPage />} />
+                <Route path="/donations" element={<DonationsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
               </Route>
 

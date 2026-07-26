@@ -153,3 +153,9 @@ export const tasksApi = {
   delete: (id: string) => api.delete(`/tasks/${id}`),
 };
 
+export const donationsApi = {
+  list:   () => api.get('/donations'),
+  create: (data: unknown) => api.post('/donations', data),
+  update: (id: string, data: unknown) => api.put(`/donations/${id}`, data),
+  delete: (id: string) => api.delete(`/donations/${id}`),
+};

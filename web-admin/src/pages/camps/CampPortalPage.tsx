@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import {
   CheckCircle, XCircle, Minus, Download, AlertTriangle,
   FileText, Clock, ChevronDown, Send, TrendingUp, Eye,
-  Building2, Lock, Users, Percent, PauseCircle, History, CalendarClock, MapPin, Trash2, Loader2, Plus, X,
+  Building2, Lock, Users, Percent, PauseCircle, History, CalendarClock, MapPin, Trash2, Loader2, Plus, X, Heart,
 } from 'lucide-react';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -201,6 +202,7 @@ function InstRow({
 
 /* ─── Main page ─────────────────────────────────────────────── */
 export default function CampPortalPage() {
+  const navigate = useNavigate();
   const now = new Date();
   const { user } = useAuthStore();
   const [tab, setTab]     = useState<Tab>('Deduction Entry');
@@ -441,6 +443,12 @@ export default function CampPortalPage() {
           </button>
           <button onClick={handleExport} className="flex items-center gap-1.5 text-xs px-3 py-2 border border-base rounded-lg hover:bg-[var(--bg-surface-2)] font-medium">
             <Download size={14} /> Download Excel
+          </button>
+          <button
+            onClick={() => navigate('/donations')}
+            className="flex items-center gap-1.5 text-xs px-3 py-2 border border-base rounded-lg hover:bg-[var(--bg-surface-2)] font-medium"
+          >
+            <Heart size={14} className="text-red-500" /> View Donations
           </button>
           <button
             onClick={() => bulkSubmitMutation.mutate()}

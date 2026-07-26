@@ -105,9 +105,14 @@ export default function AdminPage() {
           </h1>
           <p className="text-sm text-base-muted mt-0.5">Manage users, review special approvals, and handle free phone requests.</p>
         </div>
-        <Link to="/admin/audit-logs" className="flex items-center gap-1.5 px-4 py-2 border border-base text-sm font-medium rounded-xl hover:bg-[var(--bg-surface-2)] text-base-secondary transition-colors">
-          <FileText size={15} /> Audit Logs
-        </Link>
+        <div className="flex gap-2">
+          <Link to="/donations" className="flex items-center gap-1.5 px-4 py-2 border border-base text-sm font-medium rounded-xl hover:bg-[var(--bg-surface-2)] text-base-secondary transition-colors">
+            <Gift size={15} className="text-red-500" /> Donations
+          </Link>
+          <Link to="/admin/audit-logs" className="flex items-center gap-1.5 px-4 py-2 border border-base text-sm font-medium rounded-xl hover:bg-[var(--bg-surface-2)] text-base-secondary transition-colors">
+            <FileText size={15} /> Audit Logs
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}
