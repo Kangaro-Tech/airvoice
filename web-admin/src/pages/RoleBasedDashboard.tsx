@@ -5,6 +5,7 @@
 
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { RoleBasedAccess } from '@/components/RoleBasedAccess';
+import { DashboardNotepad } from '@/components/DashboardNotepad';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import {
@@ -194,14 +195,21 @@ export default function RoleBasedDashboard() {
         </RoleBasedAccess>
 
         {/* Role & Permission Info */}
-        <div className="mt-6 rounded-lg bg-blue-50 p-4 border border-blue-200">
-          <h3 className="font-semibold text-blue-900 mb-2">Your Role Information</h3>
-          <p className="text-sm text-blue-800">
-            Your current role: <span className="font-semibold">{user.role}</span>
-          </p>
-          <p className="text-sm text-blue-800 mt-1">
-            Status: <span className="font-semibold">{user.is_active ? '✓ Active' : '✗ Inactive'}</span>
-          </p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          <div className="lg:col-span-2">
+            <div className="rounded-lg bg-blue-50 p-4 border border-blue-200">
+              <h3 className="font-semibold text-blue-900 mb-2">Your Role Information</h3>
+              <p className="text-sm text-blue-800">
+                Your current role: <span className="font-semibold">{user.role}</span>
+              </p>
+              <p className="text-sm text-blue-800 mt-1">
+                Status: <span className="font-semibold">{user.is_active ? '✓ Active' : '✗ Inactive'}</span>
+              </p>
+            </div>
+          </div>
+          <div className="lg:col-span-1">
+            <DashboardNotepad />
+          </div>
         </div>
       </div>
     </div>

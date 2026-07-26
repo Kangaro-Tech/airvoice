@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { TaskNotepad } from '@/components/TaskNotepad';
+import { DashboardNotepad } from '@/components/DashboardNotepad';
 import {
   Users, Phone, ClipboardList, Target, TrendingUp, AlertCircle,
   Coins, Package, Shield, Download, RefreshCw, BarChart2, Bell, TrendingDown, LayoutDashboard,
@@ -187,7 +188,14 @@ export default function DashboardPage() {
           <ActionCard icon={<TrendingDown size={20} />} title="Recovery" description="Track recovery operations" link="/recovery" />
           <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
-        <FinanceAIRiskAlerts />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <FinanceAIRiskAlerts />
+          </div>
+          <div className="lg:col-span-1">
+            <DashboardNotepad />
+          </div>
+        </div>
         <TaskNotepad />
       </div>
     );
@@ -223,7 +231,14 @@ export default function DashboardPage() {
           <ActionCard icon={<Package size={20} />} title="Inventory" description="Check stock availability" link="/inventory" />
           <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
-        <CommissionTargetTracker />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <CommissionTargetTracker />
+          </div>
+          <div className="lg:col-span-1">
+            <DashboardNotepad />
+          </div>
+        </div>
         <TaskNotepad />
       </div>
     );
@@ -258,6 +273,14 @@ export default function DashboardPage() {
           <ActionCard icon={<TrendingUp size={20} />} title="Stock Orders" description="Create stock orders" link="/stock-orders" />
           <ActionCard icon={<BarChart2 size={20} />} title="Reports" description="Inventory reports" link="/reports" />
           <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {/* Additional Inventory widgets can go here */}
+          </div>
+          <div className="lg:col-span-1">
+            <DashboardNotepad />
+          </div>
         </div>
         <TaskNotepad />
       </div>
@@ -294,6 +317,14 @@ export default function DashboardPage() {
           <ActionCard icon={<AlertCircle size={20} />} title="High Risk Cases" description="Priority recovery" link="/recovery?filter=high-risk" />
           <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
         </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {/* Additional Recovery widgets can go here */}
+          </div>
+          <div className="lg:col-span-1">
+            <DashboardNotepad />
+          </div>
+        </div>
         <TaskNotepad />
       </div>
     );
@@ -328,6 +359,14 @@ export default function DashboardPage() {
           <ActionCard icon={<ClipboardList size={20} />} title="Applications" description="View camp applications" link="/applications?filter=camp" />
           <ActionCard icon={<Bell size={20} />} title="Notifications" description="View alerts & messages" link="/notifications" />
           <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            {/* Additional Camp widgets can go here */}
+          </div>
+          <div className="lg:col-span-1">
+            <DashboardNotepad />
+          </div>
         </div>
         <TaskNotepad />
       </div>
@@ -452,7 +491,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Row 3: Alerts */}
+      {/* Row 3: Alerts and Notepad */}
       <div className="grid grid-cols-2 gap-5">
         <div className="card p-5">
           <h3 className="font-semibold text-sm text-base-secondary mb-4 flex items-center gap-2">
@@ -473,6 +512,9 @@ export default function DashboardPage() {
               ))
             )}
           </div>
+        </div>
+        <div className="col-span-1 h-full">
+          <DashboardNotepad />
         </div>
       </div>
 
