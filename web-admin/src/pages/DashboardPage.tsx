@@ -181,7 +181,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           <ActionCard icon={<Coins size={20} />} title="Manage Expenses" description="Create & approve expenses" link="/expenses" />
           <ActionCard icon={<BarChart2 size={20} />} title="Payroll" description="Manage staff payroll" link="/payroll" />
           <ActionCard icon={<TrendingDown size={20} />} title="Recovery" description="Track recovery operations" link="/recovery" />
