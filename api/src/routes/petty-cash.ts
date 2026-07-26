@@ -68,7 +68,7 @@ export default async function pettyCashRoutes(app: FastifyInstance) {
 
     if (error) return reply.status(500).send({ error: error.message });
 
-    await writeAuditLog(sb, {
+    await writeAuditLog({
       user_id: req.user!.id,
       action: 'PETTY_CASH_ENTRY_CREATED',
       entity_type: 'petty_cash_entries',
@@ -105,7 +105,7 @@ export default async function pettyCashRoutes(app: FastifyInstance) {
 
     if (error) return reply.status(500).send({ error: error.message });
 
-    await writeAuditLog(sb, {
+    await writeAuditLog({
       user_id: req.user!.id,
       action: 'PETTY_CASH_ENTRY_UPDATED',
       entity_type: 'petty_cash_entries',
@@ -125,7 +125,7 @@ export default async function pettyCashRoutes(app: FastifyInstance) {
     const { error } = await sb.from('petty_cash_entries').delete().eq('id', id);
     if (error) return reply.status(500).send({ error: error.message });
 
-    await writeAuditLog(sb, {
+    await writeAuditLog({
       user_id: req.user!.id,
       action: 'PETTY_CASH_ENTRY_DELETED',
       entity_type: 'petty_cash_entries',

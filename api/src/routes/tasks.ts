@@ -44,7 +44,8 @@ export default async function tasksRoutes(app: FastifyInstance) {
 
   // Update a task (e.g. mark as notified/archived)
   app.patch('/:id', { preHandler: [authenticate] },
-  async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const { id } = req.params as { id: string };
     const user = req.user;
     if (!user || !user.id) return reply.status(401).send({ error: 'Unauthorized' });
 
@@ -52,7 +53,7 @@ export default async function tasksRoutes(app: FastifyInstance) {
 
     const { data, error } = await getSupabase().from('task_notes')
       .update(updates)
-      .eq('id', req.params.id)
+      .eq('id', id)
       .eq('user_id', user.id)
       .select()
       .single();
@@ -63,13 +64,14 @@ export default async function tasksRoutes(app: FastifyInstance) {
 
   // Delete a task
   app.delete('/:id', { preHandler: [authenticate] },
-  async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const { id } = req.params as { id: string };
     const user = req.user;
     if (!user || !user.id) return reply.status(401).send({ error: 'Unauthorized' });
 
     const { error } = await getSupabase().from('task_notes')
       .delete()
-      .eq('id', req.params.id)
+      .eq('id', id)
       .eq('user_id', user.id);
 
     if (error) return reply.status(500).send({ error: error.message });

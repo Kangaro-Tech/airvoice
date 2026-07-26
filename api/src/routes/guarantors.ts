@@ -449,7 +449,7 @@ export default async function guarantorRoutes(app: FastifyInstance) {
     }
 
     // Write audit log
-    await writeAuditLog(sb, {
+    await writeAuditLog({
       user_id: req.user!.id,
       action: 'GUARANTOR_PAYMENT_RECORDED',
       entity_type: 'guarantor_payments',
