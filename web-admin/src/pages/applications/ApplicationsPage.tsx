@@ -25,12 +25,9 @@ const STATUS_BADGE: Record<string, string> = {
   completed: 'surface-2 text-base-secondary border border-base',
 };
 
-const STAGES = ['submitted', 'docs_review', 'camp_review', 'finance_review', 'admin_review', 'approved', 'active', 'rejected'];
+const STAGES = ['submitted', 'admin_review', 'approved', 'active', 'rejected'];
 const STAGE_LABELS: Record<string, string> = {
   submitted: 'Submitted',
-  docs_review: 'Doc Review',
-  camp_review: 'Camp Review',
-  finance_review: 'Finance Review',
   admin_review: 'Admin Review',
   approved: 'Approved',
   active: 'Active',
@@ -492,12 +489,6 @@ export default function ApplicationsPage() {
     if (appStatus === 'submitted') {
       return user?.role === 'sales_officer' || user?.role === 'admin' || user?.role === 'super_admin';
     }
-    if (appStatus === 'camp_review') {
-      return user?.role === 'camp_officer' || user?.role === 'admin' || user?.role === 'super_admin';
-    }
-    if (appStatus === 'finance_review') {
-      return user?.role === 'finance_officer' || user?.role === 'admin' || user?.role === 'super_admin';
-    }
     if (appStatus === 'admin_review') {
       return user?.role === 'admin' || user?.role === 'super_admin';
     }
@@ -509,8 +500,6 @@ export default function ApplicationsPage() {
 
     let endpoint = '';
     if (showReviewModal.status === 'submitted') endpoint = 'sales-review';
-    else if (showReviewModal.status === 'camp_review') endpoint = 'camp-review';
-    else if (showReviewModal.status === 'finance_review') endpoint = 'finance-review';
     else if (showReviewModal.status === 'admin_review') endpoint = 'admin-approve';
 
     if (!endpoint) return;
@@ -522,7 +511,6 @@ export default function ApplicationsPage() {
         action: reviewAction,
         note: reviewNote || undefined,
         rejection_reason: reviewAction === 'reject' ? rejectionReason : undefined,
-        retirement_risk_confirmed: showReviewModal.status === 'camp_review' ? retirementRiskConfirmed : undefined,
       }
     }, {
       onSuccess: () => {
@@ -785,9 +773,8 @@ export default function ApplicationsPage() {
       {/* Metric summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { key: 'docs_review', label: 'Doc Review', color: 'border-amber-500 text-amber-600', icon: FileText },
-          { key: 'camp_review', label: 'Camp Review', color: 'border-purple-500 text-purple-600', icon: Users },
-          { key: 'finance_review', label: 'Finance Review', color: 'border-indigo-500 text-indigo-600', icon: DollarSign },
+          { key: 'submitted', label: 'Submitted', color: 'border-blue-500 text-blue-600', icon: FileText },
+          { key: 'admin_review', label: 'Admin Review', color: 'border-pink-500 text-pink-600', icon: Shield },
           { key: 'approved', label: 'Approved', color: 'border-teal-500 text-teal-600', icon: Award }
         ].map(card => {
           const cnt = getStageCount(card.key);
@@ -894,7 +881,7 @@ export default function ApplicationsPage() {
               ) : (
                 apps.map(a => {
                   const retRisk = a.retirement_flag === 'retire_risk';
-                  const stagesList = ['submitted', 'docs_review', 'camp_review', 'finance_review', 'approved', 'active'];
+                  const stagesList = ['submitted', 'admin_review', 'approved', 'active'];
                   const currentIdx = stagesList.indexOf(a.status);
                   return (
                     <tr key={a.id} className="hover:bg-gray-50/80 transition-colors">
@@ -957,7 +944,7 @@ export default function ApplicationsPage() {
                             // Count active/pending phones for this customer to enforce max 2 limit
                             const activePhones = (allApps ?? []).filter((ap: any) =>
                               ap.customer_id === a.customer_id &&
-                              ['active', 'submitted', 'docs_review', 'camp_review', 'finance_review', 'admin_review', 'approved'].includes(ap.status)
+                              ['active', 'submitted', 'admin_review', 'approved'].includes(ap.status)
                             ).length;
                             const atLimit = activePhones >= 2;
                             return (

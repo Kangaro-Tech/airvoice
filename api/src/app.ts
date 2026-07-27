@@ -50,16 +50,16 @@ export async function buildApp() {
 
 
   const app = Fastify({
-    logger:true,
-    trustProxy:true
+    logger: true,
+    trustProxy: true
   });
 
 
 
   // Security
 
-  await app.register(helmet,{
-    contentSecurityPolicy:false
+  await app.register(helmet, {
+    contentSecurityPolicy: false
   });
 
 
@@ -71,25 +71,25 @@ export async function buildApp() {
   const vercelOrigin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined;
   const allowedOrigins = vercelOrigin ? [...configuredOrigins, vercelOrigin] : configuredOrigins;
 
-  await app.register(cors,{
+  await app.register(cors, {
     origin: allowedOrigins,
-    credentials:true
+    credentials: true
   });
 
 
 
-  await app.register(rateLimit,{
-    global:true,
-    max:200,
-    timeWindow:"1 minute"
+  await app.register(rateLimit, {
+    global: true,
+    max: 200,
+    timeWindow: "1 minute"
   });
 
 
 
-  await app.register(multipart,{
-    limits:{
+  await app.register(multipart, {
+    limits: {
       fileSize:
-      20 * 1024 * 1024
+        20 * 1024 * 1024
     }
   });
 
@@ -97,17 +97,17 @@ export async function buildApp() {
 
   // Swagger
 
-  if(process.env.NODE_ENV !== "production"){
+  if (process.env.NODE_ENV !== "production") {
 
 
-    await app.register(swagger,{
+    await app.register(swagger, {
 
-      openapi:{
-        info:{
-          title:"AIRVOICE Defence Finance API",
-          version:"1.0.0",
+      openapi: {
+        info: {
+          title: "AIRVOICE Defence Finance API",
+          version: "1.0.0",
           description:
-          "Production Finance API"
+            "Production Finance API"
         }
       }
 
@@ -115,8 +115,8 @@ export async function buildApp() {
 
 
 
-    await app.register(swaggerUi,{
-      routePrefix:"/docs"
+    await app.register(swaggerUi, {
+      routePrefix: "/docs"
     });
 
   }
@@ -126,14 +126,14 @@ export async function buildApp() {
 
   // Health
 
-  app.get("/health", async()=>{
+  app.get("/health", async () => {
 
     return {
 
-      status:"ok",
+      status: "ok",
 
       timestamp:
-      new Date().toISOString()
+        new Date().toISOString()
 
     };
 
@@ -146,153 +146,153 @@ export async function buildApp() {
   // Routes
 
 
-  await app.register(authRoutes,{
-    prefix:"/auth"
+  await app.register(authRoutes, {
+    prefix: "/auth"
   });
 
 
-  await app.register(userRoutes,{
-    prefix:"/users"
+  await app.register(userRoutes, {
+    prefix: "/users"
   });
 
 
-  await app.register(customerRoutes,{
-    prefix:"/customers"
+  await app.register(customerRoutes, {
+    prefix: "/customers"
   });
 
 
-  await app.register(documentRoutes,{
-    prefix:"/customers"
+  await app.register(documentRoutes, {
+    prefix: "/customers"
   });
 
 
-  await app.register(applicationRoutes,{
-    prefix:"/applications"
+  await app.register(applicationRoutes, {
+    prefix: "/applications"
   });
 
 
-  await app.register(guarantorRoutes,{
-    prefix:"/guarantors"
+  await app.register(guarantorRoutes, {
+    prefix: "/guarantors"
   });
 
 
-  await app.register(campRoutes,{
-    prefix:"/camps"
+  await app.register(campRoutes, {
+    prefix: "/camps"
   });
 
 
-  await app.register(deductionRoutes,{
-    prefix:"/deductions"
+  await app.register(deductionRoutes, {
+    prefix: "/deductions"
   });
 
 
-  await app.register(installmentRoutes,{
-    prefix:"/installments"
+  await app.register(installmentRoutes, {
+    prefix: "/installments"
   });
 
 
-  await app.register(phoneRoutes,{
-    prefix:"/phones"
+  await app.register(phoneRoutes, {
+    prefix: "/phones"
   });
 
 
-  await app.register(inventoryRoutes,{
-    prefix:"/inventory"
+  await app.register(inventoryRoutes, {
+    prefix: "/inventory"
   });
 
 
-  await app.register(commissionRoutes,{
-    prefix:"/commissions"
+  await app.register(commissionRoutes, {
+    prefix: "/commissions"
   });
 
 
-  await app.register(expenseRoutes,{
-    prefix:"/expenses"
+  await app.register(expenseRoutes, {
+    prefix: "/expenses"
   });
 
 
-  await app.register(recoveryRoutes,{
-    prefix:"/recovery"
+  await app.register(recoveryRoutes, {
+    prefix: "/recovery"
   });
 
 
-  await app.register(reportRoutes,{
-    prefix:"/reports"
+  await app.register(reportRoutes, {
+    prefix: "/reports"
   });
 
 
-  await app.register(notificationRoutes,{
-    prefix:"/notifications"
+  await app.register(notificationRoutes, {
+    prefix: "/notifications"
   });
 
 
-  await app.register(adminRoutes,{
-    prefix:"/admin"
+  await app.register(adminRoutes, {
+    prefix: "/admin"
   });
 
 
-  await app.register(legacyImportRoutes,{
-    prefix:"/legacy-import"
+  await app.register(legacyImportRoutes, {
+    prefix: "/legacy-import"
   });
 
 
-  await app.register(chequeRoutes,{
-    prefix:"/cheque"
+  await app.register(chequeRoutes, {
+    prefix: "/cheque"
   });
 
 
-  await app.register(payrollRoutes,{
-    prefix:"/payroll"
+  await app.register(payrollRoutes, {
+    prefix: "/payroll"
   });
 
 
-  await app.register(financeRoutes,{
-    prefix:"/finance"
+  await app.register(financeRoutes, {
+    prefix: "/finance"
   });
 
 
-  await app.register(salesRoutes,{
-    prefix:"/sales"
+  await app.register(salesRoutes, {
+    prefix: "/sales"
   });
 
 
-  await app.register(districtRoutes,{
-    prefix:"/districts"
+  await app.register(districtRoutes, {
+    prefix: "/districts"
   });
 
 
-  await app.register(dashboardRoutes,{
-    prefix:"/dashboard"
+  await app.register(dashboardRoutes, {
+    prefix: "/dashboard"
   });
 
 
-  await app.register(translationRoutes,{
-    prefix:"/translate"
+  await app.register(translationRoutes, {
+    prefix: "/translate"
   });
 
 
-  await app.register(tasksRoutes,{
-    prefix:"/tasks"
+  await app.register(tasksRoutes, {
+    prefix: "/tasks"
   });
 
 
-  await app.register(pettyCashRoutes,{
-    prefix:"/petty-cash"
+  await app.register(pettyCashRoutes, {
+    prefix: "/petty-cash"
   });
 
 
-  await app.register(companyPaymentsRoutes,{
-    prefix:"/company-payments"
+  await app.register(companyPaymentsRoutes, {
+    prefix: "/company-payments"
   });
 
 
-  await app.register(scheduleRoutes,{
-    prefix:"/schedule"
+  await app.register(scheduleRoutes, {
+    prefix: "/schedule"
   });
 
   const donationsRoutes = require('./routes/donations').default;
-  await app.register(donationsRoutes,{
-    prefix:"/donations"
+  await app.register(donationsRoutes, {
+    prefix: "/donations"
   });
 
 
@@ -303,7 +303,7 @@ export async function buildApp() {
 
 
   app.setErrorHandler(
-    (error,request,reply)=>{
+    (error, request, reply) => {
 
 
       app.log.error(error);
@@ -312,13 +312,13 @@ export async function buildApp() {
       reply.status(
         error.statusCode ?? 500
       )
-      .send({
+        .send({
 
-        error:error.name,
+          error: error.name,
 
-        message:error.message
+          message: error.message
 
-      });
+        });
 
 
     }

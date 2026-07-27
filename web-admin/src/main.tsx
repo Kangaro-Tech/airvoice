@@ -110,7 +110,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               {/* Applications */}
               <Route path="/applications" element={<ApplicationsPage />} />
               <Route path="/applications/:id" element={<ApplicationDetailPage />} />
-              
+
               <Route path="/schedule" element={<SchedulePage />} />
 
               {/* Operations */}

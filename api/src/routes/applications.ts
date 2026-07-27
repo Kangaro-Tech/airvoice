@@ -42,7 +42,71 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const page = parseInt(query.page ?? '1');
     const limit = parseInt(query.limit ?? '20');
     const offset = (page - 1) * limit;
+    const isSalesOfficer = request.user!.role === 'sales_officer';
 
+    // For sales officers: query applications table directly (includes draft + submitted + all statuses)
+    // This ensures sales officers can always see their own applications regardless of view filters
+    if (isSalesOfficer) {
+      // Auto-migrate any lingering 'draft' applications to 'submitted' (fire-and-forget)
+      supabase
+        .from('applications')
+        .update({ status: 'submitted', submitted_at: new Date().toISOString(), submitted_by: request.user!.id })
+        .eq('sales_officer_id', request.user!.id)
+        .eq('status', 'draft')
+        .is('deleted_at', null)
+        .then(() => {}); // intentional fire-and-forget
+
+      let q = supabase
+        .from('applications')
+        .select(`
+          *,
+          customers!customer_id(full_name, service_number, branch, risk_score, retirement_date,
+            camps!camp_id(id, name)
+          ),
+          phone_models!phone_model_id(brand, model),
+          phones!applications_phone_id_fkey(id, imei_1)
+        `, { count: 'exact' })
+        .eq('sales_officer_id', request.user!.id)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (query.status) q = q.eq('status', query.status);
+      if (query.q) {
+        q = q.or(
+          `ref_number.ilike.%${query.q}%`
+        );
+      }
+
+      const { data: rawData, error, count } = await q;
+      if (error) return reply.status(500).send({ error: error.message });
+
+      // Normalize to same shape the view returns
+      // Map 'draft' → 'submitted' so old apps appear immediately (async DB migration handles actual update)
+      const normalized = (rawData ?? []).map((a: any) => ({
+        ...a,
+        status: a.status === 'draft' ? 'submitted' : a.status,
+        customer_name: a.customers?.full_name,
+        customer_nic: a.customers?.nic_number,
+        service_number: a.customers?.service_number,
+        customer_branch: a.customers?.branch,
+        risk_score: a.customers?.risk_score,
+        retirement_date: a.customers?.retirement_date,
+        camp_name: a.customers?.camps?.name,
+        camp_id: a.customers?.camps?.id,
+        phone_brand: a.phone_models?.brand,
+        phone_model: a.phone_models?.model,
+        sales_officer_name: null,
+        retirement_flag: null,
+      }));
+
+      return reply.send({
+        data: normalized,
+        meta: { total: count ?? 0, page, limit, pages: Math.ceil((count ?? 0) / limit) },
+      });
+    }
+
+    // For all other roles: use the application_pipeline view
     let q = supabase
       .from('application_pipeline')
       .select('*', { count: 'exact' })
@@ -72,11 +136,6 @@ export default async function applicationRoutes(app: FastifyInstance) {
       q = q.in('camp_id', campIds);
     }
 
-    // Sales officers see only their own
-    if (request.user!.role === 'sales_officer') {
-      q = q.eq('sales_officer_id', request.user!.id);
-    }
-
     const { data, error, count } = await q;
     if (error) return reply.status(500).send({ error: error.message });
 
@@ -85,6 +144,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
       meta: { total: count ?? 0, page, limit, pages: Math.ceil((count ?? 0) / limit) },
     });
   });
+
 
   // ── Get single application ────────────────────────────────
   app.get('/:id', {
@@ -177,7 +237,9 @@ export default async function applicationRoutes(app: FastifyInstance) {
         sale_date: saleDate.toISOString().split('T')[0],
         plan_end_date: planEnd.toISOString().split('T')[0],
         retirement_date: customer?.retirement_date,
-        status: 'draft',
+        status: 'submitted',
+        submitted_at: new Date().toISOString(),
+        submitted_by: request.user!.id,
         requires_special_approval: eligibility.requires_special_approval ?? false,
         notes: body.data.notes,
       })
@@ -208,6 +270,14 @@ export default async function applicationRoutes(app: FastifyInstance) {
       },
     });
 
+    notify({
+      kind: 'application_submitted',
+      ref: app.ref_number,
+      appId: app.id,
+      customerId: app.customer_id,
+      salesOfficerId: request.user!.id
+    });
+
     return reply.status(201).send({ data: app, retirement_risk: retirementRisk });
   });
 
@@ -234,7 +304,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { data: appRow } = await getSupabase().from('applications').select('ref_number').eq('id', id).single();
     const ref = appRow?.ref_number ?? id;
-    const nextStatus = body.data.action === 'approve' ? 'camp_review' : 'rejected';
+    const nextStatus = body.data.action === 'approve' ? 'admin_review' : 'rejected';
     const result = await advanceStage(request, reply, 'submitted', nextStatus, AuditActions.APPLICATION_STAGE_ADVANCED, {
       sales_reviewed_at: new Date().toISOString(),
       sales_reviewed_by: request.user!.id,
@@ -247,7 +317,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
       } : {}),
     });
     if (nextStatus === 'rejected') notify({ kind: 'application_rejected', ref, appId: id, reason: body.data.rejection_reason, triggeredBy: request.user!.id });
-    else notify({ kind: 'application_pending_review', ref, appId: id, stage: 'camp_review' });
+    else notify({ kind: 'application_pending_review', ref, appId: id, stage: 'admin_review' });
     return result;
   });
 
