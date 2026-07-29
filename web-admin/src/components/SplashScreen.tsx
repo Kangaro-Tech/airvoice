@@ -33,7 +33,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     return () => clearInterval(iv);
   }, [phase]);
 
-  /* ── Particle canvas (fire + sparks around lock) ── */
+  /* ── Particle canvas (Cosmic Stardust Ring) ── */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -42,74 +42,98 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     resize();
     window.addEventListener('resize', resize);
 
-    interface P { x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; hue: number; }
-    const pts: P[] = [];
+    interface Particle {
+      angle: number; radius: number;
+      targetRadius: number;
+      speed: number; size: number; alpha: number;
+      color: string;
+      wobbleSpeed: number;
+    }
+    const particles: Particle[] = [];
+    const numParticles = 4000;
 
-    const spawn = (cx: number, cy: number) => {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 2 + 0.5;
-      const fire = Math.random() > 0.35;
-      pts.push({
-        x: cx + (Math.random() - 0.5) * 24,
-        y: cy + (Math.random() - 0.5) * 24,
-        vx: Math.cos(angle) * speed * (fire ? 0.3 : 1.1),
-        vy: Math.sin(angle) * speed - (fire ? 2.8 : 1.0),
-        life: 0,
-        maxLife: Math.random() * 55 + 35,
-        size: Math.random() * (fire ? 14 : 3) + (fire ? 5 : 1),
-        hue: fire ? Math.random() * 55 + 5 : 255 + Math.random() * 60,
+    for (let i = 0; i < numParticles; i++) {
+      // Gaussian distribution for ring
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      const num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      
+      let targetRadius = 120 + num * 40; 
+      if (targetRadius < 65) targetRadius = 65 + Math.random() * 20; // Keep the dark hole empty
+      
+      const isBlue = Math.random() > 0.6;
+      const isWhite = Math.random() > 0.8;
+      
+      let color = 'rgba(140, 180, 220, ';
+      if (isWhite) color = 'rgba(230, 240, 255, ';
+      else if (isBlue) color = 'rgba(80, 140, 210, ';
+
+      particles.push({
+        angle: Math.random() * Math.PI * 2,
+        radius: canvas.width ? Math.random() * Math.max(canvas.width, canvas.height) * 1.5 : 1000, 
+        targetRadius: targetRadius,
+        speed: (0.001 + Math.random() * 0.003) * (Math.random() > 0.2 ? 1 : -0.5), // Mostly one direction
+        size: Math.random() * 1.4 + 0.3,
+        alpha: Math.random() * 0.7 + 0.1,
+        color: color,
+        wobbleSpeed: Math.random() * 0.05 + 0.01,
       });
-    };
+    }
 
     let frame = 0;
     const loop = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Dark trail effect for smooth movement
+      ctx.fillStyle = 'rgba(4, 7, 18, 0.2)'; 
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
       const cx = canvas.width / 2;
-      const cy = canvas.height / 2 + 10; // slightly below center (near lock)
+      const cy = canvas.height / 2;
 
-      if (phase >= 2) for (let i = 0; i < 7; i++) spawn(cx, cy);
+      ctx.save();
+      ctx.translate(cx, cy);
+      // Slight 3D tilt
+      ctx.scale(1, 0.8); 
 
-      for (let i = pts.length - 1; i >= 0; i--) {
-        const p = pts[i];
-        p.x += p.vx; p.y += p.vy; p.vy -= 0.055;
-        p.life++;
-        const t = p.life / p.maxLife;
-        const alpha = (1 - t) * 0.88;
-        p.size *= 0.972;
-        if (p.size < 0.1 || p.life >= p.maxLife) { pts.splice(i, 1); continue; }
-
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
-        if (p.hue > 200) {
-          g.addColorStop(0, `hsla(${p.hue},100%,85%,1)`);
-          g.addColorStop(0.5, `hsla(${p.hue},100%,60%,0.6)`);
-          g.addColorStop(1, `hsla(${p.hue},80%,40%,0)`);
-        } else {
-          g.addColorStop(0, `hsla(${p.hue},100%,95%,1)`);
-          g.addColorStop(0.25, `hsla(${p.hue + 15},100%,70%,0.85)`);
-          g.addColorStop(0.6, `hsla(${p.hue + 30},100%,45%,0.4)`);
-          g.addColorStop(1, `hsla(${p.hue + 50},100%,20%,0)`);
+      // Draw particles
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < numParticles; i++) {
+        const p = particles[i];
+        
+        // Pull particles in when phase >= 1
+        if (phase >= 1) {
+          const diff = p.targetRadius - p.radius;
+          p.radius += diff * (0.01 + Math.random() * 0.02);
         }
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, Math.max(p.size, 0.1), 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
-        ctx.restore();
-      }
 
-      // Central energy glow
-      if (phase >= 2) {
-        const pulse = Math.sin(frame * 0.08) * 0.2 + 0.8;
-        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 70 * pulse);
-        glow.addColorStop(0, 'rgba(168,85,247,0.3)');
-        glow.addColorStop(0.4, 'rgba(59,130,246,0.18)');
-        glow.addColorStop(1, 'rgba(0,0,0,0)');
+        p.angle += p.speed;
+        
+        // Add a slight wobble to radius for organic movement
+        const currentRadius = p.radius + Math.sin(frame * p.wobbleSpeed + p.angle) * 3;
+        
+        const x = Math.cos(p.angle) * currentRadius;
+        const y = Math.sin(p.angle) * currentRadius;
+
+        ctx.fillStyle = p.color + p.alpha + ')';
         ctx.beginPath();
-        ctx.arc(cx, cy, 70 * pulse, 0, Math.PI * 2);
-        ctx.fillStyle = glow;
+        // Skip drawing if completely offscreen to save performance
+        if (Math.abs(x) > canvas.width || Math.abs(y) > canvas.height) continue;
+        
+        ctx.arc(x, y, p.size, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
+
+      // Ensure the black hole in the center stays dark
+      ctx.globalCompositeOperation = 'source-over';
+      const hole = ctx.createRadialGradient(cx, cy, 30, cx, cy, 90);
+      hole.addColorStop(0, 'rgba(4, 7, 18, 1)');
+      hole.addColorStop(0.5, 'rgba(4, 7, 18, 0.8)');
+      hole.addColorStop(1, 'rgba(4, 7, 18, 0)');
+      ctx.fillStyle = hole;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 90, 0, Math.PI * 2);
+      ctx.fill();
 
       frame++;
       animFrameRef.current = requestAnimationFrame(loop);
@@ -174,195 +198,73 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
       {/* ── Main content ── */}
       <div style={{ position: 'relative', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
 
-        {/* Logo pill — clean, no circle, just the logo on dark */}
-        <div style={{
-          transition: 'opacity 0.65s cubic-bezier(0.16,1,0.3,1), transform 0.65s cubic-bezier(0.16,1,0.3,1)',
-          opacity: vis(1) ? 1 : 0,
-          transform: vis(1) ? 'translateY(0) scale(1)' : 'translateY(-30px) scale(0.8)',
-          marginBottom: 28,
-        }}>
-          {/* Logo — transparent, floating cleanly */}
-          <img
-            src={kangaroLogo}
-            alt="Kangaro-Tech"
-            style={{
-              width: 200, height: 'auto',
-              objectFit: 'contain',
-              filter: `
-                drop-shadow(0 0 20px rgba(168,85,247,0.6))
-                drop-shadow(0 0 50px rgba(59,130,246,0.35))
-                drop-shadow(0 4px 12px rgba(0,0,0,0.6))
-              `,
-              mixBlendMode: 'lighten',
-            }}
-          />
-        </div>
-
         {/* ═══════════════════════════════════════
-            PREMIUM 3D LOCK — centre hero element
+            CENTRAL LOGO — Premium 3D Card
             ═══════════════════════════════════════ */}
         <div style={{
           position: 'relative',
           transition: 'opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1)',
-          opacity: vis(2) ? 1 : 0,
-          transform: vis(2) ? 'scale(1) translateY(0)' : 'scale(0.3) translateY(40px)',
+          opacity: vis(1) ? 1 : 0,
+          transform: vis(1) ? 'translateY(0) scale(1)' : 'translateY(30px) scale(0.8)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: 180, // Occupy central space
         }}>
-
-          {/* Outer spin ring — conic gradient */}
+          
+          {/* 3D Premium Logo Container */}
           <div style={{
-            position: 'absolute', inset: -22,
-            borderRadius: '50%',
-            background: 'conic-gradient(from 0deg, rgba(168,85,247,0.6), rgba(59,130,246,0.6), rgba(6,182,212,0.4), rgba(168,85,247,0.6))',
-            filter: 'blur(10px)',
-            animation: 'spl-spin 3s linear infinite',
-          }} />
-
-          {/* Dashed ring */}
-          <svg style={{
-            position: 'absolute', inset: -18,
-            width: 'calc(100% + 36px)', height: 'calc(100% + 36px)',
-            animation: 'spl-spin-rev 5s linear infinite',
-          }} viewBox="0 0 148 148">
-            <circle cx="74" cy="74" r="70" fill="none"
-              stroke="url(#lg1)" strokeWidth="1.5"
-              strokeDasharray="10 7" strokeLinecap="round" />
-            <defs>
-              <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#a855f7" />
-                <stop offset="50%" stopColor="#3b82f6" />
-                <stop offset="100%" stopColor="#06b6d4" />
-              </linearGradient>
-            </defs>
-          </svg>
-
-          {/* Inner ring */}
-          <div style={{
-            position: 'absolute', inset: -8,
-            borderRadius: '50%',
-            border: '1px solid transparent',
-            background: 'linear-gradient(#06091a,#06091a) padding-box, conic-gradient(from 220deg,#a855f7,#3b82f6,#06b6d4,#a855f7) border-box',
-            animation: 'spl-spin 3s linear infinite',
-          }} />
-
-          {/* Lock body */}
-          <div style={{
-            width: 112, height: 112,
-            borderRadius: '28px',
-            background: 'linear-gradient(135deg, rgba(12,8,35,0.98), rgba(8,5,25,0.99))',
-            border: '1px solid rgba(168,85,247,0.35)',
-            boxShadow: `
-              0 0 0 1px rgba(255,255,255,0.05),
-              0 12px 40px rgba(0,0,0,0.7),
-              0 0 70px rgba(168,85,247,0.55),
-              0 0 130px rgba(59,130,246,0.28),
-              inset 0 1px 0 rgba(255,255,255,0.09),
-              inset 0 -1px 0 rgba(0,0,0,0.5)
-            `,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
             position: 'relative',
-            animation: vis(2) ? 'spl-float 3s ease-in-out infinite' : 'none',
-            overflow: 'hidden',
+            borderRadius: '32px', // Modern round corners
+            background: '#ffffff', // Solid white to ensure text is visible
+            padding: '4px', // Subtle inner padding
+            boxShadow: `
+              0 20px 40px rgba(0,0,0,0.7),
+              0 0 0 1px rgba(255,255,255,0.3),
+              0 0 50px rgba(168,85,247,0.4),
+              0 0 100px rgba(59,130,246,0.3)
+            `,
+            animation: vis(1) ? 'spl-float 3s ease-in-out infinite' : 'none',
+            overflow: 'hidden', // Clips image corners
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}>
-            {/* Top glass reflection */}
+            <img
+              src={kangaroLogo}
+              alt="Kangaro-Tech"
+              style={{
+                width: 220, height: 'auto',
+                objectFit: 'contain',
+                display: 'block',
+              }}
+            />
+            
+            {/* Top glass reflection for 3D premium look */}
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0, height: '45%',
-              borderRadius: '28px 28px 0 0',
-              background: 'linear-gradient(180deg, rgba(168,85,247,0.1) 0%, transparent 100%)',
+              background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
+              pointerEvents: 'none',
             }} />
 
-            {/* Modern SVG lock */}
-            <svg width="62" height="68" viewBox="0 0 62 68" fill="none" style={{ position: 'relative', zIndex: 1 }}>
-              <defs>
-                {/* Shackle gradient — cold chrome-blue */}
-                <linearGradient id="sk-g" x1="31" y1="0" x2="31" y2="32" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#c4b5fd" />
-                  <stop offset="50%" stopColor="#818cf8" />
-                  <stop offset="100%" stopColor="#6366f1" />
-                </linearGradient>
-                {/* Body gradient */}
-                <linearGradient id="bk-g" x1="2" y1="30" x2="60" y2="68" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#7c3aed" />
-                  <stop offset="40%" stopColor="#4f46e5" />
-                  <stop offset="100%" stopColor="#2563ea" />
-                </linearGradient>
-                {/* Body highlight */}
-                <linearGradient id="bk-hl" x1="2" y1="30" x2="32" y2="46" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="rgba(255,255,255,0.22)" />
-                  <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-                </linearGradient>
-                {/* Keyhole ring */}
-                <linearGradient id="kh-g" x1="22" y1="44" x2="40" y2="62" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="rgba(0,0,0,0.6)" />
-                  <stop offset="100%" stopColor="rgba(0,0,0,0.4)" />
-                </linearGradient>
-                <filter id="lk-glow2" x="-30%" y="-30%" width="160%" height="160%">
-                  <feGaussianBlur stdDeviation="1.8" result="b" />
-                  <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-                </filter>
-                <filter id="kh-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodColor="rgba(0,0,0,0.5)" />
-                </filter>
-              </defs>
-
-              {/* ── Shackle (U-arch) — slim, rounded, chrome ── */}
-              <path
-                d="M18 32V18C18 10.268 24.268 4 31 4C37.732 4 44 10.268 44 18V32"
-                stroke="url(#sk-g)" strokeWidth="5" strokeLinecap="round"
-                fill="none" filter="url(#lk-glow2)"
-              />
-              {/* Shackle inner dark line for 3D depth */}
-              <path
-                d="M22.5 32V18C22.5 12.753 26.753 8.5 31 8.5C35.247 8.5 39.5 12.753 39.5 18V32"
-                stroke="rgba(0,0,0,0.35)" strokeWidth="1.5" strokeLinecap="round"
-                fill="none"
-              />
-
-              {/* ── Body: bevelled rect ── */}
-              <rect x="2" y="30" width="58" height="36" rx="9" fill="url(#bk-g)" />
-
-              {/* Body face highlight */}
-              <rect x="2" y="30" width="58" height="18" rx="9" fill="url(#bk-hl)" opacity="0.9" />
-
-              {/* Bottom bevel shadow */}
-              <rect x="2" y="56" width="58" height="10" rx="9" fill="rgba(0,0,0,0.25)" />
-
-              {/* ── Side edge lines for 3D depth ── */}
-              <line x1="2" y1="32" x2="2" y2="62" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-              <line x1="60" y1="32" x2="60" y2="62" stroke="rgba(0,0,0,0.4)" strokeWidth="1" />
-
-              {/* ── Modern keyhole: ring + teardrop ── */}
-              {/* Outer ring */}
-              <circle cx="31" cy="46" r="8.5" fill="url(#kh-g)" filter="url(#kh-shadow)" />
-              {/* Ring border glow */}
-              <circle cx="31" cy="46" r="8.5" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-              {/* Inner keyhole circle */}
-              <circle cx="31" cy="44" r="4" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.2)" strokeWidth="0.75" />
-              {/* Teardrop stem */}
-              <path d="M28.5 47.5 Q31 53.5 33.5 47.5 Z" fill="rgba(255,255,255,0.08)" />
-              <rect x="29" y="47" width="4" height="7" rx="2" fill="rgba(0,0,0,0.5)" />
-
-              {/* ── Top-left glint dot ── */}
-              <circle cx="10" cy="37" r="2.5" fill="rgba(255,255,255,0.2)" filter="url(#lk-glow2)" />
-
-              {/* ── Horizontal line accents ── */}
-              <line x1="8" y1="58" x2="24" y2="58" stroke="rgba(255,255,255,0.07)" strokeWidth="1" strokeLinecap="round" />
-              <line x1="38" y1="58" x2="54" y2="58" stroke="rgba(255,255,255,0.07)" strokeWidth="1" strokeLinecap="round" />
-            </svg>
-
-            {/* Inner pulse ring */}
+            {/* Inner bevel (3D edge) */}
             <div style={{
-              position: 'absolute', inset: 10, borderRadius: 20,
-              border: '1px solid rgba(168,85,247,0.18)',
-              animation: 'spl-lockglow 2.2s ease-in-out infinite',
+              position: 'absolute', inset: 0,
+              borderRadius: '32px',
+              boxShadow: 'inset 0 4px 12px rgba(255,255,255,1), inset 0 -4px 12px rgba(0,0,0,0.15)',
+              pointerEvents: 'none',
             }} />
           </div>
 
-          {/* Shadow below lock */}
+          {/* Subtle shadow below logo for 3D depth */}
           <div style={{
-            margin: '10px auto 0', width: 80, height: 14,
-            background: 'radial-gradient(ellipse, rgba(168,85,247,0.55) 0%, transparent 70%)',
+            position: 'absolute',
+            bottom: -25,
+            width: 140, height: 14,
+            background: 'radial-gradient(ellipse, rgba(168,85,247,0.6) 0%, transparent 70%)',
             filter: 'blur(8px)',
-            animation: vis(2) ? 'spl-shadow 3s ease-in-out infinite' : 'none',
+            animation: vis(1) ? 'spl-shadow 3s ease-in-out infinite' : 'none',
           }} />
         </div>
 
