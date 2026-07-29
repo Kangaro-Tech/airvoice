@@ -33,8 +33,12 @@ export default async function campRoutes(app: FastifyInstance) {
       .select('*,regiments(id,name,name_si,name_ta,branch,is_active)').order('name');
     if (q.branch) query = query.eq('branch', q.branch);
     if (q.include_inactive !== 'true') query = query.eq('is_active', true);
-    const { data } = await query;
-    return reply.send({ data });
+    const { data, error } = await query;
+    if (error) {
+      app.log.error(error);
+      return reply.status(500).send({ error: error.message });
+    }
+    return reply.send({ data: data || [] });
   });
 
   // ── POST /camps — create camp (super_admin only) ───────────

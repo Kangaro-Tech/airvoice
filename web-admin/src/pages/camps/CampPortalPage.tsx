@@ -195,6 +195,29 @@ function InstRow({
           </select>
         )}
       </td>
+      <td className="px-4 py-3">
+        {localStatus === 'partial' ? (
+          <input
+            type="number"
+            className="form-input text-xs py-1.5 px-2 w-24"
+            value={localAmount || ''}
+            disabled={isLocked || isPending}
+            onChange={e => {
+              const val = Number(e.target.value);
+              setLocalAmount(val);
+            }}
+            onBlur={() => {
+              if (localAmount !== inst.deducted_amount || localStatus !== inst.status) {
+                onUpdate('partial', localAmount);
+              }
+            }}
+          />
+        ) : localStatus === 'deducted' ? (
+          <span className="text-xs font-semibold text-green-600">LKR {Number(inst.expected_amount || 0).toLocaleString()}</span>
+        ) : (
+          <span className="text-xs text-base-muted">—</span>
+        )}
+      </td>
     </tr>
   );
 }
@@ -220,12 +243,13 @@ export default function CampPortalPage() {
   const [addCampSubmitting, setAddCampSubmitting] = useState(false);
   const qc = useQueryClient();
 
-  const isLocked = now.getDate() > 25;
+  const hasAccess = ['super_admin', 'admin', 'finance_officer', 'accountant'].includes(user?.role || '');
+  const isLocked = now.getDate() > 25 && !hasAccess;
 
   // Camps list
   const { data: campsRes, isLoading: campsLoading, isError: campsError } = useQuery({
     queryKey: ['camps'],
-    queryFn: () => api.get('/camps').then(r => r.data.data as Record<string, unknown>[]),
+    queryFn: () => api.get('/camps').then(r => (r.data.data || []) as Record<string, unknown>[]),
   });
   const activeCamp = campId || (campsRes?.[0]?.id as string) || '';
   const campInfo   = campsRes?.find(c => c.id === activeCamp);

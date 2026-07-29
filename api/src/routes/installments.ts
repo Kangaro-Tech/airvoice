@@ -12,7 +12,13 @@ export default async function installmentRoutes(app: FastifyInstance) {
     if (q.year)           query = query.eq('due_year',parseInt(q.year));
     if (q.month)          query = query.eq('due_month',parseInt(q.month));
     const {data} = await query.limit(200);
-    return reply.send({data});
+    const correctedData = (data || []).map((i: any) => {
+      if (i.status === 'deducted' && i.deducted_amount > 0 && i.deducted_amount < i.expected_amount) {
+        i.status = 'partial';
+      }
+      return i;
+    });
+    return reply.send({data: correctedData});
   });
 
   app.get('/overdue', { preHandler:[authenticate,requireStaff] }, async (_req, reply) => {

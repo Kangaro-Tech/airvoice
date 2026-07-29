@@ -123,7 +123,7 @@ interface ParsedRow {
   month_columns: string[];
 }
 
-function parseBuffer(buffer: Buffer, fileType: string, mapping: Record<string, string>): ParsedRow[] {
+function parseBuffer(buffer: Buffer, fileType: string, mapping: Record<string, string>, limitRows?: number): ParsedRow[] {
   let rows2d: unknown[][];
 
   try {
@@ -174,7 +174,9 @@ function parseBuffer(buffer: Buffer, fileType: string, mapping: Record<string, s
 
   const result: ParsedRow[] = [];
 
-  for (let ri = headerIdx + 1; ri < rows2d.length; ri++) {
+  const endIdx = limitRows ? Math.min(rows2d.length, headerIdx + 1 + limitRows) : rows2d.length;
+
+  for (let ri = headerIdx + 1; ri < endIdx; ri++) {
     const row = rows2d[ri] as unknown[];
     // Skip rows with fewer than 2 non-empty cells
     if (row.filter(c => String(c ?? '').trim() !== '').length < 2) continue;
@@ -328,6 +330,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
+ 
+  
   // ── GET /:id — single batch (needed by mapping page) ─────
   app.get('/:id', { preHandler: [authenticate, requireFinance] },
   async (req: FastifyRequest, reply: FastifyReply) => {
@@ -359,12 +363,12 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       .select('id, status')
       .eq('file_name', filename)
       .eq('file_size_bytes', buffer.length)
-      .not('status', 'eq', 'failed')
+      .in('status', ['importing', 'completed'])
       .limit(1)
       .single();
 
     if (existingBatch) {
-      return reply.status(400).send({ error: 'This file has already been uploaded previously. Duplicate files are rejected.' });
+      return reply.status(400).send({ error: 'This file is already being imported or has been completed. Duplicate files are rejected.' });
     }
 
     // Always save to /tmp for reliability in dev; also try Firebase
@@ -402,7 +406,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
     let suggestedMapping: Record<string, string> = {};
 
     try {
-      const rows = parseBuffer(buffer, fileType, {});
+      const rows = parseBuffer(buffer, fileType, {}, 5); // Limit to 5 rows for header detection
       if (rows.length > 0) {
         detectedHeaders  = Object.keys(rows[0].raw_data);
         monthHeaders     = rows[0].month_columns;
@@ -457,7 +461,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
     if (batch) {
       try {
         const buffer = await getFileBuffer(id, batch.file_path as string);
-        const rows = parseBuffer(buffer, batch.file_type as string, body.data.column_mapping);
+        const rows = parseBuffer(buffer, batch.file_type as string, body.data.column_mapping, 5); // Limit to 5 rows
         if (rows.length > 0) monthHeaders = rows[0].month_columns;
       } catch { /* non-fatal */ }
     }
@@ -494,7 +498,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
     }
 
     const mapping = (batch.column_mapping as Record<string, string>) ?? {};
-    const rows    = parseBuffer(buffer, batch.file_type as string, mapping);
+    const rows    = parseBuffer(buffer, batch.file_type as string, mapping, limit);
 
     return reply.send({
       data:         rows.slice(0, limit),
@@ -504,7 +508,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
   });
 
   // ── POST /:id/import ──────────────────────────────────────
-  app.post('/:id/import', { preHandler: [authenticate, requireAdmin] },
+  app.post('/:id/import', { preHandler: [authenticate, requireFinance] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
@@ -1376,7 +1380,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
   });
 
   // ── POST /rows/:rowId/link-customer ───────────────────────
-  app.post('/rows/:rowId/link-customer', { preHandler: [authenticate, requireAdmin] },
+  app.post('/rows/:rowId/link-customer', { preHandler: [authenticate, requireFinance] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const { rowId } = req.params as { rowId: string };
     const body = z.object({ customer_id: z.string().uuid() }).safeParse(req.body);

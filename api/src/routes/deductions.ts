@@ -78,6 +78,10 @@ export default async function deductionRoutes(app: FastifyInstance) {
         if (i.application && i.customer) {
           i.application.customer = i.customer;
         }
+        // Fix for existing partials saved as deducted
+        if (i.status === 'deducted' && i.deducted_amount > 0 && i.deducted_amount < i.expected_amount) {
+          i.status = 'partial';
+        }
         return i;
       })
       .sort((a: any, b: any) =>
