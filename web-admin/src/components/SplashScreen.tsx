@@ -217,14 +217,9 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
           <div style={{
             position: 'relative',
             borderRadius: '32px', // Modern round corners
-            background: '#ffffff', // Solid white to ensure text is visible
+            background: 'transparent', // Removed white background
             padding: '4px', // Subtle inner padding
-            boxShadow: `
-              0 20px 40px rgba(0,0,0,0.7),
-              0 0 0 1px rgba(255,255,255,0.3),
-              0 0 50px rgba(168,85,247,0.4),
-              0 0 100px rgba(59,130,246,0.3)
-            `,
+           
             animation: vis(1) ? 'spl-float 3s ease-in-out infinite' : 'none',
             overflow: 'hidden', // Clips image corners
             display: 'flex',
@@ -240,21 +235,6 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
                 display: 'block',
               }}
             />
-            
-            {/* Top glass reflection for 3D premium look */}
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: '45%',
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 100%)',
-              pointerEvents: 'none',
-            }} />
-
-            {/* Inner bevel (3D edge) */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              borderRadius: '32px',
-              boxShadow: 'inset 0 4px 12px rgba(255,255,255,1), inset 0 -4px 12px rgba(0,0,0,0.15)',
-              pointerEvents: 'none',
-            }} />
           </div>
 
           {/* Subtle shadow below logo for 3D depth */}
