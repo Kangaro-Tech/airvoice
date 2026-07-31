@@ -58,7 +58,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── POST /payroll/staff ─── Create staff member
-  app.post('/staff', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/staff', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
       user_id: z.string().uuid().optional(),
       full_name: z.string().min(2),
@@ -106,7 +106,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── PUT /payroll/staff/:id ─── Update staff member (full profile)
-  app.put('/staff/:id', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.put('/staff/:id', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({
       full_name: z.string().min(2).optional(),
@@ -139,7 +139,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── POST /payroll/staff/:id/upload-photo ─── Upload staff profile photo
-  app.post('/staff/:id/upload-photo', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/staff/:id/upload-photo', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
 

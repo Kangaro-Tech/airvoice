@@ -6,7 +6,7 @@ import { writeAuditLog } from '../services/audit';
 export type UserRole =
   | 'customer' | 'guarantor' | 'sales_officer' | 'camp_officer'
   | 'finance_officer' | 'recovery_officer' | 'inventory_manager'
-  | 'accountant' | 'admin' | 'super_admin';
+  | 'accountant' | 'admin' | 'super_admin' | 'system_operator';
 
 export interface AuthenticatedUser {
   id: string;
@@ -58,8 +58,8 @@ export const requireStaff = requireRole(
   'sales_officer', 'camp_officer', 'finance_officer', 'recovery_officer',
   'inventory_manager', 'accountant', 'admin', 'super_admin'
 );
-export const requireFinance = requireRole('finance_officer', 'accountant', 'admin', 'super_admin');
-export const requireAdmin   = requireRole('admin', 'super_admin');
+export const requireFinance = requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator');
+export const requireAdmin   = requireRole('admin', 'super_admin', 'system_operator');
 export const requireSuperAdmin = requireRole('super_admin');
 
 export async function checkOtpRateLimit(phoneNumber: string, reply: FastifyReply): Promise<boolean> {
