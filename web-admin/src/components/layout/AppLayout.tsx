@@ -73,31 +73,31 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Staff Directory',
         to: '/hr/staff',
         icon: <UserCog size={16} />,
-        roles: ['system_operator', 'admin', 'super_admin']
+        roles: ['system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant']
       },
       {
         label: 'Attendance',
         to: '/hr/attendance',
         icon: <CalendarCheck size={16} />,
-        roles: ['system_operator', 'admin', 'super_admin']
+        roles: ['system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant']
       },
       {
         label: 'Leave Management',
         to: '/hr/leaves',
         icon: <ClipboardList size={16} />,
-        roles: ['system_operator', 'admin', 'super_admin']
+        roles: ['system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant']
       },
       {
         label: 'Salary Advances',
         to: '/hr/advances',
         icon: <BadgeDollarSign size={16} />,
-        roles: ['system_operator', 'admin', 'super_admin']
+        roles: ['system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant']
       },
       {
         label: 'Salary Deductions',
         to: '/hr/deductions',
         icon: <Scissors size={16} />,
-        roles: ['system_operator', 'admin', 'super_admin']
+        roles: ['system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant']
       },
     ],
   },

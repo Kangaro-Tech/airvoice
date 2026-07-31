@@ -62,7 +62,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   });
 
   // GET /hr/attendance/list
-  app.get('/attendance/list', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.get('/attendance/list', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant')] }, async (req: FastifyRequest, reply) => {
     const q = req.query as { date?: string, staff_id?: string };
     const sb = getSupabase();
     let query = sb.from('attendance').select('*, staff:staff_registry(full_name)');
@@ -114,7 +114,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   // ── PAYROLL ADVANCES & DEDUCTIONS ──────────────────────────────────────────
 
   // POST /hr/payroll/advance
-  app.post('/payroll/advance', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/payroll/advance', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant')] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
       staff_id: z.string().uuid(),
       amount: z.number().positive(),
@@ -134,7 +134,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   });
 
   // POST /hr/payroll/deduction
-  app.post('/payroll/deduction', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/payroll/deduction', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant')] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
       staff_id: z.string().uuid(),
       deduction_type: z.string(),
@@ -156,7 +156,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   
   // ── AUDIT LOGS FOR SYSTEM OPERATOR ──────────────────────────────────────────
 
-  app.get('/audit-logs', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.get('/audit-logs', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant')] }, async (req: FastifyRequest, reply) => {
     const sb = getSupabase();
     const { data, error } = await sb.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(100);
     if (error) return reply.status(500).send({ error: error.message });
