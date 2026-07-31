@@ -64,7 +64,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     const logMap: Record<string, any[]> = {};
     logs.forEach((l: any) => { logMap[l.customer_id] = logMap[l.customer_id] || []; logMap[l.customer_id].push(l); });
 
-    customers.forEach(c => {
+    (customers as any[]).forEach(c => {
       c.applications = appMap[c.id] || [];
       c.recovery_logs = logMap[c.id] || [];
     });

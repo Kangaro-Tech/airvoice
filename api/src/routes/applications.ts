@@ -192,7 +192,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
       appData.guarantor_id
         ? supabase.from('guarantors').select('id, full_name, monthly_salary, total_liability, affordability_ok').eq('id', appData.guarantor_id).single()
         : Promise.resolve({ data: null }),
-      supabase.from('commissions').select('id, status, amount').eq('application_id', id).limit(1).single()
+      Promise.resolve(supabase.from('commissions').select('id, status, amount').eq('application_id', id).limit(1).single())
         .then(r => r).catch(() => ({ data: null })),
     ]);
 
