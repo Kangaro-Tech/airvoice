@@ -159,6 +159,13 @@ export const NAV_SECTIONS: NavSection[] = [
         roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
       },
       {
+        label: 'Payroll',
+        to: '/payroll',
+        icon: <Wallet size={16} />,
+        badgeKey: 'payroll',
+        roles: ['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']
+      },
+      {
         label: 'Expenses',
         to: '/expenses',
         icon: <BookOpen size={16} />,
