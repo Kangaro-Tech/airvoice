@@ -30,7 +30,7 @@ export default async function userRoutes(app: FastifyInstance) {
   // Change role (super_admin only)
   app.patch('/:id/role', { preHandler:[authenticate,requireSuperAdmin] }, async (req:FastifyRequest, reply:FastifyReply) => {
     const {id} = req.params as {id:string};
-    const body = z.object({role:z.enum(['sales_officer','camp_officer','finance_officer','recovery_officer','inventory_manager','accountant','admin','super_admin'])}).safeParse(req.body);
+    const body = z.object({role:z.enum(['sales_officer','camp_officer','finance_officer','recovery_officer','inventory_manager','accountant','admin','super_admin','system_operator'])}).safeParse(req.body);
     if (!body.success) return reply.status(400).send({error:'Invalid role'});
     const sb=getSupabase();
     const {data:old} = await sb.from('users').select('role').eq('id',id).single();
@@ -61,9 +61,16 @@ export default async function userRoutes(app: FastifyInstance) {
   // Camp assignments for a user
   app.get('/:id/camp-assignments', { preHandler:[authenticate,requireAdmin] }, async (req:FastifyRequest, reply:FastifyReply) => {
     const {id} = req.params as {id:string};
-    const {data} = await getSupabase().from('camp_officer_assignments')
-      .select('*,camp:camps(id,name,branch)').eq('user_id',id).eq('is_active',true);
-    return reply.send({data});
+    const {data: assignments} = await getSupabase().from('camp_officer_assignments')
+      .select('*').eq('user_id',id).eq('is_active',true);
+    const list = assignments || [];
+    if (list.length > 0) {
+      const campIds = list.map((a: any) => a.camp_id).filter(Boolean);
+      const {data: camps} = await getSupabase().from('camps').select('id, name, branch').in('id', campIds);
+      const campMap = Object.fromEntries((camps || []).map(c => [c.id, c]));
+      list.forEach((a: any) => { a.camp = campMap[a.camp_id] || null; });
+    }
+    return reply.send({data: list});
   });
 
   // Assign camp to officer

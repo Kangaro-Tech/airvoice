@@ -39,6 +39,7 @@ export default function AdminUsersPage() {
     role: 'camp_officer',
     name: '',
     email: '',
+    password: '',
   });
   const queryClient = useQueryClient();
 
@@ -90,7 +91,7 @@ export default function AdminUsersPage() {
 
   // Create new staff user mutation
   const createUserMutation = useMutation({
-    mutationFn: (data: { phone_number: string; role: string }) =>
+    mutationFn: (data: { phone_number: string; role: string; email?: string; password?: string }) =>
       api.post('/admin/staff', data).then(r => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-staff'] });
@@ -101,6 +102,7 @@ export default function AdminUsersPage() {
         role: 'camp_officer',
         name: '',
         email: '',
+        password: '',
       });
       alert('✅ Staff member created successfully!');
     },
@@ -448,6 +450,37 @@ export default function AdminUsersPage() {
                     className="w-full rounded-lg border border-base px-3 py-2 text-base-primary placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
                   />
                   <p className="text-xs text-base-muted mt-1">Unique phone number for the staff member</p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1 flex items-center gap-1.5">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={createFormData.email}
+                    onChange={(e) =>
+                      setCreateFormData({ ...createFormData, email: e.target.value })
+                    }
+                    placeholder="user@airvoice.com"
+                    className="w-full rounded-lg border border-base px-3 py-2 text-base-primary placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-base-secondary mb-1 flex items-center gap-1.5">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={createFormData.password}
+                    onChange={(e) =>
+                      setCreateFormData({ ...createFormData, password: e.target.value })
+                    }
+                    placeholder="Enter password (optional)"
+                    className="w-full rounded-lg border border-base px-3 py-2 text-base-primary placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-base-muted mt-1">If provided, user can login with email & password.</p>
                 </div>
 
                 <div>

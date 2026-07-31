@@ -58,10 +58,8 @@ export default async function customerRoutes(app: FastifyInstance) {
       .select(`
         id, full_name, nic_number, service_number, branch, rank,
         phone_number, risk_level, risk_score, is_active,
-        has_app_account, retirement_date,
-        camp:camps(id, name),
-        regiment:regiments(id, name),
-        applications:applications(id, status)
+        has_app_account, retirement_date, camp_id,
+        regiment:regiments(id, name)
       `, { count: 'exact' })
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -82,8 +80,32 @@ export default async function customerRoutes(app: FastifyInstance) {
 
     if (error) return reply.status(500).send({ error: error.message });
 
+    // Manually join camps and applications due to missing FK constraints
+    const dataWithJoins = data ? [...data] : [];
+    if (dataWithJoins.length > 0) {
+      const campIds = [...new Set(dataWithJoins.map(c => c.camp_id).filter(Boolean))];
+      const customerIds = dataWithJoins.map(c => c.id);
+
+      const [campsRes, appsRes] = await Promise.all([
+        campIds.length > 0 ? supabase.from('camps').select('id, name').in('id', campIds) : Promise.resolve({ data: [] }),
+        customerIds.length > 0 ? supabase.from('applications').select('id, status, customer_id').in('customer_id', customerIds) : Promise.resolve({ data: [] })
+      ]);
+
+      const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c]));
+      const appsMap = (appsRes.data || []).reduce((acc: any, app: any) => {
+        acc[app.customer_id] = acc[app.customer_id] || [];
+        acc[app.customer_id].push({ id: app.id, status: app.status });
+        return acc;
+      }, {});
+
+      dataWithJoins.forEach((c: any) => {
+        c.camp = campMap[c.camp_id] || null;
+        c.applications = appsMap[c.id] || [];
+      });
+    }
+
     return reply.send({
-      data,
+      data: dataWithJoins,
       meta: {
         total: count ?? 0,
         page: params.page,
@@ -203,26 +225,9 @@ export default async function customerRoutes(app: FastifyInstance) {
     }
 
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    const { data: custRaw, error } = await supabase
       .from('customers')
-      .select(`
-        *,
-        camp:camps(id, name, branch, district),
-        regiment:regiments(id, name),
-        applications(
-          id, ref_number, status, monthly_amount, term_months,
-          plan_end_date, sale_price, created_at,
-          phone_model:phone_models(brand, model, storage),
-          phone:phones!applications_phone_id_fkey(imei_1, imei_2)
-        ),
-        legacy_link:legacy_customer_links(
-          legacy_row_id, linked_by, confidence,
-          legacy_row:legacy_import_rows(
-            service_number, customer_name, monthly_amount,
-            total_expected, total_deducted, arrears, is_settled
-          )
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .is('deleted_at', null)
       .single();
@@ -231,6 +236,45 @@ export default async function customerRoutes(app: FastifyInstance) {
       request.log.error(error);
       return reply.status(404).send({ error: 'Customer not found', details: error.message });
     }
+
+    // Manually fetch related data (FK constraints missing in DB)
+    const [campRes, regimentRes, appsRes, legacyRes] = await Promise.all([
+      custRaw.camp_id ? supabase.from('camps').select('id, name, branch, district').eq('id', custRaw.camp_id).single() : Promise.resolve({ data: null }),
+      custRaw.regiment_id ? supabase.from('regiments').select('id, name').eq('id', custRaw.regiment_id).single() : Promise.resolve({ data: null }),
+      supabase.from('applications').select('id, ref_number, status, monthly_amount, term_months, plan_end_date, sale_price, created_at, phone_model_id, phone_id').eq('customer_id', id),
+      supabase.from('legacy_customer_links').select('legacy_row_id, linked_by, confidence').eq('customer_id', id),
+    ]);
+
+    // Fetch phone models and phones for applications
+    const apps = appsRes.data || [];
+    const modelIds = [...new Set(apps.map(a => a.phone_model_id).filter(Boolean))];
+    const phoneIds = [...new Set(apps.map(a => a.phone_id).filter(Boolean))];
+    const [modelsRes, phonesRes] = await Promise.all([
+      modelIds.length > 0 ? supabase.from('phone_models').select('id, brand, model, storage').in('id', modelIds) : Promise.resolve({ data: [] }),
+      phoneIds.length > 0 ? supabase.from('phones').select('id, imei_1, imei_2').in('id', phoneIds) : Promise.resolve({ data: [] }),
+    ]);
+    const modelMap = Object.fromEntries((modelsRes.data || []).map(m => [m.id, m]));
+    const phoneMap = Object.fromEntries((phonesRes.data || []).map(p => [p.id, p]));
+    const appsWithJoins = apps.map(a => ({
+      ...a,
+      phone_model: modelMap[a.phone_model_id] || null,
+      phone: phoneMap[a.phone_id] || null,
+    }));
+
+    // Fetch legacy row data
+    const legacyLinks = legacyRes.data || [];
+    const legacyRowIds = legacyLinks.map(l => l.legacy_row_id).filter(Boolean);
+    const legacyRowsRes = legacyRowIds.length > 0 ? await supabase.from('legacy_import_rows').select('id, service_number, customer_name, monthly_amount, total_expected, total_deducted, arrears, is_settled').in('id', legacyRowIds) : { data: [] };
+    const legacyRowMap = Object.fromEntries((legacyRowsRes.data || []).map(r => [r.id, r]));
+    const legacyWithJoins = legacyLinks.map(l => ({ ...l, legacy_row: legacyRowMap[l.legacy_row_id] || null }));
+
+    const data = {
+      ...custRaw,
+      camp: campRes.data || null,
+      regiment: regimentRes.data || null,
+      applications: appsWithJoins,
+      legacy_link: legacyWithJoins,
+    };
 
     return reply.send({ data });
   });

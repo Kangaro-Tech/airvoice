@@ -40,6 +40,7 @@ import tasksRoutes from './routes/tasks';
 import pettyCashRoutes from './routes/petty-cash';
 import companyPaymentsRoutes from './routes/company-payments';
 import scheduleRoutes from './routes/schedule';
+import hrRoutes from './routes/hr';
 
 
 export async function buildApp() {
@@ -288,6 +289,10 @@ export async function buildApp() {
 
   await app.register(scheduleRoutes, {
     prefix: "/schedule"
+  });
+
+  await app.register(hrRoutes, {
+    prefix: "/hr"
   });
 
   const donationsRoutes = require('./routes/donations').default;

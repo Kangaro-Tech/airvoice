@@ -11,34 +11,87 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     const minMissed = parseInt(q.min_missed ?? '0');
     const sb = getSupabase();
 
-    // Query customers with active applications and installments
-    const { data: customers } = await sb.from('customers')
-      .select(`
-        id, full_name, service_number, phone_number, email, risk_level, risk_score,
-        camp:camps(name,branch),
-        applications(
-          id, ref_number, status, monthly_amount,
-          installments(status, expected_amount, deducted_amount, arrears_amount, due_date)
-        ),
-        recovery_logs(contact_method, contacted_at, outcome, notes)
-      `)
-      .eq('applications.status','active')
+    // Query active customers
+    const { data: customersRaw } = await sb.from('customers')
+      .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
       .is('deleted_at',null)
       .eq('is_active',true);
+      
+    if (!customersRaw || customersRaw.length === 0) return reply.send({ data: [] });
+    let customers = customersRaw || [];
+    
+    const custIds = customers.map(c => c.id);
 
-    if (!customers || customers.length === 0) return reply.send({ data: [] });
+    // Fetch active applications for these customers
+    const { data: appsRaw } = await sb.from('applications')
+      .select('id, ref_number, status, monthly_amount, customer_id')
+      .eq('status', 'active')
+      .in('customer_id', custIds);
+      
+    const apps = appsRaw || [];
+    if (apps.length === 0) return reply.send({ data: [] });
+    
+    // Filter customers who have active applications
+    const activeAppCustIds = new Set(apps.map(a => a.customer_id));
+    customers = customers.filter(c => activeAppCustIds.has(c.id));
+    
+    // Fetch installments for these applications
+    const appIds = apps.map(a => a.id);
+    const { data: instRaw } = await sb.from('installments')
+      .select('status, expected_amount, deducted_amount, arrears_amount, due_date, application_id')
+      .in('application_id', appIds);
+      
+    const installments = instRaw || [];
+    
+    // Fetch recovery logs for these customers
+    const { data: logsRaw } = await sb.from('recovery_logs')
+      .select('contact_method, contacted_at, outcome, notes, customer_id')
+      .in('customer_id', custIds);
+      
+    const logs = logsRaw || [];
+    
+    // Map data back to applications and customers
+    const instMap: Record<string, any[]> = {};
+    installments.forEach((i: any) => { instMap[i.application_id] = instMap[i.application_id] || []; instMap[i.application_id].push(i); });
+    
+    const appMap: Record<string, any[]> = {};
+    apps.forEach((a: any) => { 
+      a.installments = instMap[a.id] || [];
+      appMap[a.customer_id] = appMap[a.customer_id] || [];
+      appMap[a.customer_id].push(a); 
+    });
+    
+    const logMap: Record<string, any[]> = {};
+    logs.forEach((l: any) => { logMap[l.customer_id] = logMap[l.customer_id] || []; logMap[l.customer_id].push(l); });
+
+    customers.forEach(c => {
+      c.applications = appMap[c.id] || [];
+      c.recovery_logs = logMap[c.id] || [];
+    });
+
+    // Manually fetch camps
+    const campIds = [...new Set((customers || []).map(c => c.camp_id).filter(Boolean))];
+    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name, branch').in('id', campIds) : { data: [] };
+    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, { name: c.name, branch: c.branch }]));
+    customers.forEach((c: any) => { c.camp = campMap[c.camp_id] || null; });
 
     // Fetch accepted guarantor requests for these applications
-    const appIds = customers.map((c: any) => c.applications?.[0]?.id).filter(Boolean);
+    const guarantorAppIds = customers.map((c: any) => c.applications?.[0]?.id).filter(Boolean);
     let reqMap = new Map<string, any>();
-    if (appIds.length > 0) {
+    if (guarantorAppIds.length > 0) {
       const { data: reqRows } = await sb
         .from('guarantor_requests')
-        .select('application_id, guarantor_name, guarantor_phone, guarantor_customer_id, guarantor_customer:customers!guarantor_customer_id(service_number)')
-        .in('application_id', appIds)
+        .select('application_id, guarantor_name, guarantor_phone, guarantor_customer_id')
+        .in('application_id', guarantorAppIds)
         .eq('status', 'accepted');
 
+      // Manually get guarantor customer service numbers
+      const gCustIds = [...new Set((reqRows || []).map((r: any) => r.guarantor_customer_id).filter(Boolean))];
+      const gCustRes = gCustIds.length > 0 ? await sb.from('customers').select('id, service_number').in('id', gCustIds) : { data: [] };
+      const gCustMap = Object.fromEntries((gCustRes.data || []).map(c => [c.id, c]));
+
       (reqRows ?? []).forEach((r: any) => {
+        r.guarantor_customer = gCustMap[r.guarantor_customer_id] || null;
         if (!reqMap.has(r.application_id)) {
           reqMap.set(r.application_id, r);
         }
@@ -137,11 +190,16 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     let guarantorName = 'Unknown';
     if (activeApp) {
       const { data: gr } = await sb.from('guarantor_requests')
-        .select('guarantor_customer_id, guarantor_name, guarantor_customer:customers!guarantor_customer_id(full_name, service_number)')
+        .select('guarantor_customer_id, guarantor_name')
         .eq('application_id', activeApp.id).eq('status', 'accepted').maybeSingle();
       if (gr) {
         guarantorCustomerId = gr.guarantor_customer_id;
-        guarantorName = (gr.guarantor_customer as any)?.full_name ?? gr.guarantor_name ?? 'Unknown';
+        if (gr.guarantor_customer_id) {
+          const { data: gCust } = await sb.from('customers').select('full_name, service_number').eq('id', gr.guarantor_customer_id).single();
+          guarantorName = gCust?.full_name ?? gr.guarantor_name ?? 'Unknown';
+        } else {
+          guarantorName = gr.guarantor_name ?? 'Unknown';
+        }
       }
     }
 
@@ -219,18 +277,32 @@ ${letterContent}`;
   // ── GET /recovery/transfer-requests ── List pending transfer approval requests
   app.get('/transfer-requests', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
     const sb = getSupabase();
-    const { data, error } = await sb.from('recovery_letters')
-      .select(`
-        id, letter_body, created_at,
-        customer:customers(id, full_name, service_number, phone_number, rank, camp:camps(name)),
-        application:applications(id, ref_number, monthly_amount)
-      `)
+    const { data: rawLetters, error } = await sb.from('recovery_letters')
+      .select('id, customer_id, application_id, letter_body, created_at')
       .eq('letter_type', 'final_notice')
       .eq('status', 'draft')
       .like('letter_body', '%"__transfer":true%')
       .order('created_at', { ascending: false });
 
     if (error) return reply.status(500).send({ error: error.message });
+
+    const custIds = [...new Set((rawLetters || []).map(r => r.customer_id).filter(Boolean))];
+    const appIds2 = [...new Set((rawLetters || []).map(r => r.application_id).filter(Boolean))];
+    const [custRes, appRes] = await Promise.all([
+      custIds.length > 0 ? sb.from('customers').select('id, full_name, service_number, phone_number, rank, camp_id').in('id', custIds) : Promise.resolve({ data: [] }),
+      appIds2.length > 0 ? sb.from('applications').select('id, ref_number, monthly_amount').in('id', appIds2) : Promise.resolve({ data: [] }),
+    ]);
+    const lCampIds = [...new Set((custRes.data || []).map(c => c.camp_id).filter(Boolean))];
+    const lCampsRes = lCampIds.length > 0 ? await sb.from('camps').select('id, name').in('id', lCampIds) : { data: [] };
+    const lCampMap = Object.fromEntries((lCampsRes.data || []).map(c => [c.id, { name: c.name }]));
+    const custMap2 = Object.fromEntries((custRes.data || []).map(c => [c.id, { ...c, camp: lCampMap[c.camp_id] || null }]));
+    const appMap2 = Object.fromEntries((appRes.data || []).map(a => [a.id, a]));
+
+    const data = (rawLetters || []).map((row: any) => ({
+      ...row,
+      customer: custMap2[row.customer_id] || null,
+      application: appMap2[row.application_id] || null,
+    }));
 
     const parsed = (data ?? []).map((row: any) => {
       try {
@@ -322,10 +394,15 @@ ${letterContent}`;
     if (!body.success) return reply.status(400).send({error:'Validation Error'});
     const sb = getSupabase();
 
-    // Fetch customer for the letter
-    const { data: cust } = await sb.from('customers')
-      .select('full_name, service_number, rank, branch, camp:camps(name)')
+    // Fetch customer for the letter (manual join for camp)
+    const { data: custRaw } = await sb.from('customers')
+      .select('full_name, service_number, rank, branch, camp_id')
       .eq('id', body.data.customer_id).single();
+    let cust: any = custRaw;
+    if (cust?.camp_id) {
+      const { data: campData } = await sb.from('camps').select('name').eq('id', cust.camp_id).single();
+      cust = { ...cust, camp: campData };
+    }
 
     const { data: activeApp } = await sb.from('applications').select('id, ref_number')
       .eq('customer_id', body.data.customer_id).eq('status', 'active').maybeSingle();
@@ -382,21 +459,40 @@ AIRVOICE Defence Finance Legal Department`;
 
     let query = sb
       .from('recovery_letters')
-      .select(`
-        *,
-        customer:customers(id, full_name, service_number, phone_number),
-        application:applications(id, ref_number),
-        sent_by_user:users!sent_by(phone_number)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
     if (q.customer_id) query = query.eq('customer_id', q.customer_id);
     if (q.status) query = query.eq('status', q.status);
 
-    const { data, count, error } = await query;
+    const { data: rawData, count, error } = await query;
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data, meta: { total: count, page, limit } });
+
+    const rows = rawData || [];
+    if (rows.length > 0) {
+      const custIds = [...new Set(rows.map((r: any) => r.customer_id).filter(Boolean))];
+      const appIds = [...new Set(rows.map((r: any) => r.application_id).filter(Boolean))];
+      const userIds = [...new Set(rows.map((r: any) => r.sent_by).filter(Boolean))];
+
+      const [custRes, appRes, userRes] = await Promise.all([
+        custIds.length > 0 ? sb.from('customers').select('id, full_name, service_number, phone_number').in('id', custIds) : Promise.resolve({ data: [] }),
+        appIds.length > 0 ? sb.from('applications').select('id, ref_number').in('id', appIds) : Promise.resolve({ data: [] }),
+        userIds.length > 0 ? sb.from('users').select('id, phone_number').in('id', userIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const custMap = Object.fromEntries((custRes.data || []).map(c => [c.id, c]));
+      const appMap = Object.fromEntries((appRes.data || []).map(a => [a.id, a]));
+      const userMap = Object.fromEntries((userRes.data || []).map(u => [u.id, u]));
+
+      rows.forEach((r: any) => {
+        r.customer = custMap[r.customer_id] || null;
+        r.application = appMap[r.application_id] || null;
+        r.sent_by_user = userMap[r.sent_by] || null;
+      });
+    }
+
+    return reply.send({ data: rows, meta: { total: count, page, limit } });
   });
 
   // ── POST /recovery/letters ── Create (draft) recovery letter
@@ -483,12 +579,17 @@ AIRVOICE Defence Finance Legal Department`;
 
     let customerData: any = null;
     if (q.customer_id) {
-      const { data: cust } = await sb
+      const { data: custRaw } = await sb
         .from('customers')
-        .select('full_name, service_number, phone_number, rank, branch, camp:camps(name)')
+        .select('full_name, service_number, phone_number, rank, branch, camp_id')
         .eq('id', q.customer_id)
         .single();
-      customerData = cust;
+      if (custRaw?.camp_id) {
+        const { data: campData } = await sb.from('camps').select('name').eq('id', custRaw.camp_id).single();
+        customerData = { ...custRaw, camp: campData };
+      } else {
+        customerData = custRaw;
+      }
     }
 
     const letterType = q.letter_type ?? 'first_notice';

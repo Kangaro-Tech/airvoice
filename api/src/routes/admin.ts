@@ -58,7 +58,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     const { data, error } = await sb
       .from('users')
       .select('id,phone_number,email,role,is_active,is_verified,created_at,last_login_at, staff_registry(full_name)')
-      .in('role', ['admin', 'super_admin', 'finance_officer', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager', 'accountant'])
+      .not('role', 'in', '("customer","guarantor")')
       .order('created_at', { ascending: false });
     
     if (error) return reply.status(500).send({ error: 'Failed to fetch staff' });
@@ -81,13 +81,13 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   // Create new staff user
   app.post('/staff', { preHandler: [authenticate, requireAdmin] }, async (req: FastifyRequest, reply) => {
-    const { phone_number, role } = req.body as { phone_number: string; role: string; name?: string; email?: string };
+    const { phone_number, role, email, password } = req.body as { phone_number: string; role: string; name?: string; email?: string; password?: string };
     
     if (!phone_number || !role) {
       return reply.status(400).send({ error: 'phone_number and role required' });
     }
 
-    const validRoles = ['admin', 'super_admin', 'finance_officer', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager', 'accountant'];
+    const validRoles = ['admin', 'super_admin', 'finance_officer', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager', 'accountant', 'system_operator'];
     if (!validRoles.includes(role)) {
       return reply.status(400).send({ error: 'Invalid role' });
     }
@@ -101,19 +101,37 @@ export default async function adminRoutes(app: FastifyInstance) {
     }
 
     // Create user - note: firebase_uid is required, so we'll generate a placeholder
-    // The user will be linked to Firebase when they actually log in
-    const placeholder_uid = `admin_created_${phone_number.replace(/\D/g, '')}_${Date.now()}`;
+    // The user will be linked to Firebase when they actually log in (or created here if email/password provided)
+    let firebase_uid = `admin_created_${phone_number.replace(/\\D/g, '')}_${Date.now()}`;
+    
+    if (email && password) {
+      const auth = require('../config/firebase').getFirebaseAuth();
+      if (auth) {
+        try {
+          const userRecord = await auth.createUser({
+            email,
+            password,
+            phoneNumber: phone_number.startsWith('+') ? phone_number : `+94${phone_number.replace(/^0/, '')}`,
+          });
+          firebase_uid = userRecord.uid;
+        } catch (err: any) {
+          console.error('Firebase Auth creation error:', err);
+          return reply.status(400).send({ error: 'Failed to create Firebase user: ' + err.message });
+        }
+      }
+    }
     
     const { data, error } = await sb
       .from('users')
       .insert([{
-        firebase_uid: placeholder_uid,
+        firebase_uid,
         phone_number,
+        email: email || null,
         role,
         is_active: true,
         is_verified: false,
       }])
-      .select('id,phone_number,role,is_active,is_verified,created_at')
+      .select('id,phone_number,email,role,is_active,is_verified,created_at')
       .single();
 
     if (error) {

@@ -145,7 +145,7 @@ export default function PayrollPage() {
     }
   }, [runs, selectedRunId]);
 
-  const { data: staffRes } = useQuery({
+  const { data: staffRes, isLoading: staffLoading } = useQuery({
     queryKey: ['payroll-staff'],
     queryFn: () => payrollApi.listStaff().then(r => r.data),
   });
@@ -786,7 +786,12 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
               <Plus size={14} /> Add Staff
             </button>
           </div>
-          {staff.length === 0 ? (
+          {staffLoading ? (
+            <div className="flex flex-col items-center justify-center py-10 text-base-muted">
+              <Loader2 size={34} className="animate-spin mb-2 text-[#2563ea]" />
+              <p className="text-sm">Loading staff members...</p>
+            </div>
+          ) : staff.length === 0 ? (
             <div className="py-10 text-center text-base-muted">
               <Users size={34} className="mx-auto mb-2 opacity-30" />
               <p className="text-sm">No staff members configured yet.</p>

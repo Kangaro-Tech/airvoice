@@ -425,8 +425,20 @@ export default function CampPortalPage() {
         </div>
       )}
       {campsError && (
-        <div className="flex items-center justify-center py-24 text-red-500 text-sm font-semibold">
-          Failed to load camps. You might not have access, or the server is unreachable.
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            <AlertTriangle size={24} className="text-red-500" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Failed to load camps</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>You may not have access, or the server is unreachable.</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs px-4 py-2 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
         </div>
       )}
       {campsRes && campsRes.length === 0 && (

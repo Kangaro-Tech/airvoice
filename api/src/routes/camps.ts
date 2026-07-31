@@ -30,19 +30,40 @@ export default async function campRoutes(app: FastifyInstance) {
   async (req: FastifyRequest, reply: FastifyReply) => {
     const q = req.query as { branch?: string; include_inactive?: string };
     let query = getSupabase().from('camps')
-      .select('*,regiments(id,name,name_si,name_ta,branch,is_active)').order('name');
+      .select('*').order('name');
     if (q.branch) query = query.eq('branch', q.branch);
     if (q.include_inactive !== 'true') query = query.eq('is_active', true);
+    
     const { data, error } = await query;
     if (error) {
       app.log.error(error);
       return reply.status(500).send({ error: error.message });
     }
-    return reply.send({ data: data || [] });
+
+    const dataWithJoins = data ? [...data] : [];
+    if (dataWithJoins.length > 0) {
+      const campIds = dataWithJoins.map(c => c.id);
+      const { data: regiments } = await getSupabase()
+        .from('regiments')
+        .select('id,name,name_si,name_ta,branch,is_active,camp_id')
+        .in('camp_id', campIds);
+      
+      const regsByCamp = (regiments || []).reduce((acc: any, r: any) => {
+        acc[r.camp_id] = acc[r.camp_id] || [];
+        acc[r.camp_id].push(r);
+        return acc;
+      }, {});
+      
+      dataWithJoins.forEach(c => {
+        c.regiments = regsByCamp[c.id] || [];
+      });
+    }
+
+    return reply.send({ data: dataWithJoins });
   });
 
-  // ── POST /camps — create camp (super_admin only) ───────────
-  app.post('/', { preHandler: [authenticate, requireSuperAdmin] },
+  // ── POST /camps — create camp (admin or super_admin) ──────
+  app.post('/', { preHandler: [authenticate, requireAdmin] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const body = CampSchema.safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
@@ -57,14 +78,37 @@ export default async function campRoutes(app: FastifyInstance) {
   async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
     const { data, error } = await getSupabase().from('camps')
-      .select('*,regiments(*),camp_officer_assignments(user_id,is_active,assigned_at,user:users(id,phone_number,role,is_active))')
+      .select('*')
       .eq('id', id).single();
     if (error) return reply.status(404).send({ error: 'Camp not found' });
+
+    if (data) {
+      const [regRes, officerRes] = await Promise.all([
+        getSupabase().from('regiments').select('*').eq('camp_id', id),
+        getSupabase().from('camp_officer_assignments').select('*').eq('camp_id', id)
+      ]);
+      
+      data.regiments = regRes.data || [];
+      
+      // Manually join user for assignments
+      let assignments = officerRes.data || [];
+      if (assignments.length > 0) {
+        const userIds = assignments.map((a: any) => a.user_id);
+        const { data: users } = await getSupabase().from('users')
+          .select('id,phone_number,role,is_active').in('id', userIds);
+        
+        const userMap = Object.fromEntries((users || []).map(u => [u.id, u]));
+        assignments = assignments.map((a: any) => ({ ...a, user: userMap[a.user_id] || null }));
+      }
+      
+      data.camp_officer_assignments = assignments;
+    }
+
     return reply.send({ data });
   });
 
-  // ── PATCH /camps/:id — update camp details (super_admin) ───
-  app.patch('/:id', { preHandler: [authenticate, requireSuperAdmin] },
+  // ── PATCH /camps/:id — update camp details (admin or super_admin) ──
+  app.patch('/:id', { preHandler: [authenticate, requireAdmin] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
     const body = CampSchema.partial().safeParse(req.body);
@@ -99,9 +143,17 @@ export default async function campRoutes(app: FastifyInstance) {
   app.get('/:id/officers', { preHandler: [authenticate, requireAdmin] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
-    const { data } = await getSupabase().from('camp_officer_assignments')
-      .select('*,user:users(id,phone_number,role,is_active)').eq('camp_id', id).eq('is_active', true);
-    return reply.send({ data });
+    const { data: assignments } = await getSupabase().from('camp_officer_assignments')
+      .select('*').eq('camp_id', id).eq('is_active', true);
+    
+    const list = assignments || [];
+    if (list.length > 0) {
+      const userIds = list.map((a: any) => a.user_id);
+      const { data: users } = await getSupabase().from('users').select('id, phone_number, role, is_active').in('id', userIds);
+      const userMap = Object.fromEntries((users || []).map(u => [u.id, u]));
+      list.forEach((a: any) => { a.user = userMap[a.user_id] || null; });
+    }
+    return reply.send({ data: list });
   });
 
   // ── POST /camps/:id/officers — assign officer to camp ──────

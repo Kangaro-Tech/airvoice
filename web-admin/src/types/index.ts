@@ -3,7 +3,7 @@
 export type UserRole =
   | 'customer' | 'guarantor' | 'sales_officer' | 'camp_officer'
   | 'finance_officer' | 'recovery_officer' | 'inventory_manager'
-  | 'accountant' | 'admin' | 'super_admin';
+  | 'accountant' | 'admin' | 'super_admin' | 'system_operator';
 
 export type Branch = 'army' | 'navy' | 'air_force';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
@@ -71,4 +71,65 @@ export interface ApiMeta {
 export interface ApiListResponse<T> {
   data: T[];
   meta: ApiMeta;
+}
+
+export interface Attendance {
+  id: string;
+  staff_id: string;
+  date: string;
+  in_time: string | null;
+  out_time: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface LeaveBalance {
+  id: string;
+  staff_id: string;
+  year: number;
+  leave_type: string;
+  allotted_days: number;
+  used_days: number;
+}
+
+export interface LeaveRequest {
+  id: string;
+  staff_id: string;
+  start_date: string;
+  end_date: string;
+  leave_type: string;
+  reason: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  approved_by: string | null;
+  created_at: string;
+}
+
+export interface SalaryAdvance {
+  id: string;
+  staff_id: string;
+  amount: number;
+  request_date: string;
+  deduction_month: string;
+  status: 'pending' | 'approved' | 'rejected' | 'deducted';
+  approved_by: string | null;
+  created_at: string;
+}
+
+export interface SalaryDeduction {
+  id: string;
+  staff_id: string;
+  deduction_type: 'loan' | 'epf' | 'etf' | 'other';
+  amount: number;
+  effective_date: string;
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface TaskDelegation {
+  id: string;
+  delegator_id: string;
+  assignee_id: string;
+  module_name: string;
+  created_at: string;
 }

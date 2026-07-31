@@ -620,6 +620,118 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['suppliers']['Row']>;
       };
+      attendance: {
+        Row: {
+          id: string;
+          staff_id: string;
+          date: string;
+          in_time: string | null;
+          out_time: string | null;
+          status: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['attendance']['Row']> & {
+          staff_id: string;
+          date: string;
+        };
+        Update: Partial<Database['public']['Tables']['attendance']['Row']>;
+      };
+      leave_balances: {
+        Row: {
+          id: string;
+          staff_id: string;
+          year: number;
+          leave_type: string;
+          allotted_days: number | null;
+          used_days: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['leave_balances']['Row']> & {
+          staff_id: string;
+          year: number;
+          leave_type: string;
+        };
+        Update: Partial<Database['public']['Tables']['leave_balances']['Row']>;
+      };
+      leave_requests: {
+        Row: {
+          id: string;
+          staff_id: string;
+          start_date: string;
+          end_date: string;
+          leave_type: string;
+          reason: string | null;
+          status: string | null;
+          approved_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['leave_requests']['Row']> & {
+          staff_id: string;
+          start_date: string;
+          end_date: string;
+          leave_type: string;
+        };
+        Update: Partial<Database['public']['Tables']['leave_requests']['Row']>;
+      };
+      salary_advances: {
+        Row: {
+          id: string;
+          staff_id: string;
+          amount: number;
+          request_date: string;
+          deduction_month: string;
+          status: string | null;
+          approved_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['salary_advances']['Row']> & {
+          staff_id: string;
+          amount: number;
+          request_date: string;
+          deduction_month: string;
+        };
+        Update: Partial<Database['public']['Tables']['salary_advances']['Row']>;
+      };
+      salary_deductions: {
+        Row: {
+          id: string;
+          staff_id: string;
+          deduction_type: string;
+          amount: number;
+          effective_date: string;
+          is_active: boolean | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['salary_deductions']['Row']> & {
+          staff_id: string;
+          deduction_type: string;
+          amount: number;
+          effective_date: string;
+        };
+        Update: Partial<Database['public']['Tables']['salary_deductions']['Row']>;
+      };
+      task_delegations: {
+        Row: {
+          id: string;
+          delegator_id: string;
+          assignee_id: string;
+          module_name: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database['public']['Tables']['task_delegations']['Row']> & {
+          delegator_id: string;
+          assignee_id: string;
+          module_name: string;
+        };
+        Update: Partial<Database['public']['Tables']['task_delegations']['Row']>;
+      };
     };
     Views: {
       application_pipeline: {

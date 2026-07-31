@@ -8,19 +8,18 @@ import { notify } from '../services/notify';
 export default async function payrollRoutes(app: FastifyInstance) {
 
   // ── GET /payroll/staff ─── List all active staff members
-  app.get('/staff', { preHandler: [authenticate, requireFinance] }, async (_req, reply) => {
+  app.get('/staff', { preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')] }, async (_req, reply) => {
     const { data, error } = await getSupabase()
       .from('staff_registry')
       .select('*')
-      .eq('is_active', true)
       .order('full_name');
     if (error) return reply.status(500).send({ error: error.message });
     return reply.send({ data });
   });
 
   // ── GET /payroll/staff/users ─── List registered staff users for payroll linking
-  app.get('/staff/users', { preHandler: [authenticate, requireFinance] }, async (_req, reply) => {
-    const validStaffRoles = ['admin', 'super_admin', 'finance_officer', 'accountant', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager'];
+  app.get('/staff/users', { preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')] }, async (_req, reply) => {
+    const validStaffRoles = ['admin', 'super_admin', 'finance_officer', 'accountant', 'recovery_officer', 'camp_officer', 'sales_officer', 'inventory_manager', 'system_operator'];
     const sb = getSupabase();
 
     const { data: assignedUsers, error: assignedErr } = await sb
@@ -47,7 +46,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── GET /payroll/staff/:id ─── Single staff member full profile
-  app.get('/staff/:id', { preHandler: [authenticate, requireFinance] }, async (req: FastifyRequest, reply) => {
+  app.get('/staff/:id', { preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const { data, error } = await getSupabase()
       .from('staff_registry')
@@ -98,6 +97,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
     const insertData = {
       ...body.data,
       user_id: body.data.user_id,
+      is_active: true,
     } as Record<string, unknown>;
 
     const { data, error } = await sb.from('staff_registry').insert(insertData).select().single();
@@ -269,6 +269,37 @@ export default async function payrollRoutes(app: FastifyInstance) {
       salesMap[officerId] = current;
     });
 
+    // Fetch salary advances for this month
+    const { data: advances, error: advErr } = await sb.from('salary_advances')
+      .select('staff_id, amount')
+      .eq('deduction_month', body.data.run_month)
+      .eq('status', 'approved');
+    if (advErr) return reply.status(500).send({ error: advErr.message });
+
+    const advanceMap: Record<string, number> = {};
+    (advances ?? []).forEach((a: Record<string, unknown>) => {
+      const staffId = a.staff_id as string;
+      const amount = Number(a.amount ?? 0);
+      advanceMap[staffId] = (advanceMap[staffId] ?? 0) + amount;
+    });
+
+    // Fetch active salary deductions
+    const { data: deductions, error: dedErr } = await sb.from('salary_deductions')
+      .select('staff_id, amount, deduction_type')
+      .eq('is_active', true)
+      .lte('effective_date', `${monthEnd}`);
+    if (dedErr) return reply.status(500).send({ error: dedErr.message });
+
+    const deductionMap: Record<string, number> = {};
+    (deductions ?? []).forEach((d: Record<string, unknown>) => {
+      // For now, combining all deductions other than EPF/ETF which are calculated
+      if (d.deduction_type !== 'epf' && d.deduction_type !== 'etf') {
+        const staffId = d.staff_id as string;
+        const amount = Number(d.amount ?? 0);
+        deductionMap[staffId] = (deductionMap[staffId] ?? 0) + amount;
+      }
+    });
+
     // Generate payroll lines
     const lines = (staff ?? []).map((s: Record<string, unknown>) => {
       const staffUserId = s.user_id as string | undefined;
@@ -278,17 +309,23 @@ export default async function payrollRoutes(app: FastifyInstance) {
       const epfEe = Number((gross * 0.08).toFixed(2));
       const epfEr = Number((gross * 0.12).toFixed(2));
       const etf = Number((gross * 0.03).toFixed(2));
-      const net = Number((gross - epfEe).toFixed(2));
+      
+      const staffId = s.id as string;
+      const advanceDeduction = advanceMap[staffId] ?? 0;
+      const otherDeductions = deductionMap[staffId] ?? 0;
+      const totalDeductions = epfEe + advanceDeduction + otherDeductions;
+      
+      const net = Number((gross - totalDeductions).toFixed(2));
       return {
         run_id: run.id,
-        staff_id: s.id,
+        staff_id: staffId,
         basic_salary: s.basic_salary,
         transport_allow: s.transport_allow,
         meal_allow: s.meal_allow,
         commission_amount: commAmt,
         phones_sold: aggregated.phonesSold,
         bonus: 0,
-        deductions: 0,
+        deductions: advanceDeduction + otherDeductions,
         epf_ee: epfEe,
         epf_er: epfEr,
         etf: etf,

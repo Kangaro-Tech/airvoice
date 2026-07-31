@@ -42,6 +42,12 @@ import PettyCashPage from '@/pages/finance/PettyCashPage';
 import CompanyPaymentsPage from '@/pages/finance/CompanyPaymentsPage';
 import DonationsPage from '@/pages/finance/DonationsPage';
 
+// Pages — HR & Payroll (System Operator)
+import StaffDirectoryPage from '@/pages/hr/StaffDirectoryPage';
+import AttendanceManagementPage from '@/pages/hr/AttendanceManagementPage';
+import LeaveManagementPage from '@/pages/hr/LeaveManagementPage';
+import PayrollManagementPage from '@/pages/hr/PayrollManagementPage';
+
 // Pages — Recovery & Sales
 import RecoveryPage from '@/pages/recovery/RecoveryPage';
 import GuarantorsPage from '@/pages/recovery/GuarantorsPage';
@@ -138,13 +144,25 @@ function App() {
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />
                 <Route path="/payroll/staff/:id" element={<StaffProfilePage />} />
-                <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
                 <Route path="/legacy-import" element={<LegacyImportPage />} />
                 <Route path="/legacy-import/upload" element={<LegacyUploadPage />} />
                 <Route path="/legacy-import/:id/mapping" element={<LegacyMappingPage />} />
                 <Route path="/legacy-import/:id/preview" element={<LegacyPreviewPage />} />
                 <Route path="/petty-cash" element={<PettyCashPage />} />
                 <Route path="/company-payments" element={<CompanyPaymentsPage />} />
+              </Route>
+
+              {/* HR & Payroll + Audit Log */}
+              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']} />}>
+                <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
+              </Route>
+
+              <Route element={<ProtectedRoute roles={['admin', 'super_admin', 'system_operator']} />}>
+                <Route path="/hr/staff" element={<StaffDirectoryPage />} />
+                <Route path="/hr/attendance" element={<AttendanceManagementPage />} />
+                <Route path="/hr/leaves" element={<LeaveManagementPage />} />
+                <Route path="/hr/advances" element={<PayrollManagementPage />} />
+                <Route path="/hr/deductions" element={<PayrollManagementPage />} />
               </Route>
 
               {/* Installments & Reports (Finance + Camp Officer) */}

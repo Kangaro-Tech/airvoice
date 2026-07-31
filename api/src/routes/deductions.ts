@@ -51,24 +51,35 @@ export default async function deductionRoutes(app: FastifyInstance) {
     const nowYear = parseInt(year ?? String(new Date().getFullYear()));
     const nowMonth = parseInt(month ?? String(new Date().getMonth() + 1));
 
-    const { data: rawData, error } = await supabase
+    const { data: rawInstallments, error } = await supabase
       .from('installments')
-      .select(`
-        id, status, expected_amount, deducted_amount, arrears_amount,
-        not_deducted_reason, not_deducted_notes, month_number,
-        due_year, due_month, due_date, confirmed_at,
-        customer:customers!installments_customer_id_fkey(
-          id, full_name, service_number, rank, nic_number, camp_id
-        ),
-        application:applications(
-          id, ref_number, monthly_amount, term_months,
-          customer:customers(
-            id, full_name, service_number, rank, nic_number, camp_id
-          )
-        )
-      `)
+      .select('id, status, expected_amount, deducted_amount, arrears_amount, not_deducted_reason, not_deducted_notes, month_number, due_year, due_month, due_date, confirmed_at, customer_id, application_id')
       .eq('due_year', nowYear)
       .eq('due_month', nowMonth);
+
+    // Manually join customers and applications
+    const allCustIds = [...new Set((rawInstallments || []).map((i: any) => i.customer_id).filter(Boolean))];
+    const allAppIds = [...new Set((rawInstallments || []).map((i: any) => i.application_id).filter(Boolean))];
+
+    const [custRes, appRes] = await Promise.all([
+      allCustIds.length > 0 ? supabase.from('customers').select('id, full_name, service_number, rank, nic_number, camp_id').in('id', allCustIds) : Promise.resolve({ data: [] }),
+      allAppIds.length > 0 ? supabase.from('applications').select('id, ref_number, monthly_amount, term_months, customer_id').in('id', allAppIds) : Promise.resolve({ data: [] }),
+    ]);
+
+    // For applications, also get their customers
+    const appCustIds = [...new Set((appRes.data || []).map((a: any) => a.customer_id).filter(Boolean))];
+    const missingCustIds = appCustIds.filter(id => !allCustIds.includes(id));
+    const appCustRes = missingCustIds.length > 0 ? await supabase.from('customers').select('id, full_name, service_number, rank, nic_number, camp_id').in('id', missingCustIds) : { data: [] };
+    
+    const allCustomers = [...(custRes.data || []), ...(appCustRes.data || [])];
+    const custMap = Object.fromEntries(allCustomers.map(c => [c.id, c]));
+    const appMap = Object.fromEntries((appRes.data || []).map(a => [a.id, { ...a, customer: custMap[a.customer_id] || null }]));
+
+    const rawData = (rawInstallments || []).map((i: any) => ({
+      ...i,
+      customer: custMap[i.customer_id] || null,
+      application: appMap[i.application_id] || null,
+    }));
 
     // Filter to only installments belonging to this camp and sort client-side
     const data = rawData
@@ -371,12 +382,31 @@ export default async function deductionRoutes(app: FastifyInstance) {
     const trend = await Promise.all(months.map(async ({ year, month, label }) => {
       const { data: installments } = await supabase
         .from('installments')
-        .select('status, customer:customers!installments_customer_id_fkey(camp_id), application:applications(customer:customers(camp_id))')
+        .select('status, customer_id, application_id')
         .eq('due_year', year)
         .eq('due_month', month);
 
-      const campInstallments = (installments ?? []).filter(
-        (i: any) => (i.customer?.camp_id || i.application?.customer?.camp_id) === campId
+      const instList = installments || [];
+      const custIds = [...new Set(instList.map((i: any) => i.customer_id).filter(Boolean))];
+      const appIds = [...new Set(instList.map((i: any) => i.application_id).filter(Boolean))];
+
+      const [custRes, appRes] = await Promise.all([
+        custIds.length > 0 ? supabase.from('customers').select('id, camp_id').in('id', custIds) : Promise.resolve({ data: [] }),
+        appIds.length > 0 ? supabase.from('applications').select('id, customer_id').in('id', appIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const custMap = Object.fromEntries((custRes.data || []).map(c => [c.id, c]));
+      
+      // For apps, get their customer camp_ids
+      const appCustIds = [...new Set((appRes.data || []).map(a => a.customer_id).filter(Boolean))]
+        .filter(id => !custMap[id]);
+      const appCustRes = appCustIds.length > 0 ? await supabase.from('customers').select('id, camp_id').in('id', appCustIds) : { data: [] };
+      (appCustRes.data || []).forEach(c => { custMap[c.id] = c; });
+
+      const appCampMap = Object.fromEntries((appRes.data || []).map(a => [a.id, custMap[a.customer_id]?.camp_id]));
+
+      const campInstallments = instList.filter(
+        (i: any) => (custMap[i.customer_id]?.camp_id || appCampMap[i.application_id]) === campId
       );
       const total = campInstallments.length;
       const deducted = campInstallments.filter((i: any) => i.status === 'deducted').length;

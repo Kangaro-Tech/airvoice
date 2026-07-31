@@ -186,6 +186,27 @@ export const ROLES: Record<UserRole, RoleConfig> = {
     color: 'bg-gray-500',
     icon: '👤',
   },
+
+  system_operator: {
+    name: 'system_operator',
+    displayName: 'System Operator',
+    description: 'Manages HR, Payroll, Attendance, Leave, and Audit Logs',
+    permissions: [
+      'view_dashboard',
+      'view_notifications',
+      'manage_hr',
+      'manage_payroll',
+      'manage_attendance',
+      'manage_leaves',
+      'manage_salary_advances',
+      'manage_salary_deductions',
+      'view_staff_profiles',
+      'edit_staff_profiles',
+      'audit_logs',
+    ],
+    color: 'bg-cyan-600',
+    icon: '🖥️',
+  },
 };
 
 export const PERMISSIONS: Record<string, Permission> = {

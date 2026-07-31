@@ -178,3 +178,18 @@ export const donationsApi = {
   update: (id: string, data: unknown) => api.put(`/donations/${id}`, data),
   delete: (id: string) => api.delete(`/donations/${id}`),
 };
+
+export const hrApi = {
+  // Attendance
+  markAttendance: (data: unknown) => api.post('/hr/attendance/mark', data),
+  listAttendance: (params?: Record<string, unknown>) => api.get('/hr/attendance/list', { params }),
+  // Leaves
+  requestLeave: (data: unknown) => api.post('/hr/leaves/request', data),
+  listLeaveBalances: (params?: Record<string, unknown>) => api.get('/hr/leaves/balances', { params }),
+  // Advances
+  createAdvance: (data: unknown) => api.post('/hr/payroll/advance', data),
+  // Deductions
+  createDeduction: (data: unknown) => api.post('/hr/payroll/deduction', data),
+  // Audit logs
+  listAuditLogs: (params?: Record<string, unknown>) => api.get('/hr/audit-logs', { params }),
+};

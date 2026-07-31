@@ -11,7 +11,8 @@ import {
   LayoutDashboard, Bell, FileText, Users, CreditCard, Package, Truck, Phone,
   BarChart2, DollarSign, RefreshCcw, Shield, Briefcase, TrendingUp,
   Upload, Cpu, Smartphone, LogOut, Menu, AlertCircle, Sun, Moon,
-  Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet, Camera, Loader2
+  Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet, Camera, Loader2,
+  ClipboardList, CalendarCheck, UserCog, BadgeDollarSign, Scissors
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 
@@ -66,6 +67,41 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'HR & Payroll',
+    items: [
+      {
+        label: 'Staff Directory',
+        to: '/hr/staff',
+        icon: <UserCog size={16} />,
+        roles: ['system_operator', 'admin', 'super_admin']
+      },
+      {
+        label: 'Attendance',
+        to: '/hr/attendance',
+        icon: <CalendarCheck size={16} />,
+        roles: ['system_operator', 'admin', 'super_admin']
+      },
+      {
+        label: 'Leave Management',
+        to: '/hr/leaves',
+        icon: <ClipboardList size={16} />,
+        roles: ['system_operator', 'admin', 'super_admin']
+      },
+      {
+        label: 'Salary Advances',
+        to: '/hr/advances',
+        icon: <BadgeDollarSign size={16} />,
+        roles: ['system_operator', 'admin', 'super_admin']
+      },
+      {
+        label: 'Salary Deductions',
+        to: '/hr/deductions',
+        icon: <Scissors size={16} />,
+        roles: ['system_operator', 'admin', 'super_admin']
+      },
+    ],
+  },
+  {
     title: 'Operations',
     items: [
       {
@@ -111,6 +147,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+
   {
     title: 'Finance & Recovery',
     items: [
@@ -128,13 +165,7 @@ export const NAV_SECTIONS: NavSection[] = [
         badgeKey: 'expenses',
         roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
       },
-      {
-        label: 'Payroll',
-        to: '/payroll',
-        icon: <DollarSign size={16} />,
-        badgeKey: 'payroll',
-        roles: ['finance_officer', 'admin', 'super_admin']
-      },
+      
       {
         label: 'Recovery',
         to: '/recovery',
@@ -175,6 +206,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+
   {
     title: 'Audit & Reports',
     items: [
@@ -182,7 +214,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Audit Log',
         to: '/admin/audit-logs',
         icon: <ScrollText size={16} />,
-        roles: ['finance_officer', 'accountant', 'admin', 'super_admin']
+        roles: ['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']
       },
       {
         label: 'Reports',
@@ -192,6 +224,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+ 
   {
     title: 'Portals',
     items: [
@@ -199,7 +232,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Camp Portal',
         to: '/camp',
         icon: <MapPin size={16} />,
-        roles: ['camp_officer', 'admin', 'super_admin']
+        roles: ['camp_officer', 'super_admin']
       },
       {
         label: 'Sales Officer',
@@ -209,6 +242,8 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+  
+  
   {
     title: 'Intelligence',
     items: [
@@ -232,6 +267,7 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+
   {
     title: 'Admin',
     items: [

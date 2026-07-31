@@ -75,29 +75,69 @@ export default async function guarantorRoutes(app: FastifyInstance) {
   async (req: FastifyRequest, reply: FastifyReply) => {
     const sb = getSupabase();
     const { data, error } = await sb.from('guarantors')
-      .select(`
-        *,
-        camp:camps(id, name),
-        guarantor_requests(
-          id,
-          status,
-          application:applications(
-            id,
-            ref_number,
-            status,
-            customer:customers(
-              id,
-              full_name,
-              service_number,
-              risk_score
-            )
-          )
-        )
-      `)
+      .select('*')
       .is('deleted_at', null);
 
     if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data });
+
+    const dataWithJoins = data ? [...data] : [];
+    if (dataWithJoins.length > 0) {
+      const guarantorIds = dataWithJoins.map(g => g.id);
+      const campIds = [...new Set(dataWithJoins.map(g => g.camp_id).filter(Boolean))];
+
+      const [campsRes, requestsRes] = await Promise.all([
+        campIds.length > 0 ? sb.from('camps').select('id, name').in('id', campIds) : Promise.resolve({ data: [] }),
+        sb.from('guarantor_requests').select('id, status, application_id, guarantor_id').in('guarantor_id', guarantorIds)
+      ]);
+
+      const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c]));
+      const requests = requestsRes.data || [];
+      
+      let appMap: any = {};
+      let customerMap: any = {};
+      
+      if (requests.length > 0) {
+        const appIds = [...new Set(requests.map((r: any) => r.application_id).filter(Boolean))];
+        if (appIds.length > 0) {
+          const { data: apps } = await sb.from('applications').select('id, ref_number, status, customer_id').in('id', appIds);
+          const appsData = apps || [];
+          appMap = Object.fromEntries(appsData.map((a: any) => [a.id, a]));
+          
+          const customerIds = [...new Set(appsData.map((a: any) => a.customer_id).filter(Boolean))];
+          if (customerIds.length > 0) {
+            const { data: customers } = await sb.from('customers').select('id, full_name, service_number, risk_score').in('id', customerIds);
+            customerMap = Object.fromEntries((customers || []).map((c: any) => [c.id, c]));
+          }
+        }
+      }
+
+      const reqsByGuarantor = requests.reduce((acc: any, req: any) => {
+        const app = appMap[req.application_id];
+        const cust = app ? customerMap[app.customer_id] : null;
+        
+        const mappedReq = {
+          id: req.id,
+          status: req.status,
+          application: app ? {
+            id: app.id,
+            ref_number: app.ref_number,
+            status: app.status,
+            customer: cust || null
+          } : null
+        };
+        
+        acc[req.guarantor_id] = acc[req.guarantor_id] || [];
+        acc[req.guarantor_id].push(mappedReq);
+        return acc;
+      }, {});
+
+      dataWithJoins.forEach(g => {
+        g.camp = campMap[g.camp_id] || null;
+        g.guarantor_requests = reqsByGuarantor[g.id] || [];
+      });
+    }
+
+    return reply.send({ data: dataWithJoins });
   });
 
   // ── POST / ──────────────────────────────────────────────────
@@ -148,21 +188,27 @@ export default async function guarantorRoutes(app: FastifyInstance) {
     if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
     const v = body.data.value.trim().toLowerCase();
     const sb = getSupabase();
-    const { data } = await sb.from('customers')
-      .select('id,full_name,service_number,nic_number,phone_number,email,rank,branch,camp:camps(name),has_app_account')
+    const { data: custRaw } = await sb.from('customers')
+      .select('id,full_name,service_number,nic_number,phone_number,email,rank,branch,camp_id,has_app_account')
       .or(`service_number.eq.${v},nic_number.eq.${v},phone_number.eq.${v},email.ilike.${v}`)
       .is('deleted_at', null)
       .maybeSingle();
-    if (!data) return reply.send({ found: false });
+    if (!custRaw) return reply.send({ found: false });
+    // Fetch camp manually
+    let campData: any = null;
+    if ((custRaw as any).camp_id) {
+      const { data: cd } = await sb.from('camps').select('name').eq('id', (custRaw as any).camp_id).single();
+      campData = cd;
+    }
     // Never expose sensitive fields to the requesting customer
     const safe = {
-      id: data.id,
-      full_name: data.full_name,
-      service_number: data.service_number,
-      rank: data.rank,
-      branch: data.branch,
-      camp: data.camp,
-      has_app_account: (data as any).has_app_account,
+      id: custRaw.id,
+      full_name: custRaw.full_name,
+      service_number: custRaw.service_number,
+      rank: custRaw.rank,
+      branch: custRaw.branch,
+      camp: campData,
+      has_app_account: (custRaw as any).has_app_account,
     };
     return reply.send({ found: true, customer: safe });
   });
@@ -180,13 +226,13 @@ export default async function guarantorRoutes(app: FastifyInstance) {
 
     const sb = getSupabase();
 
-    // Validate application belongs to requester
-    const { data: application } = await sb.from('applications')
-      .select('id,status,ref_number,customer:customers(id,full_name,user_id)')
+    // Validate application belongs to requester (manual join for customer)
+    const { data: appRaw } = await sb.from('applications')
+      .select('id,status,ref_number,customer_id')
       .eq('id', body.data.application_id).single();
-    if (!application) return reply.status(404).send({ error: 'Application not found' });
-
-    const requesterCust = (application as any).customer as any;
+    if (!appRaw) return reply.status(404).send({ error: 'Application not found' });
+    const { data: requesterCust } = await sb.from('customers').select('id,full_name,user_id').eq('id', appRaw.customer_id).single();
+    const application = { ...appRaw, customer: requesterCust };
     if (requesterCust?.user_id !== req.user!.id) {
       return reply.status(403).send({ error: 'You can only add a guarantor to your own application' });
     }
@@ -281,21 +327,42 @@ export default async function guarantorRoutes(app: FastifyInstance) {
     const sb = getSupabase();
     const { data: cust } = await sb.from('customers').select('id').eq('user_id', req.user!.id).single();
     if (!cust) return reply.send({ data: [] });
-    const { data } = await sb.from('guarantor_requests')
-      .select(`
-        *,
-        application:applications(
-          id,ref_number,monthly_amount,term_months,sale_price,
-          phone_model:phone_models(brand,model,storage)
-        ),
-        requester:customers!requester_id(full_name,service_number,rank,branch,camp:camps(name))
-      `)
+    const { data: rawReqs } = await sb.from('guarantor_requests')
+      .select('*, application_id, requester_id')
       .eq('guarantor_customer_id', cust.id)
       .eq('status', 'pending')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
 
-    return reply.send({ data: data ?? [], legal_text: GUARANTOR_LEGAL_TEXT, legal_text_version: LEGAL_TEXT_VERSION });
+    const reqs = rawReqs || [];
+    if (reqs.length > 0) {
+      const appIds = [...new Set(reqs.map((r: any) => r.application_id).filter(Boolean))];
+      const requesterIds = [...new Set(reqs.map((r: any) => r.requester_id).filter(Boolean))];
+
+      const [appsRes, requestersRes] = await Promise.all([
+        appIds.length > 0 ? sb.from('applications').select('id, ref_number, monthly_amount, term_months, sale_price, phone_model_id').in('id', appIds) : Promise.resolve({ data: [] }),
+        requesterIds.length > 0 ? sb.from('customers').select('id, full_name, service_number, rank, branch, camp_id').in('id', requesterIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const modelIds = [...new Set((appsRes.data || []).map(a => a.phone_model_id).filter(Boolean))];
+      const rCampIds = [...new Set((requestersRes.data || []).map((c: any) => c.camp_id).filter(Boolean))];
+      const [modelsRes, rCampsRes] = await Promise.all([
+        modelIds.length > 0 ? sb.from('phone_models').select('id, brand, model, storage').in('id', modelIds) : Promise.resolve({ data: [] }),
+        rCampIds.length > 0 ? sb.from('camps').select('id, name').in('id', rCampIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const modelMap = Object.fromEntries((modelsRes.data || []).map(m => [m.id, m]));
+      const rCampMap = Object.fromEntries((rCampsRes.data || []).map(c => [c.id, { name: c.name }]));
+      const appMap = Object.fromEntries((appsRes.data || []).map(a => [a.id, { ...a, phone_model: modelMap[a.phone_model_id] || null }]));
+      const requesterMap = Object.fromEntries((requestersRes.data || []).map(c => [c.id, { ...c, camp: rCampMap[(c as any).camp_id] || null }]));
+
+      reqs.forEach((r: any) => {
+        r.application = appMap[r.application_id] || null;
+        r.requester = requesterMap[r.requester_id] || null;
+      });
+    }
+
+    return reply.send({ data: reqs, legal_text: GUARANTOR_LEGAL_TEXT, legal_text_version: LEGAL_TEXT_VERSION });
   });
 
   // ── POST /guarantors/requests/:id/respond ─────────────────

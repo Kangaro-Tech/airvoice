@@ -27,7 +27,7 @@ export const firebaseAuth = getAuth(firebaseApp);
 export type UserRole =
   | 'customer' | 'guarantor' | 'sales_officer' | 'camp_officer'
   | 'finance_officer' | 'recovery_officer' | 'inventory_manager'
-  | 'accountant' | 'admin' | 'super_admin';
+  | 'accountant' | 'admin' | 'super_admin' | 'system_operator';
 
 export type LoginMethod = 'phone' | 'email';
 

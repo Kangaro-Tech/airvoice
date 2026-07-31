@@ -44,9 +44,16 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const offset = (page - 1) * limit;
     const isSalesOfficer = request.user!.role === 'sales_officer';
 
-    // For sales officers: query applications table directly (includes draft + submitted + all statuses)
-    // This ensures sales officers can always see their own applications regardless of view filters
+    // We must query 'applications' directly and manually join related data because FKs and the pipeline view are missing
+    let q = supabase
+      .from('applications')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
     if (isSalesOfficer) {
+      q = q.eq('sales_officer_id', request.user!.id);
+      
       // Auto-migrate any lingering 'draft' applications to 'submitted' (fire-and-forget)
       supabase
         .from('applications')
@@ -55,92 +62,97 @@ export default async function applicationRoutes(app: FastifyInstance) {
         .eq('status', 'draft')
         .is('deleted_at', null)
         .then(() => {}); // intentional fire-and-forget
-
-      let q = supabase
-        .from('applications')
-        .select(`
-          *,
-          customers!customer_id(full_name, service_number, branch, risk_score, retirement_date,
-            camps!camp_id(id, name)
-          ),
-          phone_models!phone_model_id(brand, model),
-          phones!applications_phone_id_fkey(id, imei_1)
-        `, { count: 'exact' })
-        .eq('sales_officer_id', request.user!.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (query.status) q = q.eq('status', query.status);
-      if (query.q) {
-        q = q.or(
-          `ref_number.ilike.%${query.q}%`
-        );
+    } else {
+      // Admin/Staff filters
+      if (query.camp_id) {
+        // Since camp_id is on customer, we must pre-fetch customers in that camp
+        const { data: cData } = await supabase.from('customers').select('id').eq('camp_id', query.camp_id);
+        const cIds = (cData || []).map(c => c.id);
+        if (cIds.length === 0) return reply.send({ data: [], meta: { total: 0 } });
+        q = q.in('customer_id', cIds);
       }
-
-      const { data: rawData, error, count } = await q;
-      if (error) return reply.status(500).send({ error: error.message });
-
-      // Normalize to same shape the view returns
-      // Map 'draft' → 'submitted' so old apps appear immediately (async DB migration handles actual update)
-      const normalized = (rawData ?? []).map((a: any) => ({
-        ...a,
-        status: a.status === 'draft' ? 'submitted' : a.status,
-        customer_name: a.customers?.full_name,
-        customer_nic: a.customers?.nic_number,
-        service_number: a.customers?.service_number,
-        customer_branch: a.customers?.branch,
-        risk_score: a.customers?.risk_score,
-        retirement_date: a.customers?.retirement_date,
-        camp_name: a.customers?.camps?.name,
-        camp_id: a.customers?.camps?.id,
-        phone_brand: a.phone_models?.brand,
-        phone_model: a.phone_models?.model,
-        sales_officer_name: null,
-        retirement_flag: null,
-      }));
-
-      return reply.send({
-        data: normalized,
-        meta: { total: count ?? 0, page, limit, pages: Math.ceil((count ?? 0) / limit) },
-      });
+      if (query.sales_officer_id) q = q.eq('sales_officer_id', query.sales_officer_id);
+      
+      // Camp officers see only their camp
+      if (request.user!.role === 'camp_officer') {
+        const { data: assignments } = await supabase
+          .from('camp_officer_assignments')
+          .select('camp_id')
+          .eq('user_id', request.user!.id)
+          .eq('is_active', true);
+        const campIds = (assignments ?? []).map((a: { camp_id: string }) => a.camp_id);
+        if (campIds.length === 0) return reply.send({ data: [], meta: { total: 0 } });
+        
+        const { data: cData } = await supabase.from('customers').select('id').in('camp_id', campIds);
+        const cIds = (cData || []).map(c => c.id);
+        if (cIds.length === 0) return reply.send({ data: [], meta: { total: 0 } });
+        q = q.in('customer_id', cIds);
+      }
     }
-
-    // For all other roles: use the application_pipeline view
-    let q = supabase
-      .from('application_pipeline')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
 
     if (query.status) q = q.eq('status', query.status);
-    if (query.camp_id) q = q.eq('camp_id', query.camp_id);
-    if (query.sales_officer_id) q = q.eq('sales_officer_id', query.sales_officer_id);
-    if (query.branch) q = q.eq('customer_branch', query.branch);
+    if (query.q) q = q.or(`ref_number.ilike.%${query.q}%`);
 
-    if (query.q) {
-      q = q.or(
-        `customer_name.ilike.%${query.q}%,service_number.ilike.%${query.q}%,ref_number.ilike.%${query.q}%`
-      );
-    }
-
-    // Camp officers see only their camp
-    if (request.user!.role === 'camp_officer') {
-      const { data: assignments } = await supabase
-        .from('camp_officer_assignments')
-        .select('camp_id')
-        .eq('user_id', request.user!.id)
-        .eq('is_active', true);
-      const campIds = (assignments ?? []).map((a: { camp_id: string }) => a.camp_id);
-      if (campIds.length === 0) return reply.send({ data: [], meta: { total: 0 } });
-      q = q.in('camp_id', campIds);
-    }
-
-    const { data, error, count } = await q;
+    const { data: rawData, error, count } = await q;
     if (error) return reply.status(500).send({ error: error.message });
 
+    const apps = rawData || [];
+    let normalized: any[] = [];
+    
+    if (apps.length > 0) {
+      const custIds = [...new Set(apps.map((a: any) => a.customer_id).filter(Boolean))];
+      const modelIds = [...new Set(apps.map((a: any) => a.phone_model_id).filter(Boolean))];
+      
+      const [custRes, modelsRes] = await Promise.all([
+        custIds.length > 0 ? supabase.from('customers').select('*').in('id', custIds) : Promise.resolve({ data: [] }),
+        modelIds.length > 0 ? supabase.from('phone_models').select('*').in('id', modelIds) : Promise.resolve({ data: [] })
+      ]);
+      
+      const customers = custRes.data || [];
+      const campIds = [...new Set(customers.map((c: any) => c.camp_id).filter(Boolean))];
+      const campsRes = campIds.length > 0 ? await supabase.from('camps').select('id, name').in('id', campIds) : { data: [] };
+      
+      const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
+      const custMap = Object.fromEntries(customers.map(c => [c.id, { ...c, camp_name: campMap[c.camp_id] }]));
+      const modelMap = Object.fromEntries((modelsRes.data || []).map(m => [m.id, m]));
+      
+      normalized = apps.map((a: any) => {
+        const c = custMap[a.customer_id];
+        const m = modelMap[a.phone_model_id];
+        
+        // If searching by customer name/NIC and it doesn't match, we should theoretically filter it, 
+        // but for now we just return the matches since we can't do joined ILIKE easily.
+        return {
+          ...a,
+          status: a.status === 'draft' ? 'submitted' : a.status,
+          customer_name: c?.full_name,
+          customer_nic: c?.nic_number,
+          service_number: c?.service_number,
+          customer_branch: c?.branch,
+          risk_score: c?.risk_score,
+          retirement_date: c?.retirement_date,
+          camp_name: c?.camp_name,
+          camp_id: c?.camp_id,
+          phone_brand: m?.brand,
+          phone_model: m?.model,
+          sales_officer_name: null,
+          retirement_flag: null,
+        };
+      });
+      
+      // Post-filter for query.q if it didn't match ref_number but might match customer name/svc number
+      if (query.q && !isSalesOfficer) {
+        const term = query.q.toLowerCase();
+        normalized = normalized.filter(a => 
+          (a.ref_number || '').toLowerCase().includes(term) ||
+          (a.customer_name || '').toLowerCase().includes(term) ||
+          (a.service_number || '').toLowerCase().includes(term)
+        );
+      }
+    }
+
     return reply.send({
-      data,
+      data: normalized,
       meta: { total: count ?? 0, page, limit, pages: Math.ceil((count ?? 0) / limit) },
     });
   });
@@ -153,24 +165,10 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const supabase = getSupabase();
 
-    const { data, error } = await supabase
+    // Fetch base application
+    const { data: appData, error } = await supabase
       .from('applications')
-      .select(`
-        *,
-        customer:customers(
-          id, full_name, nic_number, service_number, branch, rank,
-          retirement_date, risk_level, risk_score,
-          camp:camps(id, name)
-        ),
-        phone_model:phone_models(id, brand, model, storage, sale_price),
-        phone:phones!applications_phone_id_fkey(id, imei_1, imei_2, status),
-        guarantor:guarantors(
-          id, full_name, monthly_salary, total_liability,
-          affordability_ok
-        ),
-        commission:commissions(id, status, amount),
-        sales_officer:users!sales_officer_id(id, phone_number)
-      `)
+      .select('*')
       .eq('id', id)
       .is('deleted_at', null)
       .single();
@@ -179,6 +177,43 @@ export default async function applicationRoutes(app: FastifyInstance) {
       request.log.error(error);
       return reply.status(404).send({ error: 'Application not found', details: error.message });
     }
+
+    // Manually fetch related entities (FK constraints missing in DB)
+    const [customerRes, phoneModelRes, phoneRes, guarantorRes, commissionRes] = await Promise.all([
+      appData.customer_id
+        ? supabase.from('customers').select('id, full_name, nic_number, service_number, branch, rank, retirement_date, risk_level, risk_score, camp_id').eq('id', appData.customer_id).single()
+        : Promise.resolve({ data: null }),
+      appData.phone_model_id
+        ? supabase.from('phone_models').select('id, brand, model, storage, sale_price').eq('id', appData.phone_model_id).single()
+        : Promise.resolve({ data: null }),
+      appData.phone_id
+        ? supabase.from('phones').select('id, imei_1, imei_2, status').eq('id', appData.phone_id).single()
+        : Promise.resolve({ data: null }),
+      appData.guarantor_id
+        ? supabase.from('guarantors').select('id, full_name, monthly_salary, total_liability, affordability_ok').eq('id', appData.guarantor_id).single()
+        : Promise.resolve({ data: null }),
+      supabase.from('commissions').select('id, status, amount').eq('application_id', id).limit(1).single()
+        .then(r => r).catch(() => ({ data: null })),
+    ]);
+
+    // Fetch camp for customer
+    let campData = null;
+    const customer = customerRes.data as any;
+    if (customer?.camp_id) {
+      const { data: cd } = await supabase.from('camps').select('id, name').eq('id', customer.camp_id).single();
+      campData = cd;
+    }
+
+    const data = {
+      ...appData,
+      customer: customer ? { ...customer, camp: campData } : null,
+      phone_model: phoneModelRes.data || null,
+      phone: phoneRes.data || null,
+      guarantor: guarantorRes.data || null,
+      commission: commissionRes.data || null,
+      sales_officer: null,
+    };
+
     return reply.send({ data });
   });
 

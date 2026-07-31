@@ -597,9 +597,19 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       const batchAiDetails = await extractMultipleMilitaryUnitDetails(missingUnits);
 
       for (const u of missingUnits) {
+        // Explicitly double check if camp exists (case-insensitive) to prevent duplication in DB
+        const { data: existing } = await sb.from('camps').select('id, name').ilike('name', u).limit(1).single();
+        
+        if (existing) {
+          campMap.set(existing.name.toLowerCase(), existing.id);
+          campMap.set(normalizeCampName(existing.name), existing.id);
+          campMap.set(u.toLowerCase(), existing.id);
+          continue;
+        }
+
         const aiDetails = batchAiDetails[u];
         const { data: newCamp, error: campErr } = await sb.from('camps')
-          .insert({ name: u, branch: 'army' } as any)
+          .insert({ name: u, branch: 'army', is_active: true } as any)
           .select('id, name').single();
           
         if (campErr) {
@@ -864,7 +874,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         legacyPhoneModelId = existingModel.id;
       } else {
         const { data: newModel } = await sb.from('phone_models').insert({
-          brand: 'LEGACY', model: 'Legacy Plan', base_price: 0, is_active: false,
+          brand: 'LEGACY', model: 'Legacy Plan', purchase_cost: 0, sale_price: 0, is_active: false,
         } as any).select('id').single();
         legacyPhoneModelId = newModel?.id ?? null;
       }
@@ -898,17 +908,20 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       }
     }
 
-    // Pre-fetch all applications for the imported customers (to check for existence & link guarantors)
     const importedCustomerIds = [...new Set(legacyRowsData.map(r => r.customer_id).filter(Boolean) as string[])];
     let appsByCustomer = new Map<string, string>();
+    let existingAppsByCustomer = new Map<string, any>();
     if (importedCustomerIds.length > 0) {
       for (let i = 0; i < importedCustomerIds.length; i += 500) {
         const chunk = importedCustomerIds.slice(i, i + 500);
         const { data: apps } = await sb.from('applications')
-          .select('id, customer_id')
+          .select('id, customer_id, monthly_amount, term_months, sale_date')
           .in('customer_id', chunk);
         if (apps) {
-          apps.forEach(a => appsByCustomer.set(a.customer_id, a.id));
+          apps.forEach(a => {
+            appsByCustomer.set(a.customer_id, a.id);
+            existingAppsByCustomer.set(a.customer_id, a);
+          });
         }
       }
     }
@@ -921,6 +934,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       }
 
       const applicationsToInsert: any[] = [];
+      const appsToProcessInstallments: any[] = [];
       const installmentsToInsert: any[] = [];
       // Map from position in applicationsToInsert to a phone ID to assign (if real stock)
       const phoneAssignments: Map<number, string> = new Map();
@@ -930,8 +944,11 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         // Process both new and existing customers, but skip if no customer_id
         if (!legacyRow.customer_id) continue;
         
-        // Skip if an application already exists for this customer
-        if (appsByCustomer.has(legacyRow.customer_id)) continue;
+        // If application already exists, process its installments but do not recreate application
+        if (existingAppsByCustomer.has(legacyRow.customer_id)) {
+          appsToProcessInstallments.push(existingAppsByCustomer.get(legacyRow.customer_id));
+          continue;
+        }
 
         const srcRow = legacyRow.service_number ? rowByServiceNo.get(legacyRow.service_number) : undefined;
         if (!srcRow) continue;
@@ -966,6 +983,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           applicationsToInsert.push({
             customer_id:    legacyRow.customer_id,
             phone_model_id: useRealModel ? realPhoneModelId : legacyPhoneModelId,
+            sales_officer_id: req.user!.id,
             sale_price:     perItemMonthlyAmt * termMonths,
             down_payment:   0,
             financed_amount: perItemMonthlyAmt * termMonths,
@@ -992,6 +1010,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           if (insertedApps) {
             insertedApps.forEach((a: any, j: number) => {
               allInsertedApps.push({ ...a, _insertIndex: globalInsertIndex + j });
+              appsByCustomer.set(a.customer_id, a.id);
             });
           }
           globalInsertIndex += chunk.length;
@@ -1019,10 +1038,29 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           }
           app.log.info(`[LegacyImport] Marked ${phoneUpdates.length} phone(s) as sold from inventory.`);
         }
+        
+        // Add newly inserted apps to our processing list
+        appsToProcessInstallments.push(...allInsertedApps);
+      } // end if (applicationsToInsert.length > 0)
 
-        if (allInsertedApps.length > 0) {
+      if (appsToProcessInstallments.length > 0) {
+        // Pre-fetch all existing installments to avoid duplication
+        const existingInstallmentKeys = new Set<string>();
+        const appIds = appsToProcessInstallments.map(a => a.id);
+        for (let i = 0; i < appIds.length; i += 500) {
+            const chunk = appIds.slice(i, i + 500);
+            const { data: existInsts } = await sb.from('installments')
+              .select('application_id, due_year, due_month')
+              .in('application_id', chunk);
+            if (existInsts) {
+              existInsts.forEach((inst: any) => {
+                existingInstallmentKeys.add(`${inst.application_id}_${inst.due_year}_${inst.due_month}`);
+              });
+            }
+          }
+
           // For each application, generate installment rows
-          for (const app_ of allInsertedApps) {
+          for (const app_ of appsToProcessInstallments) {
             const srcRow = legacyRowsData.find(r => r.customer_id === app_.customer_id);
             if (!srcRow) continue;
             const origRow = srcRow.service_number ? rowByServiceNo.get(srcRow.service_number) : undefined;
@@ -1049,18 +1087,21 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
               const deductedAmt = totalDeductedAmt / itemCount;
               const isDeducted = hist.status === 'deducted' || deductedAmt > 0;
 
-              installmentsToInsert.push({
-                application_id:  app_.id,
-                customer_id:     app_.customer_id,
-                due_date:        dueDate.toISOString().split('T')[0],
-                due_year:        yr,
-                due_month:       mo,
-                month_number:    monthNumber,
-                expected_amount: monthlyAmt,
-                deducted_amount: isDeducted ? deductedAmt : 0,
-                arrears_amount:  isDeducted ? Math.max(0, monthlyAmt - deductedAmt) : monthlyAmt,
-                status:          isDeducted ? (deductedAmt >= monthlyAmt ? 'deducted' : 'partial') : 'not_deducted',
-              });
+              const key = `${app_.id}_${yr}_${mo}`;
+              if (!existingInstallmentKeys.has(key)) {
+                installmentsToInsert.push({
+                  application_id:  app_.id,
+                  customer_id:     app_.customer_id,
+                  due_date:        dueDate.toISOString().split('T')[0],
+                  due_year:        yr,
+                  due_month:       mo,
+                  month_number:    monthNumber,
+                  expected_amount: monthlyAmt,
+                  deducted_amount: isDeducted ? deductedAmt : 0,
+                  arrears_amount:  isDeducted ? Math.max(0, monthlyAmt - deductedAmt) : monthlyAmt,
+                  status:          isDeducted ? (deductedAmt >= monthlyAmt ? 'deducted' : 'partial') : 'not_deducted',
+                });
+              }
             }
 
             // Future/remaining months — status 'pending'
@@ -1082,18 +1123,21 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
             for (let i = 1; i <= remainingMonths; i++) {
               monthNumber++;
               const futureDate = new Date(lastHistDate.getFullYear(), lastHistDate.getMonth() + i, 1);
-              installmentsToInsert.push({
-                application_id:  app_.id,
-                customer_id:     app_.customer_id,
-                due_date:        futureDate.toISOString().split('T')[0],
-                due_year:        futureDate.getFullYear(),
-                due_month:       futureDate.getMonth() + 1,
-                month_number:    monthNumber,
-                expected_amount: monthlyAmt,
-                deducted_amount: 0,
-                arrears_amount:  0,
-                status:          'pending',
-              });
+              const key = `${app_.id}_${futureDate.getFullYear()}_${futureDate.getMonth() + 1}`;
+              if (!existingInstallmentKeys.has(key)) {
+                installmentsToInsert.push({
+                  application_id:  app_.id,
+                  customer_id:     app_.customer_id,
+                  due_date:        futureDate.toISOString().split('T')[0],
+                  due_year:        futureDate.getFullYear(),
+                  due_month:       futureDate.getMonth() + 1,
+                  month_number:    monthNumber,
+                  expected_amount: monthlyAmt,
+                  deducted_amount: 0,
+                  arrears_amount:  0,
+                  status:          'pending',
+                });
+              }
             }
           }
 
@@ -1104,10 +1148,9 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
             if (instErr) app.log.error(`Installment insert error: ${instErr.message}`);
           }
 
-          app.log.info(`Created ${allInsertedApps.length} applications and ${installmentsToInsert.length} installments from legacy import`);
+          app.log.info(`Processed ${appsToProcessInstallments.length} applications and created ${installmentsToInsert.length} installments from legacy import`);
 
-        } // end if (insertedApps && insertedApps.length > 0)
-      } // end if (applicationsToInsert.length > 0)
+      } // end if (appsToProcessInstallments.length > 0)
     } // end if (legacyPhoneModelId)
 
     // ── Extract and Insert Guarantors (Runs for ALL rows) ─────────────────────
@@ -1178,7 +1221,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
               phone_number: g.phone_number || null,
               camp_id: g.camp_id || null,
               branch: 'army',
-              rank: 'Unknown'
+              rank: 'Unknown',
+              is_active: true,
             });
           }
         }
@@ -1247,6 +1291,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
               total_liability: 0,
               affordability_checked: true,
               affordability_ok: true,
+              is_active: true,
             });
           }
         }

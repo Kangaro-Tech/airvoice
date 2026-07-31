@@ -32,6 +32,18 @@ function sendReport(reply:FastifyReply, data:Record<string,unknown>[], format:st
   return reply.send(buf);
 }
 
+// Helper: given a list of rows with a customer_id field, fetch and attach customer + camp info
+async function attachCustomerAndCamp(sb: ReturnType<typeof getSupabase>, rows: any[]) {
+  const custIds = [...new Set(rows.map(r => r.customer_id).filter(Boolean))];
+  if (custIds.length === 0) return;
+  const { data: custs } = await sb.from('customers').select('id, full_name, service_number, rank, phone_number, camp_id').in('id', custIds);
+  const campIds = [...new Set((custs || []).map(c => c.camp_id).filter(Boolean))];
+  const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
+  const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
+  const custMap = Object.fromEntries((custs || []).map(c => [c.id, { ...c, camp: { name: campMap[c.camp_id] } }]));
+  rows.forEach(r => { r.customer = custMap[r.customer_id] || null; });
+}
+
 export default async function reportRoutes(app: FastifyInstance) {
   const requireReportsAccess = requireRole('finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin');
 
@@ -40,28 +52,41 @@ export default async function reportRoutes(app: FastifyInstance) {
     const q = req.query as {year?:string;month?:string;camp_id?:string;format?:string};
     const sb = getSupabase();
     let query = sb.from('installments')
-      .select('due_year,due_month,status,expected_amount,deducted_amount,arrears_amount,not_deducted_reason,customer:customers(full_name,service_number,rank,camp:camps(name))')
+      .select('due_year,due_month,status,expected_amount,deducted_amount,arrears_amount,not_deducted_reason,customer_id')
       .order('due_year').order('due_month');
     if (q.year)    query = query.eq('due_year',parseInt(q.year));
     if (q.month)   query = query.eq('due_month',parseInt(q.month));
     const {data} = await query.limit(5000);
-    const flat = (data??[]).map((r:Record<string,unknown>) => {
-      const cust = r.customer as Record<string,unknown>|null;
-      const camp = cust?.camp as Record<string,unknown>|null;
-      return {Year:r.due_year,Month:r.due_month,Camp:camp?.name??'',Name:cust?.full_name??'',ServiceNo:cust?.service_number??'',Rank:cust?.rank??'',Status:r.status,Expected:r.expected_amount,Deducted:r.deducted_amount,Arrears:r.arrears_amount,Reason:r.not_deducted_reason??''};
-    });
+    const rows = data || [];
+    await attachCustomerAndCamp(sb, rows);
+    // Filter by camp if specified
+    const filtered = q.camp_id ? rows.filter((r: any) => r.customer?.camp_id === q.camp_id) : rows;
+    const flat = filtered.map((r: any) => ({
+      Year: r.due_year, Month: r.due_month,
+      Camp: r.customer?.camp?.name ?? '',
+      Name: r.customer?.full_name ?? '', ServiceNo: r.customer?.service_number ?? '',
+      Rank: r.customer?.rank ?? '', Status: r.status,
+      Expected: r.expected_amount, Deducted: r.deducted_amount,
+      Arrears: r.arrears_amount, Reason: r.not_deducted_reason ?? '',
+    }));
     return sendReport(reply, flat, q.format??'xlsx', `Deductions_${q.year??'All'}_${q.month??'All'}`);
   });
 
   // Arrears report
   app.get('/arrears', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {format?:string};
-    const {data} = await getSupabase().from('installments')
-      .select('arrears_amount,due_year,due_month,status,customer:customers(full_name,service_number,phone_number,camp:camps(name)),application:applications(ref_number)')
+    const sb = getSupabase();
+    const {data: rawRows} = await sb.from('installments')
+      .select('arrears_amount,due_year,due_month,status,customer_id,application_id')
       .gt('arrears_amount',0).order('arrears_amount',{ascending:false}).limit(2000);
-    const flat = (data??[]).map((r:Record<string,unknown>)=>{
-      const c=r.customer as Record<string,unknown>|null, a=r.application as Record<string,unknown>|null, cp=(c?.camp as Record<string,unknown>|null);
-      return {Ref:a?.ref_number,Name:c?.full_name,ServiceNo:c?.service_number,Camp:cp?.name,Phone:c?.phone_number,Year:r.due_year,Month:r.due_month,Status:r.status,Arrears:r.arrears_amount};
+    const rows = rawRows || [];
+    await attachCustomerAndCamp(sb, rows);
+    const appIds = [...new Set(rows.map((r: any) => r.application_id).filter(Boolean))];
+    const appsRes = appIds.length > 0 ? await sb.from('applications').select('id, ref_number').in('id', appIds) : { data: [] };
+    const appMap = Object.fromEntries((appsRes.data || []).map(a => [a.id, a]));
+    const flat = rows.map((r: any) => {
+      const app = appMap[r.application_id];
+      return {Ref:app?.ref_number,Name:r.customer?.full_name,ServiceNo:r.customer?.service_number,Camp:r.customer?.camp?.name,Phone:r.customer?.phone_number,Year:r.due_year,Month:r.due_month,Status:r.status,Arrears:r.arrears_amount};
     });
     return sendReport(reply, flat, q.format??'xlsx', 'Arrears_Report');
   });
@@ -69,14 +94,31 @@ export default async function reportRoutes(app: FastifyInstance) {
   // Commissions report
   app.get('/commissions', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {status?:string;format?:string};
-    let query = getSupabase().from('commissions')
-      .select('*,officer:users!sales_officer_id(phone_number),customer:customers(full_name,service_number),application:applications(ref_number)').order('created_at',{ascending:false}).limit(2000);
+    const sb = getSupabase();
+    let query = sb.from('commissions').select('*, sales_officer_id, customer_id, application_id').order('created_at',{ascending:false}).limit(2000);
     if (q.status) query = query.eq('status',q.status);
-    const {data} = await query;
-    const flat = (data??[]).map((r:Record<string,unknown>)=>{
-      const o=r.officer as Record<string,unknown>|null, c=r.customer as Record<string,unknown>|null, a=r.application as Record<string,unknown>|null;
-      return {Ref:a?.ref_number,SalesOfficer:o?.phone_number,Customer:c?.full_name,ServiceNo:c?.service_number,Amount:r.amount,Status:r.status,PaidAt:r.paid_at??''};
-    });
+    const {data: rawRows} = await query;
+    const rows = rawRows || [];
+    
+    const userIds = [...new Set(rows.map((r: any) => r.sales_officer_id).filter(Boolean))];
+    const custIds = [...new Set(rows.map((r: any) => r.customer_id).filter(Boolean))];
+    const appIds = [...new Set(rows.map((r: any) => r.application_id).filter(Boolean))];
+    const [usersRes, custsRes, appsRes] = await Promise.all([
+      userIds.length > 0 ? sb.from('users').select('id, phone_number').in('id', userIds) : Promise.resolve({ data: [] }),
+      custIds.length > 0 ? sb.from('customers').select('id, full_name, service_number').in('id', custIds) : Promise.resolve({ data: [] }),
+      appIds.length > 0 ? sb.from('applications').select('id, ref_number').in('id', appIds) : Promise.resolve({ data: [] }),
+    ]);
+    const userMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u]));
+    const custMap = Object.fromEntries((custsRes.data || []).map(c => [c.id, c]));
+    const appMap = Object.fromEntries((appsRes.data || []).map(a => [a.id, a]));
+
+    const flat = rows.map((r: any) => ({
+      Ref: appMap[r.application_id]?.ref_number,
+      SalesOfficer: userMap[r.sales_officer_id]?.phone_number,
+      Customer: custMap[r.customer_id]?.full_name,
+      ServiceNo: custMap[r.customer_id]?.service_number,
+      Amount: r.amount, Status: r.status, PaidAt: r.paid_at ?? '',
+    }));
     return sendReport(reply, flat, q.format??'xlsx', 'Commissions_Report');
   });
 
@@ -97,26 +139,45 @@ export default async function reportRoutes(app: FastifyInstance) {
   // Risk report
   app.get('/risk', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {level?:string;format?:string};
-    let query = getSupabase().from('customers')
-      .select('full_name,nic_number,service_number,branch,rank,risk_level,risk_score,retirement_date,phone_number,camp:camps(name)').is('deleted_at',null).order('risk_score',{ascending:false});
+    const sb = getSupabase();
+    let query = sb.from('customers')
+      .select('full_name,nic_number,service_number,branch,rank,risk_level,risk_score,retirement_date,phone_number,camp_id').is('deleted_at',null).order('risk_score',{ascending:false});
     if (q.level) query = query.eq('risk_level',q.level);
-    const {data} = await query.limit(2000);
-    const flat = (data??[]).map((r:Record<string,unknown>)=>{const c=r.camp as Record<string,unknown>|null;return {...r,camp:c?.name};});
+    const {data: rawRows} = await query.limit(2000);
+    const rows = rawRows || [];
+    const campIds = [...new Set(rows.map(c => c.camp_id).filter(Boolean))];
+    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
+    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
+    const flat = rows.map((r: any) => ({ ...r, camp: campMap[r.camp_id] ?? '', camp_id: undefined }));
     return sendReport(reply, flat, q.format??'xlsx', 'Risk_Report');
   });
 
   // Retirement risk
   app.get('/retirement-risk', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {format?:string};
+    const sb = getSupabase();
     const now = new Date();
     const in24mo = new Date(now.getFullYear(),now.getMonth()+24,now.getDate()).toISOString().split('T')[0];
-    const {data} = await getSupabase().from('customers')
-      .select('full_name,service_number,branch,rank,retirement_date,phone_number,camp:camps(name),applications(id,ref_number,plan_end_date,status,monthly_amount)')
-      .lte('retirement_date',in24mo).gt('retirement_date',now.toISOString().split('T')[0]).is('deleted_at',null).eq('applications.status','active').order('retirement_date');
-    const flat = (data??[]).map((r:Record<string,unknown>)=>{
-      const c=r.camp as Record<string,unknown>|null, apps=r.applications as Record<string,unknown>[]|null;
-      return {Name:r.full_name,ServiceNo:r.service_number,Branch:r.branch,Rank:r.rank,Camp:c?.name,RetirementDate:r.retirement_date,ActivePlans:(apps??[]).length};
-    });
+    const {data: rawRows} = await sb.from('customers')
+      .select('id,full_name,service_number,branch,rank,retirement_date,phone_number,camp_id')
+      .lte('retirement_date',in24mo).gt('retirement_date',now.toISOString().split('T')[0]).is('deleted_at',null).order('retirement_date').limit(2000);
+    const rows = rawRows || [];
+    const campIds = [...new Set(rows.map(c => c.camp_id).filter(Boolean))];
+    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
+    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
+    
+    // Fetch active applications for these customers
+    const custIds = rows.map(r => r.id);
+    const appsRes = custIds.length > 0 ? await sb.from('applications').select('customer_id, id, ref_number, plan_end_date, status, monthly_amount').in('customer_id', custIds).eq('status','active') : { data: [] };
+    const appsByCust: Record<string, any[]> = {};
+    (appsRes.data || []).forEach(a => { appsByCust[a.customer_id] = appsByCust[a.customer_id] || []; appsByCust[a.customer_id].push(a); });
+
+    const flat = rows.map(r => ({
+      Name: r.full_name, ServiceNo: r.service_number, Branch: r.branch, Rank: r.rank,
+      Camp: campMap[r.camp_id] ?? '',
+      RetirementDate: r.retirement_date,
+      ActivePlans: (appsByCust[r.id] || []).length,
+    }));
     return sendReport(reply, flat, q.format??'xlsx', 'Retirement_Risk');
   });
 }

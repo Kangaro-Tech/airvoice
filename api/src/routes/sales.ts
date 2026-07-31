@@ -112,15 +112,24 @@ export default async function salesRoutes(app: FastifyInstance) {
     const supabase = getSupabase();
     let query = supabase
       .from('free_phone_requests')
-      .select('*,camp:camps(name,branch)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
     if (q.status) query = query.eq('status', q.status);
     if (req.user!.role === 'sales_officer') {
       query = query.eq('requested_by', req.user!.id);
     }
-    const { data, count } = await query;
-    return reply.send({ data, meta: { total: count, page, limit } });
+    const { data: rawData, count } = await query;
+    
+    const rows = rawData || [];
+    if (rows.length > 0) {
+      const campIds = [...new Set(rows.map((r: any) => r.camp_id).filter(Boolean))];
+      const campsRes = campIds.length > 0 ? await supabase.from('camps').select('id, name, branch').in('id', campIds) : { data: [] };
+      const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, { name: c.name, branch: c.branch }]));
+      rows.forEach((r: any) => { r.camp = campMap[r.camp_id] || null; });
+    }
+    
+    return reply.send({ data: rows, meta: { total: count, page, limit } });
   });
 
   // ── POST /sales/free-phone-requests ── Submit a free phone request

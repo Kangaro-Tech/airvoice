@@ -55,11 +55,17 @@ export default async function dashboardRoutes(app: FastifyInstance) {
 
     // 6. Inventory Value (based on cost price of in stock phones)
     const { data: phones } = await sb.from('phones')
-      .select('phone_models(purchase_cost)')
+      .select('phone_model_id')
       .eq('status', 'in_stock');
 
-    const inventoryValue = (phones ?? []).reduce((s, p: any) => s + Number(p.phone_models?.purchase_cost || 0), 0);
     const inStockCount = (phones ?? []).length;
+    let inventoryValue = 0;
+    if (inStockCount > 0) {
+      const modelIds = [...new Set((phones || []).map(p => p.phone_model_id).filter(Boolean))];
+      const { data: models } = await sb.from('phone_models').select('id, purchase_cost').in('id', modelIds);
+      const modelCostMap = Object.fromEntries((models || []).map(m => [m.id, Number(m.purchase_cost || 0)]));
+      inventoryValue = (phones ?? []).reduce((s, p: any) => s + (modelCostMap[p.phone_model_id] || 0), 0);
+    }
 
     // 7. Commissions Payable
     const { count: commPayable } = await sb.from('commissions')
@@ -202,14 +208,18 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     const sb = getSupabase();
     // Return typical critical alerts dynamically compiled from data anomalies
     const { data: highRisk } = await sb.from('customers')
-      .select('full_name, risk_score, camp:camps(name)')
+      .select('full_name, risk_score, camp_id')
       .gt('risk_score', 60)
       .limit(3);
+
+    const campIds = [...new Set((highRisk || []).map(c => c.camp_id).filter(Boolean))];
+    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
+    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
 
     const alerts = (highRisk ?? []).map(c => ({
       sev: 'red',
       icon: 'ti-alert-triangle',
-      title: `High Risk — ${(c.camp as any)?.name ?? 'Camp'}`,
+      title: `High Risk — ${campMap[c.camp_id] ?? 'Camp'}`,
       msg: `${c.full_name} has a risk score of ${c.risk_score}. Extra verification recommended.`,
       time: 'Just now',
       action: 'Review',
