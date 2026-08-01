@@ -34,7 +34,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
       .filter(Boolean);
 
     const { data, error } = await sb.from('users')
-      .select('id,phone_number,role,is_active')
+      .select('id,phone_number,role,is_active,email')
       .in('role', validStaffRoles)
       .eq('is_active', true)
       .order('phone_number', { ascending: true });
@@ -82,21 +82,74 @@ export default async function payrollRoutes(app: FastifyInstance) {
       etf_no: z.string().optional(),
       joined_date: z.string().optional(),
       profile_photo_url: z.string().optional(),
+      create_user_account: z.boolean().optional(),
+      password: z.string().optional(),
     }).safeParse(req.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
 
     const sb = getSupabase();
-    if (body.data.user_id) {
-      const { data: existingStaff } = await sb.from('staff_registry').select('id').eq('user_id', body.data.user_id).single();
+    let linkedUserId = body.data.user_id;
+
+    if (body.data.create_user_account && !linkedUserId) {
+      if (!body.data.phone_number || !body.data.designation) {
+        return reply.status(400).send({ error: 'Phone number and designation required to create user account' });
+      }
+
+      const roleMapping: Record<string, string> = {
+        'Finance Officer': 'finance_officer',
+        'Sales Officer': 'sales_officer',
+        'Recovery Officer': 'recovery_officer',
+        'Camp Officer': 'camp_officer',
+        'Inventory Manager': 'inventory_manager',
+        'Accountant': 'accountant'
+      };
+      
+      const roleToUse = roleMapping[body.data.designation] || 'customer';
+      let firebase_uid = `staff_created_${body.data.phone_number.replace(/\D/g, '')}_${Date.now()}`;
+      
+      if (body.data.email && body.data.password) {
+        const auth = require('../config/firebase').getFirebaseAuth();
+        if (auth) {
+          try {
+            const userRecord = await auth.createUser({
+              email: body.data.email,
+              password: body.data.password,
+              phoneNumber: body.data.phone_number.startsWith('+') ? body.data.phone_number : `+94${body.data.phone_number.replace(/^0/, '')}`,
+            });
+            firebase_uid = userRecord.uid;
+          } catch (err: any) {
+            console.error('Firebase Auth creation error:', err);
+            return reply.status(400).send({ error: 'Failed to create Firebase user: ' + err.message });
+          }
+        }
+      }
+      
+      const { data: newUser, error: newUserErr } = await sb.from('users').insert([{
+        firebase_uid,
+        phone_number: body.data.phone_number,
+        email: body.data.email || null,
+        role: roleToUse,
+        is_active: true,
+        is_verified: false,
+      }]).select('id').single();
+
+      if (newUserErr || !newUser) {
+        return reply.status(500).send({ error: 'Failed to create system user account: ' + (newUserErr?.message || 'Unknown error') });
+      }
+      linkedUserId = newUser.id;
+    } else if (linkedUserId) {
+      const { data: existingStaff } = await sb.from('staff_registry').select('id').eq('user_id', linkedUserId).single();
       if (existingStaff) return reply.status(409).send({ error: 'Selected user is already assigned to payroll staff' });
 
-      const { data: user, error: userErr } = await sb.from('users').select('id,phone_number,role').eq('id', body.data.user_id).single();
+      const { data: user, error: userErr } = await sb.from('users').select('id,phone_number,role').eq('id', linkedUserId).single();
       if (userErr || !user) return reply.status(404).send({ error: 'Registered user not found' });
     }
 
+    const { create_user_account, password, ...insertDataInput } = body.data;
+
     const insertData = {
-      ...body.data,
-      user_id: body.data.user_id,
+      ...insertDataInput,
+      user_id: linkedUserId,
       is_active: true,
     } as Record<string, unknown>;
 

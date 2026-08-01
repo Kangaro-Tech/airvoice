@@ -1,6 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
 import {
   Upload,
   CheckCircle,
@@ -17,6 +19,11 @@ import {
   Link2,
   XCircle,
   PercentCircle,
+  GitMerge,
+  X,
+  Loader2,
+  ArrowRight,
+  Trash2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -63,16 +70,63 @@ function nextStepUrl(batch: ImportBatch): string | null {
 export default function LegacyImportPage() {
   const location = useLocation();
   const justImported = location.state?.imported;
+  const { user } = useAuthStore();
+  const qc = useQueryClient();
+
+  // Merge camps modal state
+  const [showMerge, setShowMerge]       = useState(false);
+  const [mergeSource, setMergeSource]   = useState('');
+  const [mergeTarget, setMergeTarget]   = useState('');
+  const [mergeResult, setMergeResult]   = useState<null | Record<string, unknown>>(null);
+  const [mergeError, setMergeError]     = useState('');
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['legacy-imports'],
     queryFn: () => api.get('/legacy-import').then(r => r.data.data as ImportBatch[]),
     refetchInterval: (query) => {
-      // Auto-refresh if any batch is actively importing
       const batches = query.state.data as ImportBatch[] | undefined;
       return Array.isArray(batches) && batches.some(b => b.status === 'importing') ? 3000 : false;
     },
   });
+
+  // All camps (including inactive — so duplicates from import are visible)
+  const { data: campsRes } = useQuery({
+    queryKey: ['camps-all'],
+    queryFn: () => api.get('/camps', { params: { include_inactive: 'true' } }).then(r => r.data.data as Record<string, unknown>[]),
+    enabled: showMerge,
+  });
+
+  const mergeMutation = useMutation({
+    mutationFn: (payload: { source_camp_id: string; target_camp_id: string }) =>
+      api.post('/legacy-import/merge-camps', payload).then(r => r.data),
+    onSuccess: (res) => {
+      setMergeResult(res);
+      setMergeError('');
+      qc.invalidateQueries({ queryKey: ['camps'] });
+      qc.invalidateQueries({ queryKey: ['camps-all'] });
+    },
+    onError: (err: any) => {
+      setMergeError(err?.response?.data?.error ?? 'Merge failed. Please try again.');
+    },
+  });
+
+  const handleMerge = () => {
+    if (!mergeSource || !mergeTarget) { setMergeError('Please select both camps.'); return; }
+    if (mergeSource === mergeTarget)  { setMergeError('Source and target must be different camps.'); return; }
+    setMergeError('');
+    setMergeResult(null);
+    mergeMutation.mutate({ source_camp_id: mergeSource, target_camp_id: mergeTarget });
+  };
+
+  const closeMerge = () => {
+    setShowMerge(false);
+    setMergeSource('');
+    setMergeTarget('');
+    setMergeResult(null);
+    setMergeError('');
+  };
+
+  const canMerge = ['super_admin', 'admin'].includes(user?.role ?? '');
 
   return (
     <div className="p-6">
@@ -87,9 +141,19 @@ export default function LegacyImportPage() {
             </p>
           </div>
         </div>
-        <Link to="/legacy-import/upload" className="btn-primary">
-          <Upload size={16} />Upload Deduction Sheet
-        </Link>
+        <div className="flex items-center gap-2">
+          {canMerge && (
+            <button
+              onClick={() => { setShowMerge(true); setMergeResult(null); setMergeError(''); }}
+              className="flex items-center gap-1.5 text-sm px-4 py-2 border border-base rounded-lg hover:bg-[var(--bg-surface-2)] font-medium text-base-secondary"
+            >
+              <GitMerge size={15} className="text-amber-500" /> Merge Duplicate Camps
+            </button>
+          )}
+          <Link to="/legacy-import/upload" className="btn-primary">
+            <Upload size={16} />Upload Deduction Sheet
+          </Link>
+        </div>
       </div>
 
       {/* Success banner */}
@@ -241,6 +305,140 @@ export default function LegacyImportPage() {
           </div>
         )}
       </div>
+
+      {/* ── Merge Duplicate Camps Modal ───────────────────────────── */}
+      {showMerge && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="surface rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
+
+            {/* Header */}
+            <div className="bg-[#0f172a] text-white flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-3">
+                <GitMerge size={20} className="text-amber-400" />
+                <h3 className="font-bold text-lg tracking-tight">Merge Duplicate Camps</h3>
+              </div>
+              <button onClick={closeMerge} className="text-slate-400 hover:text-white transition bg-[#1e293b] p-1.5 rounded-lg border border-slate-700">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+
+              {/* Info banner */}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                <AlertTriangle size={17} className="text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-slate-800 mb-0.5">Use with caution</p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    All <strong>customers</strong>, <strong>regiments</strong>, and <strong>officer assignments</strong> from the
+                    source camp will be moved to the target camp. The source camp will then be <strong>deactivated</strong>.
+                    This cannot be undone easily.
+                  </p>
+                </div>
+              </div>
+
+              {/* Success result */}
+              {mergeResult && (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-green-700 font-bold text-sm">
+                    <CheckCircle size={16} /> Merge completed successfully
+                  </div>
+                  <div className="text-xs text-slate-600 space-y-1">
+                    <div>✅ Customers moved: <strong>{String(mergeResult.customers_moved ?? 0)}</strong></div>
+                    <div>✅ Regiments moved: <strong>{String(mergeResult.regiments_moved ?? 0)}</strong></div>
+                    <div>✅ Officers moved: <strong>{String(mergeResult.officers_moved ?? 0)}</strong></div>
+                    <div className="mt-2 text-slate-500">
+                      Source camp <em>{String((mergeResult.source_camp as any)?.name ?? '')}</em> has been deactivated.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Error */}
+              {mergeError && (
+                <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {mergeError}
+                </div>
+              )}
+
+              {!mergeResult && (
+                <>
+                  {/* Source camp */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
+                      Source Camp <span className="text-red-500">*</span>
+                      <span className="ml-1 font-normal normal-case text-slate-400">(will be deactivated)</span>
+                    </label>
+                    <select
+                      className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-500/10 surface text-slate-700 transition"
+                      value={mergeSource}
+                      onChange={e => setMergeSource(e.target.value)}
+                    >
+                      <option value="">Select source camp to remove…</option>
+                      {(campsRes ?? []).map((c: any) => (
+                        <option key={c.id} value={c.id} disabled={c.id === mergeTarget}>
+                          {c.name}{!c.is_active ? ' (inactive)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+                    <div className="flex-1 border-t border-dashed border-slate-200" />
+                    <ArrowRight size={15} className="text-amber-500 shrink-0" />
+                    <span>merges into</span>
+                    <ArrowRight size={15} className="text-amber-500 shrink-0" />
+                    <div className="flex-1 border-t border-dashed border-slate-200" />
+                  </div>
+
+                  {/* Target camp */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">
+                      Target Camp <span className="text-red-500">*</span>
+                      <span className="ml-1 font-normal normal-case text-slate-400">(will be kept)</span>
+                    </label>
+                    <select
+                      className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-400 focus:ring-4 focus:ring-green-500/10 surface text-slate-700 transition"
+                      value={mergeTarget}
+                      onChange={e => setMergeTarget(e.target.value)}
+                    >
+                      <option value="">Select target camp to keep…</option>
+                      {(campsRes ?? []).map((c: any) => (
+                        <option key={c.id} value={c.id} disabled={c.id === mergeSource}>
+                          {c.name}{!c.is_active ? ' (inactive)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-base surface-2 flex justify-end gap-3">
+              <button
+                onClick={closeMerge}
+                className="px-5 py-2.5 text-sm font-semibold border border-base rounded-lg hover:bg-slate-50 transition"
+              >
+                {mergeResult ? 'Close' : 'Cancel'}
+              </button>
+              {!mergeResult && (
+                <button
+                  onClick={handleMerge}
+                  disabled={mergeMutation.isPending || !mergeSource || !mergeTarget}
+                  className="px-5 py-2.5 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 flex items-center gap-2 transition"
+                >
+                  {mergeMutation.isPending
+                    ? <><Loader2 size={14} className="animate-spin" /> Merging…</>
+                    : <><Trash2 size={14} /> Merge & Deactivate Source</>
+                  }
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+}

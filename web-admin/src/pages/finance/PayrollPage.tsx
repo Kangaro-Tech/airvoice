@@ -57,6 +57,8 @@ interface StaffForm {
   emergency_contact_phone: string;
   joined_date: string;
   is_active: boolean;
+  create_user_account?: boolean;
+  password?: string;
 }
 
 interface PayrollRun {
@@ -130,6 +132,8 @@ export default function PayrollPage() {
     emergency_contact_phone: '',
     joined_date: '',
     is_active: true,
+    create_user_account: false,
+    password: '',
   };
   const [staffForm, setStaffForm] = useState<StaffForm>(initialStaffForm);
 
@@ -156,7 +160,7 @@ export default function PayrollPage() {
     queryFn: () => payrollApi.listUsers().then(r => r.data),
     enabled: showStaffModal,
   });
-  const staffUsers: { id: string; phone_number: string; role: string; full_name?: string }[] = staffUsersRes?.data ?? [];
+  const staffUsers: { id: string; phone_number: string; role: string; full_name?: string; email?: string }[] = staffUsersRes?.data ?? [];
 
   const availableStaffUsers = useMemo(() => {
     return staffUsers.filter(user =>
@@ -1055,7 +1059,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                     <option value="">— No system account link (standalone staff) —</option>
                     {availableStaffUsers.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.phone_number} — {user.role.replace(/_/g, ' ')}
+                        {user.phone_number} {user.email ? `(${user.email})` : ''} — {user.role.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>

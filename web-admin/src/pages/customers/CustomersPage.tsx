@@ -398,7 +398,13 @@ export default function CustomersPage() {
                         {!!c.full_name_si && !!c.full_name && c.full_name_si !== c.full_name && (
                           <div className="text-[10px] text-base-muted mt-0.5">{c.full_name as string}</div>
                         )}
-                        <div className="text-xs text-base-muted mt-0.5 capitalize">{c.rank as string}</div>
+                        {c.guarantor_name ? (
+                          <div className="text-xs text-base-muted mt-0.5">
+                            <span className="font-semibold text-indigo-600">GU:</span> {c.guarantor_name as string}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-base-muted mt-0.5 capitalize">{c.rank as string}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">
                         <div className="text-base-secondary">{(c.nic_number as string) || '—'}</div>

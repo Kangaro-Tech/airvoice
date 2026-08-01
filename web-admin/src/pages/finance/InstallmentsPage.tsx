@@ -67,6 +67,7 @@ type Installment = {
       rank: string;
       nic_number: string;
       camp_id: string;
+      camp?: { id: string; name: string; branch: string };
     };
   };
 };
@@ -317,7 +318,7 @@ export default function InstallmentsPage() {
         'Reason': i.not_deducted_reason ?? '—'
       };
     });
-    
+
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Deductions');
@@ -762,16 +763,16 @@ export default function InstallmentsPage() {
               <table className="w-full text-sm">
                 <thead style={{ backgroundColor: 'var(--bg-sidebar)', color: '#e6edf3' }} className="text-xs uppercase tracking-wider font-semibold">
                   <tr>
-                    {['App ID', 'Customer', 'Camp', 'Month', 'Expected', 'Deducted', 'Status', 'Reason'].map(h => (
+                    {['App ID', 'Customer', 'Service No', 'Camp', 'Month', 'Expected', 'Deducted', 'Status', 'Reason'].map(h => (
                       <th key={h} className="px-4 py-3 text-left">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
                   {dashLoading ? (
-                    <tr><td colSpan={8} className="px-4 py-12 text-center" style={{ color: 'var(--text-muted)' }}>Loading deduction records…</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-12 text-center" style={{ color: 'var(--text-muted)' }}>Loading deduction records…</td></tr>
                   ) : tabFiltered.length === 0 ? (
-                    <tr><td colSpan={8} className="px-4 py-12 text-center" style={{ color: 'var(--text-muted)' }}>No installments found.</td></tr>
+                    <tr><td colSpan={9} className="px-4 py-12 text-center" style={{ color: 'var(--text-muted)' }}>No installments found.</td></tr>
                   ) : (
                     tabFiltered.map(i => {
                       const cust = i.application?.customer;
@@ -786,8 +787,11 @@ export default function InstallmentsPage() {
                             <div className="font-semibold" style={{ color: 'var(--text-primary)' }}>{cust?.full_name ?? '—'}</div>
                             <div className="text-xs capitalize" style={{ color: 'var(--text-muted)' }}>{cust?.rank ?? '—'}</div>
                           </td>
-                          <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
                             {cust?.service_number ?? '—'}
+                          </td>
+                          <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                            {cust?.camp?.name ?? '—'}
                           </td>
                           <td className="px-4 py-3 font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
                             {MONTHS[i.due_month - 1]} {i.due_year}

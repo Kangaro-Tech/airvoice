@@ -1203,150 +1203,146 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
 
     let addedGuarantorsCount = 0;
     if (guarantorsToCreate.length > 0) {
-      // 1. Bulk insert missing Guarantor customers
-      const newGuCustomersToInsert: any[] = [];
-      const newGuNicInsertSet = new Set<string>();
+      // ── IMPORTANT: Guarantors are NOT inserted into the `customers` table.
+      // They are inserted directly into `guarantors`. A customer_id is only
+      // set if the Guarantor is already an existing customer in the system.
 
-      for (const g of guarantorsToCreate) {
-        let existingCust = lookupCustomer(g.service_number, g.nic_number);
-        if (!existingCust && (g.service_number || g.nic_number)) {
-          // Avoid pushing same NIC/service_number twice in this batch
-          const key = g.service_number || g.nic_number;
-          if (key && !newGuNicInsertSet.has(key)) {
-            newGuNicInsertSet.add(key);
-            newGuCustomersToInsert.push({
-              full_name: g.full_name,
-              service_number: g.service_number || null,
-              nic_number: g.nic_number || null,
-              phone_number: g.phone_number || null,
-              camp_id: g.camp_id || null,
-              branch: 'army',
-              rank: 'Unknown',
-              is_active: true,
-            });
-          }
+      // 1. Bulk lookup existing guarantors by nic_number or service_number in `guarantors` table
+      //    Build dedup keys and fetch existing records to avoid re-inserting.
+      const guKeyToId = new Map<string, string>(); // 'svc:XXX' or 'nic:YYY' -> guarantor.id
+      const guNicKeys = [...new Set(guarantorsToCreate.map(g => g.nic_number).filter(Boolean) as string[])];
+      const guSvcKeys = [...new Set(guarantorsToCreate.map(g => g.service_number).filter(Boolean) as string[])];
+
+      for (let i = 0; i < guNicKeys.length; i += 500) {
+        const chunk = guNicKeys.slice(i, i + 500);
+        const { data: byNic } = await sb.from('guarantors').select('id, nic_number, service_number').in('nic_number', chunk);
+        if (byNic) {
+          byNic.forEach(g => {
+            if (g.nic_number) guKeyToId.set(`nic:${g.nic_number}`, g.id);
+            if (g.service_number) guKeyToId.set(`svc:${g.service_number}`, g.id);
+          });
+        }
+      }
+      for (let i = 0; i < guSvcKeys.length; i += 500) {
+        const chunkSvc = guSvcKeys.slice(i, i + 500).filter(k => !guKeyToId.has(`svc:${k}`));
+        if (chunkSvc.length === 0) continue;
+        const { data: bySvc } = await sb.from('guarantors').select('id, nic_number, service_number').in('service_number', chunkSvc);
+        if (bySvc) {
+          bySvc.forEach(g => {
+            if (g.nic_number) guKeyToId.set(`nic:${g.nic_number}`, g.id);
+            if (g.service_number) guKeyToId.set(`svc:${g.service_number}`, g.id);
+          });
         }
       }
 
-      if (newGuCustomersToInsert.length > 0) {
-        for (let i = 0; i < newGuCustomersToInsert.length; i += 500) {
-          const chunk = newGuCustomersToInsert.slice(i, i + 500);
-          const { data: insertedGuCusts } = await sb.from('customers').insert(chunk).select('id, service_number, nic_number, camp_id');
-          if (insertedGuCusts) {
-            insertedGuCusts.forEach(c => {
-              if (c.service_number) custMapBySvcNo.set(c.service_number, { id: c.id, method: 'service_number', camp_id: c.camp_id });
-              if (c.nic_number) custMapByNic.set(c.nic_number, { id: c.id, method: 'nic_number', camp_id: c.camp_id });
-            });
-          }
-        }
-      }
+      // Helper: resolve existing guarantor id from a GuarantorToCreate
+      const resolveGuId = (g: GuarantorToCreate): string | undefined => {
+        if (g.nic_number && guKeyToId.has(`nic:${g.nic_number}`)) return guKeyToId.get(`nic:${g.nic_number}`);
+        if (g.service_number && guKeyToId.has(`svc:${g.service_number}`)) return guKeyToId.get(`svc:${g.service_number}`);
+        return undefined;
+      };
 
-      // 2. Resolve customer IDs for guarantors
+      // 2. For each guarantor, determine whether they are also an existing customer
+      //    (purely informational – we do NOT create new customer records for them)
       const resolvedGuarantors = guarantorsToCreate.map(g => {
-        let existingCust = lookupCustomer(g.service_number, g.nic_number);
-        return { ...g, customer_id: existingCust?.id };
-      }).filter(g => g.customer_id);
+        const existingCust = lookupCustomer(g.service_number, g.nic_number);
+        return { ...g, linked_customer_id: existingCust?.id as string | undefined };
+      });
 
-      // 3. Bulk lookup existing guarantors by customer_id
-      const guCustomerIds = [...new Set(resolvedGuarantors.map(g => g.customer_id as string))];
-      let existingGuarantorMap = new Map<string, string>();
-      if (guCustomerIds.length > 0) {
-        // Chunk the IN clause if needed, but 2000 is usually fine for Supabase. We'll chunk to 500 just in case.
-        for (let i = 0; i < guCustomerIds.length; i += 500) {
-          const chunk = guCustomerIds.slice(i, i + 500);
-          const { data: existingG } = await sb.from('guarantors').select('id, customer_id').in('customer_id', chunk);
-          if (existingG) {
-            existingG.forEach(g => existingGuarantorMap.set(g.customer_id, g.id));
-          }
-        }
-      }
-
-      // 4. Bulk insert new guarantors & collect updates
+      // 3. Build insert / update lists
       const guarantorsToInsert: any[] = [];
       const guarantorsToUpdate: any[] = [];
       const appsToLinkGuarantor = new Map<string, string>(); // app_id -> guarantor_id
+      const batchGuKeySet = new Set<string>(); // dedup within this import batch
 
       for (const g of resolvedGuarantors) {
-        const existingGuId = existingGuarantorMap.get(g.customer_id!);
+        const existingGuId = resolveGuId(g);
+
         if (existingGuId) {
+          // Guarantor already exists – update supplementary info
           guarantorsToUpdate.push({
             id: existingGuId,
+            full_name:    g.full_name,
             phone_number: g.phone_number || undefined,
-            nic_number: g.nic_number || undefined,
-            camp_id: g.camp_id || undefined,
+            nic_number:   g.nic_number   || undefined,
+            camp_id:      g.camp_id      || undefined,
           });
           if (g.guarantor_order === 1 && g.app_id) appsToLinkGuarantor.set(g.app_id, existingGuId);
         } else {
-          // Avoid inserting the same guarantor twice in the same batch
-          if (!guarantorsToInsert.some(ig => ig.customer_id === g.customer_id)) {
+          // New guarantor – insert directly into `guarantors` table
+          const batchKey = g.nic_number ? `nic:${g.nic_number}` : g.service_number ? `svc:${g.service_number}` : `name:${g.full_name}`;
+          if (!batchGuKeySet.has(batchKey)) {
+            batchGuKeySet.add(batchKey);
             guarantorsToInsert.push({
-              customer_id:    g.customer_id,
+              customer_id:    g.linked_customer_id ?? null, // null unless already a customer
               full_name:      g.full_name,
               phone_number:   g.phone_number   ?? null,
               nic_number:     g.nic_number     ?? null,
               service_number: g.service_number ?? null,
               branch:         'army',
               camp_id:        g.camp_id        ?? null,
-              monthly_salary: 0,
-              total_liability: 0,
+              monthly_salary:        0,
+              total_liability:       0,
               affordability_checked: true,
-              affordability_ok: true,
-              is_active: true,
+              affordability_ok:      true,
+              is_active:             true,
             });
           }
         }
       }
 
+      // 4. Bulk insert new guarantors
       if (guarantorsToInsert.length > 0) {
         for (let i = 0; i < guarantorsToInsert.length; i += 500) {
           const chunk = guarantorsToInsert.slice(i, i + 500);
-          const { data: insertedGus } = await sb.from('guarantors').insert(chunk).select('id, customer_id');
+          const { data: insertedGus } = await sb.from('guarantors').insert(chunk).select('id, nic_number, service_number');
           if (insertedGus) {
             addedGuarantorsCount += insertedGus.length;
-            insertedGus.forEach(ig => existingGuarantorMap.set(ig.customer_id, ig.id));
+            insertedGus.forEach(ig => {
+              if (ig.nic_number) guKeyToId.set(`nic:${ig.nic_number}`, ig.id);
+              if (ig.service_number) guKeyToId.set(`svc:${ig.service_number}`, ig.id);
+            });
           }
         }
       }
 
-      // 5. Link newly inserted guarantors to applications
+      // 5. Link newly inserted/existing guarantors to applications
       for (const g of resolvedGuarantors) {
         if (g.guarantor_order === 1 && g.app_id) {
-          const guId = existingGuarantorMap.get(g.customer_id!);
+          const guId = resolveGuId(g);
           if (guId) appsToLinkGuarantor.set(g.app_id, guId);
         }
       }
 
-      // Bulk update applications
+      // 6. Bulk update applications with guarantor_id
       if (appsToLinkGuarantor.size > 0) {
-        // Since we can't easily bulk update different values, we'll chunk Promises
-        const linkPromises = Array.from(appsToLinkGuarantor.entries()).map(([appId, guId]) => 
+        const linkPromises = Array.from(appsToLinkGuarantor.entries()).map(([appId, guId]) =>
           sb.from('applications').update({ guarantor_id: guId } as any).eq('id', appId)
         );
-        // Process in batches of 50 to avoid overloading the DB
         for (let i = 0; i < linkPromises.length; i += 50) {
           await Promise.all(linkPromises.slice(i, i + 50));
         }
       }
 
-      // Bulk update existing guarantors
+      // 7. Bulk update existing guarantors with fresher data
       if (guarantorsToUpdate.length > 0) {
         const updatePromises = guarantorsToUpdate.map(gu => {
           const updates: any = {};
+          if (gu.full_name)    updates.full_name    = gu.full_name;
           if (gu.phone_number) updates.phone_number = gu.phone_number;
-          if (gu.nic_number) updates.nic_number = gu.nic_number;
-          if (gu.camp_id) updates.camp_id = gu.camp_id;
+          if (gu.nic_number)   updates.nic_number   = gu.nic_number;
+          if (gu.camp_id)      updates.camp_id      = gu.camp_id;
           if (Object.keys(updates).length > 0) {
             return sb.from('guarantors').update(updates).eq('id', gu.id);
           }
           return null;
         }).filter(Boolean);
-        
         for (let i = 0; i < updatePromises.length; i += 50) {
           await Promise.all(updatePromises.slice(i, i + 50));
         }
       }
 
-      app.log.info(`Added/linked ${guarantorsToCreate.length} guarantors (${addedGuarantorsCount} new, 1st+2nd GU)`);
+      app.log.info(`Added/linked ${guarantorsToCreate.length} guarantors (${addedGuarantorsCount} new, 1st+2nd GU) — Guarantors are NOT added to customers table`);
     } // end if (guarantorsToCreate.length > 0)
 
     // ── Track what was newly added ─────────────────────────────
@@ -1367,61 +1363,14 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       action:  AuditActions.LEGACY_IMPORT_COMPLETED,
       entity_type: 'legacy_import_batches',
       entity_id: id,
-      new_values: { total: rows.length, imported, duplicates, invalid },
+      new_values: { imported, duplicates, invalid, newCustomerCount, newCampCount } 
     });
 
-    // ── Fire real-time notifications (fire-and-forget) ────────
-    // 1. One notification per new camp added
-    for (const campName of missingUnits) {
-      notify({ kind: 'camp_added', campName });
-    }
-
-    // 2. Notify camp officers about deductions
-    for (const campName of uniqueUnits) {
-      if (campName) {
-        notify({ kind: 'camp_deductions_imported', campName, batchId: id });
-      }
-    }
-
-      // 2. Summary notification for the entire import
-      notify({
-        kind: 'legacy_import_completed',
-        totalRows:     rows.length,
-        importedRows:  imported,
-        duplicateRows: duplicates,
-        newCustomers:  newCustomerCount,
-        newCamps:      newCampCount,
-        batchId:       id,
-      });
-
-      app.log.info(`Legacy import ${id} completed: ${imported} imported, ${duplicates} duplicates, ${invalid} invalid`);
-      } catch (err) {
-        app.log.error(`Legacy import background job failed for batch ${id}: ${err instanceof Error ? err.message : String(err)}`);
-        const sb2 = getSupabase();
-        await sb2.from('legacy_import_batches').update({ status: 'failed' } as any).eq('id', id);
-      }
-    }); // end setImmediate
-  });
-
-  // ── GET /:id/rows ─────────────────────────────────────────
-  app.get('/:id/rows', { preHandler: [authenticate, requireFinance] },
-  async (req: FastifyRequest, reply: FastifyReply) => {
-    const { id } = req.params as { id: string };
-    const q      = req.query as Record<string, string>;
-    const page   = parseInt(q.page ?? '1');
-    const limit  = 50;
-
-    let query = getSupabase()
-      .from('legacy_import_rows')
-      .select('*', { count: 'exact' })
-      .eq('batch_id', id)
-      .order('row_number')
-      .range((page - 1) * limit, page * limit - 1);
-
-    if (q.status) query = query.eq('status', q.status);
-
-    const { data, count } = await query;
-    return reply.send({ data: data as any, meta: { total: count, page, limit } });
+  } catch (e) {
+    getSupabase().from('legacy_import_batches').update({ status: 'failed' } as any).eq('id', id);
+    app.log.error(`[LegacyImport] Background job failed: ${e instanceof Error ? e.stack : String(e)}`);
+  }
+}); // end setImmediate
   });
 
   // ── POST /rows/:rowId/link-customer ───────────────────────
@@ -1505,6 +1454,145 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       success: true,
       pdf_reference_path: fbPath,
       note: 'PDF stored for reference only. It will NOT be parsed for structured import data. Upload an Excel or CSV file to import records.',
+    });
+  });
+
+  // ── POST /merge-camps — merge duplicate camps (super_admin) ──
+  // Moves all customers, regiments, and officer assignments from
+  // source_camp_id → target_camp_id, then deactivates the source.
+  app.post('/merge-camps', { preHandler: [authenticate, requireAdmin] },
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const body = z.object({
+      source_camp_id: z.string().uuid(),
+      target_camp_id: z.string().uuid(),
+    }).safeParse(req.body);
+
+    if (!body.success) {
+      return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
+    }
+
+    const { source_camp_id, target_camp_id } = body.data;
+
+    if (source_camp_id === target_camp_id) {
+      return reply.status(400).send({ error: 'Source and target camps must be different.' });
+    }
+
+    const sb = getSupabase();
+
+    // Verify both camps exist and are active
+    const { data: camps, error: campsErr } = await sb
+      .from('camps')
+      .select('id, name, is_active')
+      .in('id', [source_camp_id, target_camp_id]);
+
+    if (campsErr || !camps || camps.length < 2) {
+      return reply.status(404).send({ error: 'One or both camps not found.' });
+    }
+
+    const sourcecamp = camps.find((c: any) => c.id === source_camp_id);
+    const targetCamp = camps.find((c: any) => c.id === target_camp_id);
+
+    if (!sourcecamp || !targetCamp) {
+      return reply.status(404).send({ error: 'One or both camps not found.' });
+    }
+
+    const results: Record<string, number> = {
+      customers_moved: 0,
+      regiments_moved: 0,
+      officers_moved: 0,
+    };
+
+    // 1. Move customers
+    const { data: movedCustomers, error: custErr } = await sb
+      .from('customers')
+      .update({ camp_id: target_camp_id })
+      .eq('camp_id', source_camp_id)
+      .is('deleted_at', null)
+      .select('id');
+
+    if (custErr) {
+      return reply.status(500).send({ error: `Failed to move customers: ${custErr.message}` });
+    }
+    results.customers_moved = movedCustomers?.length ?? 0;
+
+    // 2. Move regiments
+    const { data: movedRegiments, error: regErr } = await sb
+      .from('regiments')
+      .update({ camp_id: target_camp_id })
+      .eq('camp_id', source_camp_id)
+      .select('id');
+
+    if (regErr) {
+      return reply.status(500).send({ error: `Failed to move regiments: ${regErr.message}` });
+    }
+    results.regiments_moved = movedRegiments?.length ?? 0;
+
+    // 3. Move officer assignments (skip if user_id already assigned to target)
+    const { data: sourceOfficers } = await sb
+      .from('camp_officer_assignments')
+      .select('user_id')
+      .eq('camp_id', source_camp_id)
+      .eq('is_active', true);
+
+    const { data: targetOfficers } = await sb
+      .from('camp_officer_assignments')
+      .select('user_id')
+      .eq('camp_id', target_camp_id)
+      .eq('is_active', true);
+
+    const targetUserIds = new Set((targetOfficers ?? []).map((o: any) => o.user_id));
+
+    for (const officer of (sourceOfficers ?? [])) {
+      if (!targetUserIds.has(officer.user_id)) {
+        await sb.from('camp_officer_assignments').upsert(
+          {
+            camp_id: target_camp_id,
+            user_id: officer.user_id,
+            assigned_by: req.user!.id,
+            is_active: true,
+            assigned_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,camp_id' }
+        );
+        results.officers_moved++;
+      }
+    }
+
+    // Deactivate source officers
+    await sb
+      .from('camp_officer_assignments')
+      .update({ is_active: false })
+      .eq('camp_id', source_camp_id);
+
+    // 4. Deactivate source camp
+    const { error: deactivateErr } = await sb
+      .from('camps')
+      .update({ is_active: false })
+      .eq('id', source_camp_id);
+
+    if (deactivateErr) {
+      return reply.status(500).send({ error: `Failed to deactivate source camp: ${deactivateErr.message}` });
+    }
+
+    writeAuditLog({
+      user_id:     req.user!.id,
+      action:      AuditActions.CAMP_UPDATED,
+      entity_type: 'camps',
+      entity_id:   source_camp_id,
+      old_values:  { name: sourcecamp.name, is_active: true },
+      new_values:  {
+        action: 'merged_into',
+        target_camp_id,
+        target_camp_name: targetCamp.name,
+        ...results,
+      },
+    });
+
+    return reply.send({
+      success: true,
+      source_camp:  { id: source_camp_id, name: sourcecamp.name },
+      target_camp:  { id: target_camp_id, name: targetCamp.name },
+      ...results,
     });
   });
 }

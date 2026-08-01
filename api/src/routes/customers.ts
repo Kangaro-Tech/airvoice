@@ -88,7 +88,7 @@ export default async function customerRoutes(app: FastifyInstance) {
 
       const [campsRes, appsRes] = await Promise.all([
         campIds.length > 0 ? supabase.from('camps').select('id, name').in('id', campIds) : Promise.resolve({ data: [] }),
-        customerIds.length > 0 ? supabase.from('applications').select('id, status, customer_id').in('customer_id', customerIds) : Promise.resolve({ data: [] })
+        customerIds.length > 0 ? supabase.from('applications').select('id, status, customer_id, guarantor_id').in('customer_id', customerIds) : Promise.resolve({ data: [] })
       ]);
 
       const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c]));
@@ -98,9 +98,30 @@ export default async function customerRoutes(app: FastifyInstance) {
         return acc;
       }, {});
 
+      // Build guarantor_id -> customer_id map, then fetch guarantor names
+      const guarantorIdToCustId = new Map<string, string>();
+      (appsRes.data || []).forEach((app: any) => {
+        if (app.guarantor_id && app.customer_id) {
+          guarantorIdToCustId.set(app.guarantor_id, app.customer_id);
+        }
+      });
+      const uniqueGuarantorIds = [...guarantorIdToCustId.keys()];
+      const guarantorMap: Record<string, string> = {}; // customer_id -> guarantor full_name
+      if (uniqueGuarantorIds.length > 0) {
+        const { data: guData } = await supabase
+          .from('guarantors')
+          .select('id, full_name')
+          .in('id', uniqueGuarantorIds);
+        (guData || []).forEach((gu: any) => {
+          const custId = guarantorIdToCustId.get(gu.id);
+          if (custId) guarantorMap[custId] = gu.full_name;
+        });
+      }
+
       dataWithJoins.forEach((c: any) => {
         c.camp = campMap[c.camp_id] || null;
         c.applications = appsMap[c.id] || [];
+        c.guarantor_name = guarantorMap[c.id] || null;
       });
     }
 
