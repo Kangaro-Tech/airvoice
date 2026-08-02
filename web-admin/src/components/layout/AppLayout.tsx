@@ -358,6 +358,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     'Verify payable commissions before running bank transfers.': 'බැංකු මාරු කිරීම් සිදු කිරීමට පෙර ගෙවිය යුතු කොමිස් මුදල් සත්‍යාපනය කරන්න.',
     'Prioritise high-risk customers for monthly review meetings.': 'මාසික සමාලෝචන රැස්වීම් සඳහා ඉහළ අවදානම් සහිත ගනුදෙනුකරුවන්ට ප්‍රමුඛත්වය දෙන්න.',
     'Critical: check before approving new applications.': 'තීරණාත්මකයි: නව අයදුම්පත් අනුමත කිරීමට පෙර පරීක්ෂා කරන්න.',
+    'System Update in Progress: We are currently updating the system. Some features may be temporarily unavailable.': 'පද්ධති යාවත්කාලීන කිරීමක් ක්‍රියාත්මක වේ: අපි දැනට පද්ධතිය යාවත්කාලීන කරමින් සිටිමු. සමහර විශේෂාංග තාවකාලිකව නොතිබිය හැකිය.',
   },
   ta: {
     'Dashboard': 'டாஷ்போர்டு',
@@ -390,6 +391,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     'Scheduled Reports': 'திட்டமிடப்பட்ட அறிக்கைகள்',
     'Export Format': 'ஏற்றுமதி வடிவம்',
     'Excel recommended for analysis, CSV for raw data imports': 'பகுப்பாய்விற்கு எக்செல் பரிந்துரைக்கப்படுகிறது, மூல தரவுக்கு சிஎஸ்வி',
+    'System Update in Progress: We are currently updating the system. Some features may be temporarily unavailable.': 'கணினி புதுப்பிப்பு செயல்பாட்டில் உள்ளது: நாங்கள் தற்போது கணினியைப் புதுப்பிக்கிறோம். சில அம்சங்கள் தற்காலிகமாக கிடைக்காமல் போகலாம்.',
   }
 };
 
@@ -950,8 +952,15 @@ export default function AppLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto relative">
+          {/* Live System Update Banner */}
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2.5 flex items-center justify-center gap-3 text-sm shadow-md sticky top-0 z-50 border-b border-indigo-400">
+            <Loader2 size={16} className="animate-spin shrink-0" />
+            <span className="font-medium tracking-wide">System Update in Progress: We are currently updating the system. Some features may be temporarily unavailable.</span>
+          </div>
+          <div className="p-4 h-full">
+            <Outlet />
+          </div>
         </main>
 
         {/* Global Footer — Kangaro-Tech Australia */}
