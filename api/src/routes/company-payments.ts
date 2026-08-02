@@ -8,7 +8,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
   // ── GET /company-payments ── List all AirVoice advance payments
   app.get('/', {
-    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const q = req.query as { status?: string; customer_id?: string; page?: string };
     const sb = getSupabase();
@@ -38,7 +38,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
   // ── POST /company-payments ── AirVoice pays on behalf of customer
   app.post('/', {
-    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const body = z.object({
       customer_id: z.string().uuid(),
@@ -111,7 +111,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
   // ── POST /company-payments/:id/recover ── Record partial/full recovery from customer
   app.post('/:id/recover', {
-    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({
@@ -162,7 +162,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
   // ── GET /company-payments/summary ── Outstanding total per customer
   app.get('/summary', {
-    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
   }, async (_req: FastifyRequest, reply) => {
     const sb = getSupabase();
     const { data, error } = await sb

@@ -65,6 +65,7 @@ import AuditLogsPage from '@/pages/admin/AuditLogsPage';
 import UsersPage from '@/pages/admin/UsersPage';
 import CampManagementPage from '@/pages/admin/CampManagementPage';
 import SettingsPage from '@/pages/admin/SettingsPage';
+import BusinessRulesPage from '@/pages/admin/BusinessRulesPage';
 import AIRiskPage from '@/pages/admin/AIRiskPage';
 import CustomerAppPage from '@/pages/admin/CustomerAppPage';
 
@@ -75,6 +76,9 @@ import SchedulePage from '@/pages/SchedulePage';
 // Pages — Tools
 import ChequePrinterPage from '@/pages/cheque/ChequePrinterPage';
 import StockOrdersPage from '@/pages/inventory/StockOrdersPage';
+
+// 404
+import NotFoundPage from '@/pages/NotFoundPage';
 
 // Auth guard
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -134,12 +138,12 @@ function App() {
               <Route path="/guarantors" element={<GuarantorsPage />} />
 
               {/* Recovery (recovery_officer + finance + admin) */}
-              <Route element={<ProtectedRoute roles={['recovery_officer', 'finance_officer', 'accountant', 'admin', 'super_admin']} />}>
+              <Route element={<ProtectedRoute roles={['recovery_officer', 'finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']} />}>
                 <Route path="/recovery" element={<RecoveryPage />} />
               </Route>
 
               {/* Finance (Strict) */}
-              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'admin', 'super_admin']} />}>
+              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']} />}>
                 <Route path="/finance" element={<FinancePage />} />
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />
@@ -153,7 +157,7 @@ function App() {
               </Route>
 
               {/* HR & Payroll + Audit Log */}
-              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']} />}>
+              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'system_operator']} />}>
                 <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
               </Route>
 
@@ -166,31 +170,35 @@ function App() {
               </Route>
 
               {/* Installments & Reports (Finance + Camp Officer) */}
-              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin']} />}>
+              <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin', 'system_operator']} />}>
                 <Route path="/installments" element={<InstallmentsPage />} />
                 <Route path="/donations" element={<DonationsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />
               </Route>
 
               {/* Sales (sales_officer + admin) */}
-              <Route element={<ProtectedRoute roles={['sales_officer', 'finance_officer', 'admin', 'super_admin']} />}>
+              <Route element={<ProtectedRoute roles={['sales_officer', 'finance_officer', 'admin', 'super_admin', 'system_operator']} />}>
                 <Route path="/sales" element={<SalesOfficerPage />} />
               </Route>
 
               {/* Admin+ */}
-              <Route element={<ProtectedRoute roles={['admin', 'super_admin']} />}>
+              <Route element={<ProtectedRoute roles={['admin', 'super_admin', 'system_operator']} />}>
                 <Route path="/admin" element={<AdminPage />} />
                 <Route path="/admin/users" element={<UsersPage />} />
                 <Route path="/admin/ai-risk" element={<AIRiskPage />} />
                 <Route path="/admin/customer-app" element={<CustomerAppPage />} />
+                <Route path="/admin/business-rules" element={<BusinessRulesPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
 
               {/* Super admin only */}
-              <Route element={<ProtectedRoute roles={['super_admin']} />}>
+              <Route element={<ProtectedRoute roles={['super_admin', 'system_operator']} />}>
                 <Route path="/admin/camps" element={<CampManagementPage />} />
               </Route>
+
+              {/* Catch-all inside AppLayout — show 404 instead of blank */}
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Route>
 

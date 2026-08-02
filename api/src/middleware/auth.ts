@@ -56,11 +56,11 @@ export function requireRole(...allowedRoles: UserRole[]) {
 
 export const requireStaff = requireRole(
   'sales_officer', 'camp_officer', 'finance_officer', 'recovery_officer',
-  'inventory_manager', 'accountant', 'admin', 'super_admin'
+  'inventory_manager', 'accountant', 'admin', 'super_admin', 'system_operator'
 );
 export const requireFinance = requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator');
 export const requireAdmin   = requireRole('admin', 'super_admin', 'system_operator');
-export const requireSuperAdmin = requireRole('super_admin');
+export const requireSuperAdmin = requireRole('super_admin', 'system_operator');
 
 export async function checkOtpRateLimit(phoneNumber: string, reply: FastifyReply): Promise<boolean> {
   const supabase = getSupabase();

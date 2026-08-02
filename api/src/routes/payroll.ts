@@ -7,11 +7,11 @@ import { notify } from '../services/notify';
 
 export default async function payrollRoutes(app: FastifyInstance) {
 
-  // ── GET /payroll/staff ─── List all active staff members
+  // ── GET /payroll/staff ─── List all staff members (list view – select only needed columns)
   app.get('/staff', { preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')] }, async (_req, reply) => {
     const { data, error } = await getSupabase()
       .from('staff_registry')
-      .select('*')
+      .select('id,user_id,full_name,designation,department,basic_salary,transport_allow,meal_allow,commission_rate,epf_no,is_active,phone_number,profile_photo_url,joined_date')
       .order('full_name');
     if (error) return reply.status(500).send({ error: error.message });
     return reply.send({ data });
@@ -250,13 +250,13 @@ export default async function payrollRoutes(app: FastifyInstance) {
     return reply.send({ data: updated, photo_url: photoUrl });
   });
 
-  // ── GET /payroll/runs ─── List payroll runs
+  // ── GET /payroll/runs ─── List payroll runs (summary only)
   app.get('/runs', { preHandler: [authenticate, requireFinance] }, async (req: FastifyRequest, reply) => {
     const q = req.query as { year?: string; page?: string };
     const page = parseInt(q.page ?? '1'), limit = 20;
     let query = getSupabase()
       .from('payroll_runs')
-      .select('*,created_by:users!created_by(phone_number)', { count: 'exact' })
+      .select('id,run_month,run_year,status,total_gross,total_net,total_epf_ee,total_epf_er,total_etf,created_at,notes,created_by:users!created_by(phone_number)', { count: 'exact' })
       .order('run_month', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
     if (q.year) query = query.eq('run_year', parseInt(q.year));
@@ -412,7 +412,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── POST /payroll/runs/:id/approve
-  app.post('/runs/:id/approve', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/runs/:id/approve', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const { data, error } = await getSupabase().from('payroll_runs').update({
       status: 'approved', approved_by: req.user!.id, approved_at: new Date().toISOString(),
@@ -423,7 +423,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── POST /payroll/runs/:id/mark-paid
-  app.post('/runs/:id/mark-paid', { preHandler: [authenticate, requireRole('admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/runs/:id/mark-paid', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const { data, error } = await getSupabase().from('payroll_runs').update({
       status: 'paid', paid_at: new Date().toISOString(),

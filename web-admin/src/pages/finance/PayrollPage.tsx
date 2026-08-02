@@ -140,6 +140,7 @@ export default function PayrollPage() {
   const { data: runsRes, isLoading: runsLoading } = useQuery({
     queryKey: ['payroll-runs'],
     queryFn: () => api.get('/payroll/runs').then(r => r.data),
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
   const runs: PayrollRun[] = runsRes?.data ?? [];
 
@@ -152,6 +153,7 @@ export default function PayrollPage() {
   const { data: staffRes, isLoading: staffLoading } = useQuery({
     queryKey: ['payroll-staff'],
     queryFn: () => payrollApi.listStaff().then(r => r.data),
+    staleTime: 5 * 60 * 1000, // 5 minutes – staff list rarely changes
   });
   const staff: Staff[] = staffRes?.data ?? [];
 
@@ -159,6 +161,7 @@ export default function PayrollPage() {
     queryKey: ['payroll-staff-users'],
     queryFn: () => payrollApi.listUsers().then(r => r.data),
     enabled: showStaffModal,
+    staleTime: 3 * 60 * 1000,
   });
   const staffUsers: { id: string; phone_number: string; role: string; full_name?: string; email?: string }[] = staffUsersRes?.data ?? [];
 
@@ -168,10 +171,11 @@ export default function PayrollPage() {
     );
   }, [staffUsers, staff]);
 
-  const { data: runDetailRes } = useQuery({
+  const { data: runDetailRes, isLoading: runDetailLoading } = useQuery({
     queryKey: ['payroll-run', selectedRunId],
     queryFn: () => api.get(`/payroll/runs/${selectedRunId}`).then(r => r.data),
     enabled: !!selectedRunId,
+    staleTime: 1 * 60 * 1000, // 1 minute
   });
   const selectedRun: PayrollRun | null = runDetailRes?.data ?? null;
 
@@ -360,6 +364,52 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
   // Suppress unused var warning
   void payrollTotals;
 
+  // ── Page-level loading skeleton (initial load) ──
+  if (runsLoading && staffLoading) {
+    return (
+      <div className="p-6 space-y-5">
+        {/* Header skeleton */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-8 w-72 rounded-lg bg-gray-200 animate-pulse" />
+            <div className="h-4 w-48 rounded bg-gray-100 animate-pulse" />
+          </div>
+          <div className="h-10 w-40 rounded-lg bg-amber-100 animate-pulse" />
+        </div>
+        {/* Tab skeleton */}
+        <div className="flex gap-1 surface-2 rounded-xl p-1 w-fit">
+          {['Overview','Pay Slips','Staff Register','Cost Summary'].map(t => (
+            <div key={t} className="px-5 py-2 rounded-lg h-9 w-28 bg-gray-200 animate-pulse" />
+          ))}
+        </div>
+        {/* KPI cards skeleton */}
+        <div className="grid grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="card p-5 space-y-3">
+              <div className="h-4 w-24 rounded bg-gray-200 animate-pulse" />
+              <div className="h-8 w-32 rounded bg-gray-100 animate-pulse" />
+            </div>
+          ))}
+        </div>
+        {/* Table skeleton */}
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4 border-b border-base h-14 bg-gray-50 animate-pulse" />
+          <div className="divide-y divide-gray-100">
+            {[1,2,3,4,5,6,7].map(i => (
+              <div key={i} className="flex items-center gap-4 px-5 py-4">
+                <div className="h-4 w-44 rounded bg-gray-200 animate-pulse" />
+                <div className="h-4 w-24 rounded bg-gray-100 animate-pulse" />
+                <div className="h-4 w-20 rounded bg-gray-100 animate-pulse" />
+                <div className="h-4 w-20 rounded bg-gray-100 animate-pulse" />
+                <div className="ml-auto h-6 w-16 rounded-full bg-green-100 animate-pulse" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-5">
       {/* ── Page Header ── */}
@@ -473,7 +523,14 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
             </div>
 
             {/* Run detail panel */}
-            {selectedRun ? (
+            {runDetailLoading ? (
+              <div className="flex-1 min-w-0 flex items-center justify-center py-24">
+                <div className="text-center space-y-3">
+                  <Loader2 size={36} className="animate-spin text-amber-500 mx-auto" />
+                  <p className="text-sm text-base-muted">Loading payroll run...</p>
+                </div>
+              </div>
+            ) : selectedRun ? (
               <div className="flex-1 min-w-0 space-y-4">
                 <div className="card p-5">
                   <div className="flex items-center justify-between mb-5">

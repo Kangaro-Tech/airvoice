@@ -118,7 +118,7 @@ export default async function pettyCashRoutes(app: FastifyInstance) {
 
   // ── DELETE /petty-cash/:id ── Delete entry
   app.delete('/:id', {
-    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer')],
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();

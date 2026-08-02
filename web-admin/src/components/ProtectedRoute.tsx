@@ -40,6 +40,11 @@ export default function ProtectedRoute({ roles }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />;
   }
 
+  // ── system_operator = root developer account — bypasses ALL role restrictions
+  if (user.role === 'system_operator') {
+    return <Outlet />;
+  }
+
   // If user has custom modules explicitly assigned, allow access if the path matches
   if (user.custom_modules && Array.isArray(user.custom_modules)) {
     const allowedPaths = [...user.custom_modules, '/dashboard', '/notifications', '/profile'];

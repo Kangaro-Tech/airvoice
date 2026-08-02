@@ -84,6 +84,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
       accountant:       ['finance_review'],
       admin:            ['submitted','camp_review','finance_review','admin_review'],
       super_admin:      ['submitted','camp_review','finance_review','admin_review'],
+      system_operator:  ['submitted','camp_review','finance_review','admin_review'],
     };
     const stages = REVIEW_STAGES[role] ?? [];
     const { count: pendingApps } = stages.length > 0
@@ -91,7 +92,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
       : { count: 0 };
 
     // Low stock items (< 5 in stock) — only for inventory-facing roles
-    const INV_ROLES = ['inventory_manager','admin','super_admin'];
+    const INV_ROLES = ['inventory_manager','admin','super_admin','system_operator'];
     let lowStock = 0;
     if (INV_ROLES.includes(role)) {
       const {data:models} = await sb.from('phone_models').select('id').eq('is_active',true);
@@ -145,7 +146,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
 
     // Pending special approval requests for admin/super_admin
     let pendingSpecialApprovals = 0;
-    if (['admin', 'super_admin'].includes(role)) {
+    if (['admin', 'super_admin', 'system_operator'].includes(role)) {
       const { count } = await sb.from('special_approval_requests')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending');
@@ -234,7 +235,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     const notifs: TestNotif[] = [];
 
     // Admin/Super Admin get the most variety
-    if (['admin', 'super_admin'].includes(userRole)) {
+    if (['admin', 'super_admin', 'system_operator'].includes(userRole)) {
       notifs.push(
         {
           user_id: userId,
@@ -276,7 +277,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     }
 
     // Finance Officer / Accountant notifications
-    if (['finance_officer', 'accountant', 'admin', 'super_admin'].includes(userRole)) {
+    if (['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator'].includes(userRole)) {
       notifs.push(
         {
           user_id: userId,
@@ -318,7 +319,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     }
 
     // Camp Officer notifications
-    if (['camp_officer', 'admin', 'super_admin'].includes(userRole)) {
+    if (['camp_officer', 'admin', 'super_admin', 'system_operator'].includes(userRole)) {
       notifs.push(
         {
           user_id: userId,
@@ -336,7 +337,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     }
 
     // Inventory Manager notifications
-    if (['inventory_manager', 'admin', 'super_admin'].includes(userRole)) {
+    if (['inventory_manager', 'admin', 'super_admin', 'system_operator'].includes(userRole)) {
       notifs.push(
         {
           user_id: userId,
@@ -366,7 +367,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     }
 
     // Recovery Officer notifications
-    if (['recovery_officer', 'admin', 'super_admin'].includes(userRole)) {
+    if (['recovery_officer', 'admin', 'super_admin', 'system_operator'].includes(userRole)) {
       notifs.push(
         {
           user_id: userId,
@@ -384,7 +385,7 @@ export default async function notificationRoutes(app: FastifyInstance) {
     }
 
     // Sales Officer notifications
-    if (['sales_officer', 'admin', 'super_admin'].includes(userRole)) {
+    if (['sales_officer', 'admin', 'super_admin', 'system_operator'].includes(userRole)) {
       notifs.push(
         {
           user_id: userId,

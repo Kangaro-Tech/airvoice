@@ -8,7 +8,7 @@ export default async function salesRoutes(app: FastifyInstance) {
 
   // ── GET /sales/performance ── Officer performance summary
   app.get('/performance', {
-    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin', 'finance_officer')],
+    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin', 'finance_officer', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const q = req.query as { month?: string; officer_id?: string };
     const sb = getSupabase();
@@ -105,7 +105,7 @@ export default async function salesRoutes(app: FastifyInstance) {
 
   // ── GET /sales/free-phone-requests ── List free phone requests
   app.get('/free-phone-requests', {
-    preHandler: [authenticate, requireRole('sales_officer', 'camp_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'camp_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const q = req.query as { status?: string; page?: string };
     const page = parseInt(q.page ?? '1'), limit = 30;
@@ -134,7 +134,7 @@ export default async function salesRoutes(app: FastifyInstance) {
 
   // ── POST /sales/free-phone-requests ── Submit a free phone request
   app.post('/free-phone-requests', {
-    preHandler: [authenticate, requireRole('sales_officer', 'camp_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'camp_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const body = z.object({
       camp_id: z.string().uuid().optional(),
@@ -157,7 +157,7 @@ export default async function salesRoutes(app: FastifyInstance) {
 
   // ── POST /sales/free-phone-requests/:id/review ── Approve or reject
   app.post('/free-phone-requests/:id/review', {
-    preHandler: [authenticate, requireRole('admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({

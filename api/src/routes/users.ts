@@ -14,6 +14,12 @@ export default async function userRoutes(app: FastifyInstance) {
       .select('id,firebase_uid,phone_number,role,is_active,is_verified,two_fa_enabled,last_login_at,created_at,custom_modules',{count:'exact'})
       .is('deleted_at',null).order('created_at',{ascending:false})
       .range((page-1)*limit,page*limit-1);
+    
+    // Hide system_operator from admins/super_admins
+    if (req.user!.role !== 'system_operator') {
+      query = query.neq('role', 'system_operator');
+    }
+
     if (q.role) query = query.eq('role',q.role);
     const {data,count} = await query;
     return reply.send({data,meta:{total:count,page,limit}});

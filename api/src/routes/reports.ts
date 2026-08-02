@@ -45,7 +45,7 @@ async function attachCustomerAndCamp(sb: ReturnType<typeof getSupabase>, rows: a
 }
 
 export default async function reportRoutes(app: FastifyInstance) {
-  const requireReportsAccess = requireRole('finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin');
+  const requireReportsAccess = requireRole('finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin', 'system_operator');
 
   // Monthly deduction report
   app.get('/monthly-deductions', { preHandler:[authenticate,requireReportsAccess] }, async (req:FastifyRequest, reply) => {

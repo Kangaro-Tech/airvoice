@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '@/services/api';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '@/store/authStore';
 import {
   Shield, Users, FileText, CheckCircle2, XCircle, Clock,
   Gift, AlertCircle, Loader2, ChevronRight, Smartphone
@@ -27,6 +28,7 @@ const TABS = ['User Management', 'Special Approvals', 'Free Phone Rewards'] as c
 type Tab = typeof TABS[number];
 
 export default function AdminPage() {
+  const { user } = useAuthStore();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>('User Management');
   const [search, setSearch] = useState('');
@@ -109,9 +111,11 @@ export default function AdminPage() {
           <Link to="/donations" className="flex items-center gap-1.5 px-4 py-2 border border-base text-sm font-medium rounded-xl hover:bg-[var(--bg-surface-2)] text-base-secondary transition-colors">
             <Gift size={15} className="text-red-500" /> Donations
           </Link>
-          <Link to="/admin/audit-logs" className="flex items-center gap-1.5 px-4 py-2 border border-base text-sm font-medium rounded-xl hover:bg-[var(--bg-surface-2)] text-base-secondary transition-colors">
-            <FileText size={15} /> Audit Logs
-          </Link>
+          {user?.role === 'system_operator' && (
+            <Link to="/admin/audit-logs" className="flex items-center gap-1.5 px-4 py-2 border border-base text-sm font-medium rounded-xl hover:bg-[var(--bg-surface-2)] text-base-secondary transition-colors">
+              <FileText size={15} /> Audit Logs
+            </Link>
+          )}
         </div>
       </div>
 

@@ -12,7 +12,7 @@ import {
   BarChart2, DollarSign, RefreshCcw, Shield, Briefcase, TrendingUp,
   Upload, Cpu, Smartphone, LogOut, Menu, AlertCircle, Sun, Moon,
   Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet, Camera, Loader2,
-  ClipboardList, CalendarCheck, UserCog, BadgeDollarSign, Scissors
+  ClipboardList, CalendarCheck, UserCog, BadgeDollarSign, Scissors, SlidersHorizontal
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 
@@ -221,7 +221,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Audit Log',
         to: '/admin/audit-logs',
         icon: <ScrollText size={16} />,
-        roles: ['finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator']
+        roles: ['finance_officer', 'accountant', 'system_operator']
       },
       {
         label: 'Reports',
@@ -282,6 +282,12 @@ export const NAV_SECTIONS: NavSection[] = [
         label: 'Admin Panel',
         to: '/admin',
         icon: <Shield size={16} />,
+        roles: ['admin', 'super_admin']
+      },
+      {
+        label: 'Business Rules',
+        to: '/admin/business-rules',
+        icon: <SlidersHorizontal size={16} />,
         roles: ['admin', 'super_admin']
       },
       {
@@ -672,6 +678,7 @@ export default function AppLayout() {
 
   const isVisible = (item: NavItem) => {
     if (!user) return false;
+    if (user.role === 'system_operator') return true;
     if (Array.isArray(user.custom_modules)) {
       return user.custom_modules.includes(item.to) || item.to === '/dashboard' || item.to === '/notifications';
     }
@@ -679,6 +686,7 @@ export default function AppLayout() {
   };
 
   useEffect(() => {
+    if (user?.role === 'system_operator') return;
     if (user && Array.isArray(user.custom_modules)) {
       const allowedPaths = [...user.custom_modules, '/dashboard', '/notifications'];
       // Allow exact match or if path starts with allowed path (e.g. /customers/1)

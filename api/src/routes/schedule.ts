@@ -33,7 +33,7 @@ export default async function scheduleRoutes(app: FastifyInstance) {
       .order('event_time', { ascending: true });
 
     // Admins can see all; others only see their own events
-    const isAdmin = ['admin', 'super_admin'].includes(req.user!.role);
+    const isAdmin = ['admin', 'super_admin', 'system_operator'].includes(req.user!.role);
     if (!isAdmin || q.all !== 'true') {
       // Filter: events created by me OR assigned to me
       query = query.or(`created_by.eq.${req.user!.id},assigned_to.cs.{${req.user!.id}}`);

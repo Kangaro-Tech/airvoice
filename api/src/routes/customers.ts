@@ -517,7 +517,7 @@ export default async function customerRoutes(app: FastifyInstance) {
 
   // ── PUT /customers/:id/service-number ── Edit customer service number
   app.put('/:id/service-number', {
-    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'accountant', 'camp_officer')],
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'accountant', 'camp_officer', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
@@ -578,7 +578,7 @@ export default async function customerRoutes(app: FastifyInstance) {
 
   // ── POST /customers/:id/agreement-photo ── Upload agreement photo (base64)
   app.post('/:id/agreement-photo', {
-    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'accountant', 'camp_officer')],
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'finance_officer', 'accountant', 'camp_officer', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = z.object({

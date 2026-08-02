@@ -96,19 +96,7 @@ const NOTIFICATION_TEMPLATES = [
   { id: 'overdue_notice', name: 'Overdue Notice', channel: 'WhatsApp + SMS', template: 'Dear {name}, your AIRVOICE installment for {phone} (LKR {amount}) is overdue. Please contact your camp salary officer or call us on +94 11 234 5678 immediately to avoid further action.' },
 ];
 
-const BUSINESS_RULES = [
-  { key: 'max_phones_per_customer', label: 'Max Phones Per Customer', type: 'number', defaultVal: 2, desc: 'Maximum active phone plans a single customer can hold.', Icon: Smartphone },
-  { key: 'commission_per_sale', label: 'Commission Per Sale (LKR)', type: 'number', defaultVal: 250, desc: 'Fixed LKR amount paid to sales officer per confirmed first deduction.', Icon: Coins },
-  { key: 'free_phone_milestone', label: 'Free Phone Milestone (Sales)', type: 'number', defaultVal: 100, desc: 'Number of camp sales needed for a sales officer to qualify for a free phone.', Icon: Trophy },
-  { key: 'max_guarantors_per_person', label: 'Max Guarantor Obligations', type: 'number', defaultVal: 2, desc: 'Max number of customers one guarantor can cover simultaneously.', Icon: Users2 },
-  { key: 'risk_score_threshold_high', label: 'High Risk Score Threshold', type: 'number', defaultVal: 50, desc: 'Risk score above this value flags customer as HIGH risk.', Icon: AlertTriangle },
-  { key: 'risk_score_threshold_medium', label: 'Medium Risk Score Threshold', type: 'number', defaultVal: 25, desc: 'Risk score above this value flags customer as MEDIUM risk.', Icon: AlertCircle },
-  { key: 'retirement_warning_months', label: 'Retirement Warning Window (months)', type: 'number', defaultVal: 24, desc: 'Customers retiring within this period are flagged for review.', Icon: CalendarClock },
-  { key: 'ai_alerts_enabled', label: 'AI Risk Alerts Enabled', type: 'toggle', defaultVal: true, desc: 'Enable AI-powered risk analysis and financial alerts on dashboard.', Icon: Bot },
-];
-
 const TABS = [
-  { key: 'business', Icon: SlidersHorizontal, label: 'Business Rules' },
   { key: 'templates', Icon: MessageSquare, label: 'Message Templates' },
   { key: 'system', Icon: Server, label: 'System Info' },
 ] as const;
@@ -140,10 +128,7 @@ const MAINTENANCE_ACTIONS = [
 
 export default function SettingsPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = useState<'business'|'templates'|'system'>('business');
-  const [ruleValues, setRuleValues] = useState<Record<string, any>>(
-    Object.fromEntries(BUSINESS_RULES.map(r => [r.key, r.defaultVal]))
-  );
+  const [tab, setTab] = useState<'templates'|'system'>('templates');
   const [templates, setTemplates] = useState(NOTIFICATION_TEMPLATES);
   const [editTemplate, setEditTemplate] = useState<string | null>(null);
   const [toast, setToast] = useState('');
@@ -187,7 +172,7 @@ export default function SettingsPage() {
           System Settings
         </h1>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-          Business rules, notification templates, users, and camp configuration
+          Notification templates, users, and camp configuration
         </div>
       </div>
 
@@ -204,55 +189,6 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {/* BUSINESS RULES */}
-      {tab === 'business' && (
-        <div style={{ maxWidth: 720 }}>
-          <div style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Business Configuration</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Core rules that govern eligibility, risk, and commissions</div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => showToast('Business rules saved ✓')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
-                >
-                  <Save size={14} /> Save Changes
-                </button>
-              </div>
-            </div>
-            <div style={{ padding: '8px 0' }}>
-              {BUSINESS_RULES.map(rule => (
-                <div key={rule.key} style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--bg-surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <rule.Icon size={17} color="#1d4ed8" />
-                  </div>
-                  <div style={{ flex: 1, marginRight: 24 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>{rule.label}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{rule.desc}</div>
-                  </div>
-                  {rule.type === 'toggle' ? (
-                    <button
-                      onClick={() => setRuleValues(p => ({ ...p, [rule.key]: !p[rule.key] }))}
-                      style={{ width: 44, height: 24, borderRadius: 12, background: ruleValues[rule.key] ? '#16a34a' : 'var(--bg-surface-3)', position: 'relative', cursor: 'pointer', border: 'none', flexShrink: 0 }}
-                    >
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: ruleValues[rule.key] ? 23 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                    </button>
-                  ) : (
-                    <input
-                      type="number"
-                      value={ruleValues[rule.key]}
-                      onChange={e => setRuleValues(p => ({ ...p, [rule.key]: Number(e.target.value) }))}
-                      style={{ width: 90, padding: '7px 10px', border: '1.5px solid var(--input-border)', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'center', color: 'var(--text-primary)', backgroundColor: 'var(--input-bg)', fontFamily: 'JetBrains Mono, monospace' }}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MESSAGE TEMPLATES */}
       {tab === 'templates' && (

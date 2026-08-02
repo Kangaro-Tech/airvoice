@@ -258,7 +258,7 @@ export default async function authRoutes(app: FastifyInstance) {
       password:           z.string().min(8, 'Password must be at least 8 characters'),
       role:               z.enum([
         'sales_officer', 'camp_officer', 'finance_officer', 'recovery_officer',
-        'inventory_manager', 'accountant', 'admin', 'super_admin',
+        'inventory_manager', 'accountant', 'admin', 'super_admin', 'system_operator',
       ]).default('sales_officer'),
       preferred_language: z.enum(['en', 'si', 'ta']).default('en'),
     }).safeParse(request.body);
@@ -383,7 +383,7 @@ export default async function authRoutes(app: FastifyInstance) {
     // Check staff role
     const staffRoles = [
       'sales_officer', 'camp_officer', 'finance_officer', 'recovery_officer',
-      'inventory_manager', 'accountant', 'admin', 'super_admin',
+      'inventory_manager', 'accountant', 'admin', 'super_admin', 'system_operator',
     ];
     if (!staffRoles.includes(user.role)) {
       return reply.status(403).send({

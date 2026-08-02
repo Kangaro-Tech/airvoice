@@ -175,7 +175,7 @@ export default async function inventoryRoutes(app: FastifyInstance) {
   });
 
   // ── PATCH /inventory/models/:id — update phone model ──────
-  app.patch('/models/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin')] },
+  app.patch('/models/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin','system_operator')] },
   async (req:FastifyRequest, reply:FastifyReply) => {
     const {id} = req.params as {id:string};
     const body = z.object({
@@ -221,7 +221,7 @@ export default async function inventoryRoutes(app: FastifyInstance) {
 
   // ── POST /inventory/models/:id/images — upload phone image ─
   app.post('/models/:id/images', {
-    preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
@@ -270,7 +270,7 @@ export default async function inventoryRoutes(app: FastifyInstance) {
 
   // ── DELETE /inventory/models/:id/images/:idx — remove a photo ─
   app.delete('/models/:id/images/:idx', {
-    preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin', 'system_operator')],
   }, async (req: FastifyRequest, reply: FastifyReply) => {
     const { id, idx } = req.params as { id: string; idx: string };
     const imageIndex = parseInt(idx, 10);
@@ -311,7 +311,7 @@ export default async function inventoryRoutes(app: FastifyInstance) {
   });
 
   // ── DELETE /inventory/models/:id — deactivate phone model ─
-  app.delete('/models/:id', { preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin')] },
+  app.delete('/models/:id', { preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin', 'system_operator')] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();

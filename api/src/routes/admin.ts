@@ -55,11 +55,17 @@ export default async function adminRoutes(app: FastifyInstance) {
   // Get all staff users (non-customer/guarantor)
   app.get('/staff', { preHandler: [authenticate, requireAdmin] }, async (_req, reply) => {
     const sb = getSupabase();
-    const { data, error } = await sb
+    let query = sb
       .from('users')
-      .select('id,phone_number,email,role,is_active,is_verified,created_at,last_login_at, staff_registry(full_name)')
+      .select('id,phone_number,email,role,is_active,is_verified,created_at,last_login_at,custom_modules,staff_registry(full_name)')
       .not('role', 'in', '("customer","guarantor")')
       .order('created_at', { ascending: false });
+
+    if (_req.user!.role !== 'system_operator') {
+      query = query.neq('role', 'system_operator');
+    }
+
+    const { data, error } = await query;
     
     if (error) return reply.status(500).send({ error: 'Failed to fetch staff' });
     return reply.send({ data: data || [] });

@@ -171,7 +171,7 @@ export default async function campRoutes(app: FastifyInstance) {
       { onConflict: 'user_id,camp_id' }
     );
     // Set their role to camp_officer if it isn't already
-    if (!['camp_officer', 'admin', 'super_admin'].includes(user.role)) {
+    if (!['camp_officer', 'admin', 'super_admin', 'system_operator'].includes(user.role)) {
       await sb.from('users').update({ role: 'camp_officer' }).eq('id', body.data.user_id);
     }
     writeAuditLog({ user_id: req.user!.id, action: AuditActions.CAMP_ASSIGNMENT_CHANGED, entity_type: 'camp_officer_assignments', entity_id: body.data.user_id, new_values: { camp_id: id, user_phone: user.phone_number } });

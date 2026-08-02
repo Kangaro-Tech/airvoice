@@ -26,7 +26,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
   // ── Get monthly sheet for a camp ──────────────────────────
   app.get('/camp/:campId/sheet', {
-    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campId } = request.params as { campId: string };
     const { year, month } = request.query as { year?: string; month?: string };
@@ -130,7 +130,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
   // ── Update single installment deduction ───────────────────
   app.patch('/:installmentId', {
-    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { installmentId } = request.params as { installmentId: string };
     const body = UpdateDeductionSchema.safeParse(request.body);
@@ -227,7 +227,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
   // ── Bulk update (submit entire monthly sheet) ─────────────
   app.post('/bulk-submit', {
-    preHandler: [authenticate, requireRole('camp_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = z.object({
       camp_id: z.string().uuid(),
@@ -363,7 +363,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
   // ── GET /deductions/camp/:campId/trend — 6-month success rate ─
   app.get('/camp/:campId/trend', {
-    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campId } = request.params as { campId: string };
     const supabase = getSupabase();
@@ -419,7 +419,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
   // ── GET /deductions/camp/:campId/past-submissions ─────────────
   app.get('/camp/:campId/past-submissions', {
-    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campId } = request.params as { campId: string };
     const { data } = await getSupabase()
@@ -435,7 +435,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
 
   // ── GET /deductions/camp/:campId/retirement-watch ─────────────
   app.get('/camp/:campId/retirement-watch', {
-    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'finance_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campId } = request.params as { campId: string };
     const now = new Date();
@@ -458,7 +458,7 @@ export default async function deductionRoutes(app: FastifyInstance) {
   // ── POST /deductions/camp/:campId/excel-import ────────────
   // Upload MIR Excel → sync installments for selected camp/month/year
   app.post('/camp/:campId/excel-import', {
-    preHandler: [authenticate, requireRole('finance_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('finance_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { campId } = request.params as { campId: string };
 

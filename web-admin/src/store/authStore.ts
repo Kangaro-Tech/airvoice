@@ -134,7 +134,7 @@ export const useAuthStore = create<AuthState>()(
 
           const staffRoles: UserRole[] = [
             'sales_officer', 'camp_officer', 'finance_officer', 'recovery_officer',
-            'inventory_manager', 'accountant', 'admin', 'super_admin',
+            'inventory_manager', 'accountant', 'admin', 'super_admin', 'system_operator',
           ];
 
           if (!staffRoles.includes(backendUser.role)) {

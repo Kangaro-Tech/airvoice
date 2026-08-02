@@ -46,7 +46,7 @@ export default async function phoneRoutes(app: FastifyInstance) {
     return reply.send({exists:!!data, phone:data as any});
   });
 
-  app.patch('/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin')] }, async (req:FastifyRequest, reply:FastifyReply) => {
+  app.patch('/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply:FastifyReply) => {
     const {id} = req.params as {id:string};
     // Note: added imei_1, imei_2, purchase_cost, etc. to allowed updates for editing a device
     const body = z.object({
@@ -66,7 +66,7 @@ export default async function phoneRoutes(app: FastifyInstance) {
   });
 
   // ── DELETE /phones/:id — soft delete a physical device ─
-  app.delete('/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin')] }, async (req:FastifyRequest, reply:FastifyReply) => {
+  app.delete('/:id', { preHandler:[authenticate,requireRole('inventory_manager','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply:FastifyReply) => {
     const {id} = req.params as {id:string};
     const sb = getSupabase();
     // Prevent deletion if the device is not in_stock (e.g. sold or allocated)

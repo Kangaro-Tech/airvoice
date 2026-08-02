@@ -253,7 +253,7 @@ export default async function expenseRoutes(app: FastifyInstance) {
 
     const user = req.user!;
     const isOwner = expense.submitted_by === user.id;
-    const isFinance = ['finance_officer','admin','super_admin','accountant'].includes(user.role);
+    const isFinance = ['finance_officer','admin','super_admin','accountant','system_operator'].includes(user.role);
     if (!isOwner && !isFinance) return reply.status(403).send({error:'Forbidden'});
 
     const parts = req.parts();
@@ -321,7 +321,7 @@ export default async function expenseRoutes(app: FastifyInstance) {
     // Check access
     const user = req.user!;
     const isOwner = expense.submitted_by === user.id;
-    const isFinance = ['finance_officer','admin','super_admin','accountant'].includes(user.role);
+    const isFinance = ['finance_officer','admin','super_admin','accountant','system_operator'].includes(user.role);
     if (!isOwner && !isFinance) return reply.status(403).send({ error: 'Forbidden' });
 
     // Check if receipt exists

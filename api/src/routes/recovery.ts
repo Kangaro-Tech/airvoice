@@ -6,7 +6,7 @@ import { getSupabase } from '../config/supabase';
 export default async function recoveryRoutes(app: FastifyInstance) {
   
   // ── GET /recovery/overdue ──
-  app.get('/overdue', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.get('/overdue', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {camp_id?:string;min_missed?:string};
     const minMissed = parseInt(q.min_missed ?? '0');
     const sb = getSupabase();
@@ -139,7 +139,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
   });
 
   // ── GET /recovery/logs ──
-  app.get('/logs', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.get('/logs', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {customer_id?:string;application_id?:string};
     let query = getSupabase().from('recovery_logs')
       .select('*,officer:users!officer_id(phone_number)').order('created_at',{ascending:false}).limit(100);
@@ -150,7 +150,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
   });
 
   // ── POST /recovery/logs ──
-  app.post('/logs', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.post('/logs', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const body = z.object({
       application_id:z.string().uuid(), customer_id:z.string().uuid(),
       contact_method:z.enum(['phone_call','whatsapp','sms','visit','letter']),
@@ -166,7 +166,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
   });
 
   // ── POST /recovery/transfer-guarantor ── (creates a pending approval request)
-  app.post('/transfer-guarantor', { preHandler:[authenticate,requireRole('admin','super_admin','recovery_officer','finance_officer')] }, async (req:FastifyRequest, reply) => {
+  app.post('/transfer-guarantor', { preHandler:[authenticate,requireRole('admin','super_admin','recovery_officer','finance_officer','system_operator')] }, async (req:FastifyRequest, reply) => {
     const body = z.object({
       customer_id: z.string().uuid(),
       reason: z.string().min(10),
@@ -275,7 +275,7 @@ ${letterContent}`;
   });
 
   // ── GET /recovery/transfer-requests ── List pending transfer approval requests
-  app.get('/transfer-requests', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.get('/transfer-requests', { preHandler:[authenticate,requireRole('admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const sb = getSupabase();
     const { data: rawLetters, error } = await sb.from('recovery_letters')
       .select('id, customer_id, application_id, letter_body, created_at')
@@ -319,7 +319,7 @@ ${letterContent}`;
   });
 
   // ── POST /recovery/transfer-requests/:id/approve ── Admin approves a pending transfer
-  app.post('/transfer-requests/:id/approve', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.post('/transfer-requests/:id/approve', { preHandler:[authenticate,requireRole('admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
 
@@ -377,7 +377,7 @@ ${letterContent}`;
   });
 
   // ── POST /recovery/transfer-requests/:id/reject ── Admin rejects a pending transfer
-  app.post('/transfer-requests/:id/reject', { preHandler:[authenticate,requireRole('admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.post('/transfer-requests/:id/reject', { preHandler:[authenticate,requireRole('admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
     await sb.from('recovery_letters').update({ status: 'cancelled' }).eq('id', id);
@@ -385,7 +385,7 @@ ${letterContent}`;
   });
 
   // ── POST /recovery/legal-notice ──
-  app.post('/legal-notice', { preHandler:[authenticate,requireRole('recovery_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.post('/legal-notice', { preHandler:[authenticate,requireRole('recovery_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const body = z.object({
       customer_id: z.string().uuid(),
       notes: z.string().optional(),
@@ -451,7 +451,7 @@ AIRVOICE Defence Finance Legal Department`;
   });
 
   // ── GET /recovery/letters ── List recovery letters
-  app.get('/letters', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.get('/letters', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const q = req.query as { customer_id?: string; status?: string; page?: string };
     const page = parseInt(q.page ?? '1');
     const limit = 30;
@@ -496,7 +496,7 @@ AIRVOICE Defence Finance Legal Department`;
   });
 
   // ── POST /recovery/letters ── Create (draft) recovery letter
-  app.post('/letters', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.post('/letters', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const body = z.object({
       customer_id: z.string().uuid(),
       application_id: z.string().uuid().optional(),
@@ -519,7 +519,7 @@ AIRVOICE Defence Finance Legal Department`;
   });
 
   // ── PUT /recovery/letters/:id ── Edit recovery letter
-  app.put('/letters/:id', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.put('/letters/:id', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({
       letter_type: z.enum(['first_notice', 'second_notice', 'final_notice', 'legal_notice']).optional(),
@@ -542,7 +542,7 @@ AIRVOICE Defence Finance Legal Department`;
   });
 
   // ── POST /recovery/letters/:id/send ── Mark letter as sent
-  app.post('/letters/:id/send', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.post('/letters/:id/send', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
 
@@ -573,7 +573,7 @@ AIRVOICE Defence Finance Legal Department`;
   });
 
   // ── GET /recovery/letters/template ── Get a template for letter generation
-  app.get('/letters/template', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin')] }, async (req:FastifyRequest, reply) => {
+  app.get('/letters/template', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const q = req.query as { customer_id?: string; letter_type?: string };
     const sb = getSupabase();
 

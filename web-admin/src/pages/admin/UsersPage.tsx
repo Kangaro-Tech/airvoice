@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
+import { useAuthStore } from '@/store/authStore';
 import { ROLES } from '@/config/roles';
 import { ModuleAccessModal } from '@/components/admin/ModuleAccessModal';
 import {
@@ -104,7 +105,7 @@ export default function AdminUsersPage() {
         email: '',
         password: '',
       });
-      alert('✅ Staff member created successfully!');
+      alert(' Staff member created successfully!');
     },
     onError: (error: any) => {
       const errorMsg = error?.response?.data?.error || error?.response?.data?.message || 'Unknown error';
@@ -112,11 +113,20 @@ export default function AdminUsersPage() {
     },
   });
 
-  const filteredStaff = (staffData || []).filter(
-    (user: any) =>
-      (user.phone_number && user.phone_number.includes(searchTerm)) ||
-      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase()))
+  const { user: currentUser } = useAuthStore();
+  const isSystemOperator = currentUser?.role === 'system_operator';
+
+  const filteredStaff = (staffData || [])
+    .filter((user: any) => isSystemOperator || user.role !== 'system_operator')
+    .filter(
+      (user: any) =>
+        (user.phone_number && user.phone_number.includes(searchTerm)) ||
+        (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (user.role && user.role.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+  const visibleStatsData = Object.entries(statsData || {}).filter(
+    ([role]) => isSystemOperator || role !== 'system_operator'
   );
 
   return (
@@ -138,7 +148,7 @@ export default function AdminUsersPage() {
       <div className="p-6">
         {/* Stats Cards */}
         <div className="mb-6 grid gap-4 md:grid-cols-5">
-          {Object.entries(statsData || {}).map(([role, count]: [string, unknown]) => {
+          {visibleStatsData.map(([role, count]: [string, unknown]) => {
             const roleConfig = ROLES[role as keyof typeof ROLES];
             return (
               <div
@@ -377,13 +387,15 @@ export default function AdminUsersPage() {
                               >
                                 <Check size={16} />
                               </button>
-                              <button
-                                onClick={() => setSelectedUserForModules(user)}
-                                className="p-2 text-purple-600 hover:bg-purple-50 rounded"
-                                title="Configure Custom Modules"
-                              >
-                                <Settings size={16} />
-                              </button>
+                              {isSystemOperator && (
+                                <button
+                                  onClick={() => setSelectedUserForModules(user)}
+                                  className="p-2 text-purple-600 hover:bg-purple-50 rounded"
+                                  title="Configure Custom Modules"
+                                >
+                                  <Settings size={16} />
+                                </button>
+                              )}
                             </>
                           )}
                         </div>

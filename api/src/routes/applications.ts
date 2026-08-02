@@ -219,7 +219,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
 
   // ── Create application ─────────────────────────────────────
   app.post('/', {
-    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = CreateApplicationSchema.safeParse(request.body);
     if (!body.success) {
@@ -318,7 +318,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
 
   // ── Submit application (draft → submitted) ────────────────
   app.post('/:id/submit', {
-    preHandler: [authenticate, requireRole('sales_officer', 'customer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'customer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const { data: appRow } = await getSupabase().from('applications').select('ref_number,customer_id,sales_officer_id').eq('id', id).single();
@@ -332,7 +332,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
 
   // ── Sales review ──────────────────────────────────────────
   app.post('/:id/sales-review', {
-    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = ReviewSchema.safeParse(request.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
@@ -358,7 +358,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
 
   // ── Camp officer review ───────────────────────────────────
   app.post('/:id/camp-review', {
-    preHandler: [authenticate, requireRole('camp_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('camp_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = z.object({
       action: z.enum(['approve', 'reject']),
@@ -442,7 +442,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
 
   // ── Phone handover (approved → active) ───────────────────
   app.post('/:id/handover', {
-    preHandler: [authenticate, requireRole('sales_officer', 'inventory_manager', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'inventory_manager', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = HandoverSchema.safeParse(request.body);
@@ -548,7 +548,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
   // ── POST /applications/request-special-approval ───────────
   // Sales officer submits a request when customer is blocked (≥2 active plans)
   app.post('/request-special-approval', {
-    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = z.object({
       customer_id:    z.string().uuid(),
@@ -634,7 +634,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
   // ── GET /applications/special-approval-requests ───────────
   // Admin and Sales Officer view special approval requests
   app.get('/special-approval-requests', {
-    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin')],
+    preHandler: [authenticate, requireRole('sales_officer', 'admin', 'super_admin', 'system_operator')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const q = request.query as { status?: string };
     const supabase = getSupabase();
