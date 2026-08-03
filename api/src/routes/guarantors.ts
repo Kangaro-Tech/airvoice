@@ -85,13 +85,19 @@ export default async function guarantorRoutes(app: FastifyInstance) {
       const guarantorIds = dataWithJoins.map(g => g.id);
       const campIds = [...new Set(dataWithJoins.map(g => g.camp_id).filter(Boolean))];
 
-      const [campsRes, requestsRes] = await Promise.all([
+      // Fetch guarantor_requests in chunks to prevent 400 URI Too Long
+      const requests: any[] = [];
+      for (let i = 0; i < guarantorIds.length; i += 500) {
+        const chunk = guarantorIds.slice(i, i + 500);
+        const { data } = await sb.from('guarantor_requests').select('id, status, application_id, guarantor_id').in('guarantor_id', chunk);
+        if (data) requests.push(...data);
+      }
+
+      const [campsRes] = await Promise.all([
         campIds.length > 0 ? sb.from('camps').select('id, name').in('id', campIds) : Promise.resolve({ data: [] }),
-        sb.from('guarantor_requests').select('id, status, application_id, guarantor_id').in('guarantor_id', guarantorIds)
       ]);
 
       const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c]));
-      const requests = requestsRes.data || [];
       
       let appMap: any = {};
       let customerMap: any = {};
@@ -99,18 +105,43 @@ export default async function guarantorRoutes(app: FastifyInstance) {
       if (requests.length > 0) {
         const appIds = [...new Set(requests.map((r: any) => r.application_id).filter(Boolean))];
         if (appIds.length > 0) {
-          const { data: apps } = await sb.from('applications').select('id, ref_number, status, customer_id').in('id', appIds);
-          const appsData = apps || [];
+          const appsData: any[] = [];
+          for (let i = 0; i < appIds.length; i += 500) {
+             const { data } = await sb.from('applications').select('id, ref_number, status, customer_id').in('id', appIds.slice(i, i + 500));
+             if (data) appsData.push(...data);
+          }
           appMap = Object.fromEntries(appsData.map((a: any) => [a.id, a]));
           
           const customerIds = [...new Set(appsData.map((a: any) => a.customer_id).filter(Boolean))];
           if (customerIds.length > 0) {
-            const { data: customers } = await sb.from('customers').select('id, full_name, service_number, risk_score').in('id', customerIds);
-            customerMap = Object.fromEntries((customers || []).map((c: any) => [c.id, c]));
+             const custs: any[] = [];
+             for (let i = 0; i < customerIds.length; i += 500) {
+                const { data } = await sb.from('customers').select('id, full_name, service_number, risk_score').in('id', customerIds.slice(i, i + 500));
+                if (data) custs.push(...data);
+             }
+             customerMap = Object.fromEntries(custs.map((c: any) => [c.id, c]));
           }
         }
       }
 
+      // Legacy applications where guarantor_id is set directly (bypassing requests)
+      const legacyAppsData: any[] = [];
+      for (let i = 0; i < guarantorIds.length; i += 500) {
+        const chunk = guarantorIds.slice(i, i + 500);
+        const { data: legacyApps } = await sb.from('applications')
+          .select('id, ref_number, status, customer_id, guarantor_id')
+          .in('guarantor_id', chunk);
+        if (legacyApps) legacyAppsData.push(...legacyApps);
+      }
+      
+      const legacyCustIds = [...new Set(legacyAppsData.map((a: any) => a.customer_id).filter(Boolean))];
+      if (legacyCustIds.length > 0) {
+        for (let i = 0; i < legacyCustIds.length; i += 500) {
+          const { data: lCusts } = await sb.from('customers').select('id, full_name, service_number, risk_score').in('id', legacyCustIds.slice(i, i + 500));
+          (lCusts || []).forEach((c: any) => customerMap[c.id] = c);
+        }
+      }
+      
       const reqsByGuarantor = requests.reduce((acc: any, req: any) => {
         const app = appMap[req.application_id];
         const cust = app ? customerMap[app.customer_id] : null;
@@ -130,6 +161,25 @@ export default async function guarantorRoutes(app: FastifyInstance) {
         acc[req.guarantor_id].push(mappedReq);
         return acc;
       }, {});
+
+      // Add dummy accepted requests for legacy applications so the UI renders them identically
+      legacyAppsData.forEach(app => {
+        if (!app.guarantor_id) return;
+        reqsByGuarantor[app.guarantor_id] = reqsByGuarantor[app.guarantor_id] || [];
+        // Only push if not already mapped via requests
+        if (!reqsByGuarantor[app.guarantor_id].some((r: any) => r.application?.id === app.id)) {
+          reqsByGuarantor[app.guarantor_id].push({
+            id: `legacy-${app.id}`,
+            status: 'accepted',
+            application: {
+              id: app.id,
+              ref_number: app.ref_number,
+              status: app.status,
+              customer: customerMap[app.customer_id] || null
+            }
+          });
+        }
+      });
 
       dataWithJoins.forEach(g => {
         g.camp = campMap[g.camp_id] || null;

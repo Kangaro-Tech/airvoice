@@ -21,6 +21,10 @@ interface Staff {
   basic_salary: number;
   transport_allow: number;
   meal_allow: number;
+  attendance_allowance?: number;
+  performance_allowance?: number;
+  allowance_01?: number;
+  allowance_02?: number;
   commission_rate: number;
   epf_no: string;
   etf_no: string;
@@ -47,6 +51,10 @@ interface StaffForm {
   basic_salary: string;
   transport_allow: string;
   meal_allow: string;
+  attendance_allowance: string;
+  performance_allowance: string;
+  allowance_01: string;
+  allowance_02: string;
   commission_rate: string;
   epf_no: string;
   etf_no: string;
@@ -80,12 +88,21 @@ interface PayrollLine {
   basic_salary: number;
   transport_allow: number;
   meal_allow: number;
+  attendance_allowance?: number;
+  performance_allowance?: number;
+  allowance_01?: number;
+  allowance_02?: number;
   commission_amount: number;
   phones_sold: number;
   epf_ee: number;
   epf_er: number;
   etf: number;
   deductions?: number;
+  no_pay_deduction?: number;
+  loans?: number;
+  working_days?: number;
+  leave_days?: number;
+  no_pay_days?: number;
   gross_salary: number;
   net_salary: number;
 }
@@ -123,6 +140,10 @@ export default function PayrollPage() {
     basic_salary: '0',
     transport_allow: '0',
     meal_allow: '0',
+    attendance_allowance: '0',
+    performance_allowance: '0',
+    allowance_01: '0',
+    allowance_02: '0',
     commission_rate: '0',
     epf_no: '',
     etf_no: '',
@@ -137,6 +158,7 @@ export default function PayrollPage() {
     password: '',
   };
   const [staffForm, setStaffForm] = useState<StaffForm>(initialStaffForm);
+
 
   const { data: runsRes, isLoading: runsLoading } = useQuery({
     queryKey: ['payroll-runs'],
@@ -154,7 +176,7 @@ export default function PayrollPage() {
   const { data: staffList, isLoading: staffLoading } = useQuery({
     queryKey: ['payroll-staff'],
     queryFn: () => payrollApi.listStaff().then(r => r.data.data as Staff[]),
-    staleTime: 5 * 60 * 1000, // 5 minutes – staff list rarely changes
+    staleTime: 5 * 60 * 1000, // 5 minutes â€“ staff list rarely changes
   });
   const staff: Staff[] = staffList ?? [];
 
@@ -227,36 +249,109 @@ export default function PayrollPage() {
   });
 
   const downloadPayslip = (line: PayrollLine) => {
-    const content = `
-AIRVOICE (PVT) LTD — PAYSLIP
-==============================
-Employee: ${line.staff?.full_name}
-Designation: ${line.staff?.designation}
-Period: ${selectedRun?.run_month}
-EPF No: ${line.staff?.epf_no ?? '—'}
+    const fmt = (n: number | undefined | null) =>
+      Number(n ?? 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const month = selectedRun?.run_month ?? '-';
+    const year = month.split('-')[0] ?? '';
+    const totalDeductions = Number(line.epf_ee) + Number(line.deductions ?? 0) + Number(line.loans ?? 0) + Number(line.no_pay_deduction ?? 0);
 
-EARNINGS
-Basic Salary:       LKR ${line.basic_salary.toLocaleString()}
-Transport Allow:    LKR ${line.transport_allow.toLocaleString()}
-Meal Allow:         LKR ${line.meal_allow.toLocaleString()}
-Commission (${line.phones_sold} phones): LKR ${line.commission_amount.toLocaleString()}
-GROSS:              LKR ${line.gross_salary.toLocaleString()}
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Payslip - ${line.staff?.full_name}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; font-size: 13px; color: #000; background: #fff; }
+    .wrap { max-width: 680px; margin: 30px auto; border: 2px solid #000; padding: 30px; }
+    h2 { text-align: center; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
+    h3 { text-align: center; font-size: 14px; font-weight: normal; margin-bottom: 20px; }
+    .row { display: flex; justify-content: space-between; padding: 3px 0; }
+    .row span:first-child { flex: 1; }
+    .row span:last-child { text-align: right; min-width: 120px; }
+    .bold { font-weight: bold; }
+    .section-header { font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 4px; margin: 14px 0 6px; display: flex; justify-content: space-between; }
+    .section-title { font-weight: bold; margin: 14px 0 6px; }
+    .total-row { display: flex; justify-content: space-between; border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; font-weight: bold; margin: 8px 0 14px; }
+    .net-pay-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; margin: 14px 0; }
+    .footer-box { border: 1px solid #000; padding: 10px; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; }
+    .receipt-text { font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+    .sig-area { display: flex; justify-content: space-between; margin-top: 30px; }
+    .sig-line { border-bottom: 1px solid #000; width: 160px; margin-bottom: 4px; height: 18px; }
+    .bank-info { text-align: right; font-size: 13px; }
+    .info-row { margin-bottom: 4px; }
+    @media print { body { print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>AirVoice (Pvt) Ltd</h2>
+    <h3>Pay Slip</h3>
 
-DEDUCTIONS
-EPF (8%):           LKR ${line.epf_ee.toLocaleString()}
-Other (Loan/Adv):   LKR ${Number(line.deductions ?? 0).toLocaleString()}
+    <div class="row info-row"><span><strong>Month:</strong> ${month}</span><span>[${year}]</span></div>
+    <div class="info-row"><strong>Name:</strong> ${line.staff?.full_name ?? '-'}</div>
+    <div class="info-row"><strong>Designation:</strong> ${line.staff?.designation ?? '-'}</div>
+    <div class="info-row"><strong>EPF Number:</strong> ${line.staff?.epf_no ?? '-'}</div>
 
-NET PAY:            LKR ${line.net_salary.toLocaleString()}
+    <div class="section-header"><span>CONSOLIDATED SALARY</span><span>Rs. Cts.</span></div>
+    <div class="row"><span>Basic Pay</span><span>${fmt(line.basic_salary)}</span></div>
+    <div class="row"><span>Attendance Allowance</span><span>${fmt(line.attendance_allowance)}</span></div>
+    <div class="row"><span>Performance Allowance</span><span>${fmt(line.performance_allowance)}</span></div>
+    <div class="row"><span>Allowance 01</span><span>${fmt(line.allowance_01)}</span></div>
+    <div class="row"><span>Allowance 02</span><span>${fmt(line.allowance_02)}</span></div>
+    <div class="row"><span>Commission</span><span>${fmt(line.commission_amount)}</span></div>
+    <div class="total-row"><span>Gross Pay</span><span>${fmt(line.gross_salary)}</span></div>
 
-EMPLOYER CONTRIBUTIONS
-EPF (12%):          LKR ${line.epf_er.toLocaleString()}
-ETF (3%):           LKR ${line.etf.toLocaleString()}
-    `.trim();
-    const blob = new Blob([content], { type: 'text/plain' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `payslip_${line.staff?.full_name?.replace(/\s/g, '_')}_${selectedRun?.run_month}.txt`;
-    a.click();
+    <div class="section-title">DEDUCTIONS</div>
+    <div class="row"><span>E.P.F. 8%</span><span>${fmt(line.epf_ee)}</span></div>
+    <div class="row"><span>S. Adv. and others</span><span>${fmt(line.deductions)}</span></div>
+    <div class="row"><span>Loans</span><span>${fmt(line.loans)}</span></div>
+    <div class="row"><span>No Pay</span><span>${fmt(line.no_pay_deduction)}</span></div>
+    <div class="total-row"><span>Total Deductions</span><span>${fmt(totalDeductions)}</span></div>
+
+    <div class="net-pay-row"><span>NET PAY</span><span>${fmt(line.net_salary)}</span></div>
+
+    <div class="row"><span>EPF Co. Contribution 12%</span><span>${fmt(line.epf_er)}</span></div>
+    <div class="row"><span>Total EPF 20%</span><span>${fmt(Number(line.epf_ee) + Number(line.epf_er))}</span></div>
+    <div class="row" style="border-bottom:1px dashed #000; padding-bottom:14px; margin-bottom:14px;"><span>ETF 3%</span><span>${fmt(line.etf)}</span></div>
+
+    <div class="section-title">RECEIPT</div>
+    <p class="receipt-text">Received with thanks from AirVoice (Pvt) Ltd the under mentioned amount being the NET PAY due to me for the month of <strong>${month}</strong></p>
+
+    <div class="sig-area">
+      <div>
+        <div class="sig-line"></div>
+        <div>Signature:</div>
+      </div>
+      <div class="bank-info">
+        <div><strong>${line.staff?.bank_name ?? 'Commercial Bank'}</strong></div>
+        <div>[${line.staff?.bank_branch ?? 'Branch Name'}]</div>
+        <div>[${line.staff?.bank_account_no ?? 'Account Number'}]</div>
+      </div>
+    </div>
+
+    <div class="footer-box">
+      <div>
+        <div style="margin-bottom:4px;"><strong>NAME:</strong> ${line.staff?.full_name ?? '-'}</div>
+        <div style="margin-bottom:4px;"><strong>EPF NO:</strong> ${line.staff?.epf_no ?? '-'}</div>
+        <div><strong>Net Pay Rs. <u>&nbsp;&nbsp;&nbsp;${fmt(line.net_salary)}&nbsp;&nbsp;&nbsp;</u></strong></div>
+      </div>
+      <div style="text-align:right; font-size:13px;">
+        <div>Working Days: ${line.working_days ?? '-'}</div>
+        <div>Leave Days: ${line.leave_days ?? '-'}</div>
+        <div>No pay - Days: ${line.no_pay_days ?? '-'}</div>
+      </div>
+    </div>
+  </div>
+  <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
   };
 
   const payrollTotals = useMemo(() => {
@@ -288,6 +383,10 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         basic_salary: String(staffMember.basic_salary ?? 0),
         transport_allow: String(staffMember.transport_allow ?? 0),
         meal_allow: String(staffMember.meal_allow ?? 0),
+        attendance_allowance: String(staffMember.attendance_allowance ?? 0),
+        performance_allowance: String(staffMember.performance_allowance ?? 0),
+        allowance_01: String(staffMember.allowance_01 ?? 0),
+        allowance_02: String(staffMember.allowance_02 ?? 0),
         commission_rate: String(staffMember.commission_rate ?? 0),
         epf_no: staffMember.epf_no ?? '',
         etf_no: staffMember.etf_no ?? '',
@@ -320,6 +419,10 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
       basic_salary: Number(staffForm.basic_salary),
       transport_allow: Number(staffForm.transport_allow),
       meal_allow: Number(staffForm.meal_allow),
+      attendance_allowance: Number(staffForm.attendance_allowance),
+      performance_allowance: Number(staffForm.performance_allowance),
+      allowance_01: Number(staffForm.allowance_01),
+      allowance_02: Number(staffForm.allowance_02),
       commission_rate: Number(staffForm.commission_rate),
       epf_no: staffForm.epf_no || undefined,
       etf_no: staffForm.etf_no || undefined,
@@ -367,7 +470,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
   // Suppress unused var warning
   void payrollTotals;
 
-  // ── Page-level loading skeleton (initial load) ──
+  // â”€â”€ Page-level loading skeleton (initial load) â”€â”€
   if (runsLoading && staffLoading) {
     return (
       <div className="p-6 space-y-5">
@@ -415,14 +518,14 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
 
   return (
     <div className="p-6 space-y-5">
-      {/* ── Page Header ── */}
+      {/* â”€â”€ Page Header â”€â”€ */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
             <Wallet size={28} className="text-[#2563ea]" /> Payroll &amp; Salary Management
           </h1>
           <p className="text-sm text-base-muted mt-0.5">
-            {staff.length} staff members · {runs.length} salary runs
+            {staff.length} staff members Â· {runs.length} salary runs
           </p>
         </div>
         <button
@@ -433,7 +536,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         </button>
       </div>
 
-      {/* ── Tab Bar ── */}
+      {/* â”€â”€ Tab Bar â”€â”€ */}
       <div className="flex items-center gap-1 surface-2 rounded-xl p-1 w-fit">
         {([
           { key: 'overview', label: 'Overview' },
@@ -455,9 +558,9 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         ))}
       </div>
 
-      {/* ══════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           OVERVIEW TAB
-      ══════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 'overview' && (
         <div className="space-y-5">
           {/* KPI Cards */}
@@ -538,7 +641,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                 <div className="card p-5">
                   <div className="flex items-center justify-between mb-5">
                     <div>
-                      <h3 className="font-bold text-lg text-base-primary">Payroll — {selectedRun.run_month}</h3>
+                      <h3 className="font-bold text-lg text-base-primary">Payroll â€” {selectedRun.run_month}</h3>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[selectedRun.status]}`}>
                         {selectedRun.status}
                       </span>
@@ -656,9 +759,9 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           PAY SLIPS TAB
-      ══════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 'slips' && (
         <div className="space-y-5">
           {/* Run selector row */}
@@ -835,9 +938,9 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           STAFF REGISTER TAB
-      ══════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 'staff' && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-base flex items-center justify-between">
@@ -887,7 +990,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                       <td className="px-4 py-3 font-mono">LKR {Number(staffMember.basic_salary ?? 0).toLocaleString()}</td>
                       <td className="px-4 py-3 font-mono">LKR {Number((staffMember.transport_allow ?? 0) + (staffMember.meal_allow ?? 0)).toLocaleString()}</td>
                       <td className="px-4 py-3">{Number(staffMember.commission_rate ?? 0).toFixed(2)}%</td>
-                      <td className="px-4 py-3 text-base-muted font-mono text-xs">{staffMember.epf_no || '—'}</td>
+                      <td className="px-4 py-3 text-base-muted font-mono text-xs">{staffMember.epf_no || 'â€”'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${staffMember.is_active ? 'bg-green-100 text-green-700' : 'surface-2 text-base-muted'}`}>
                           {staffMember.is_active ? 'Active' : 'Inactive'}
@@ -917,9 +1020,9 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           COST SUMMARY TAB
-      ══════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 'costs' && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-base">
@@ -984,9 +1087,9 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           CREATE RUN MODAL
-      ══════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {showCreateModal && (() => {
         const estGross = staff.reduce((s, st) => s + Number(st.basic_salary ?? 0) + Number(st.transport_allow ?? 0) + Number(st.meal_allow ?? 0), 0);
         const estEpfEr = Math.round(estGross * 0.12);
@@ -1011,7 +1114,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
 
                 {/* Info notice */}
                 <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
-                  <span className="mt-0.5 shrink-0 text-blue-500">ℹ</span>
+                  <span className="mt-0.5 shrink-0 text-blue-500">â„¹</span>
                   <span>Creates a salary draft for all <strong>{staff.length}</strong> staff members based on current salary structures. Review and adjust before marking paid.</span>
                 </div>
 
@@ -1058,8 +1161,8 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                   className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
                 >
                   {createRun.isPending
-                    ? <><Loader2 size={14} className="animate-spin" />Computing…</>
-                    : <><span className="text-base leading-none">▶</span> Create Draft Payroll</>
+                    ? <><Loader2 size={14} className="animate-spin" />Computingâ€¦</>
+                    : <><span className="text-base leading-none">â–¶</span> Create Draft Payroll</>
                   }
                 </button>
               </div>
@@ -1068,9 +1171,9 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
         );
       })()}
 
-      {/* ══════════════════════════════════════════
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           STAFF MODAL (Add / Edit)
-      ══════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {showStaffModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1118,10 +1221,10 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                     className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                     style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }}
                   >
-                    <option value="">— No system account link (standalone staff) —</option>
+                    <option value="">â€” No system account link (standalone staff) â€”</option>
                     {availableStaffUsers.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.phone_number} {user.email ? `(${user.email})` : ''} — {user.role.replace(/_/g, ' ')}
+                        {user.phone_number} {user.email ? `(${user.email})` : ''} â€” {user.role.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>
@@ -1204,6 +1307,22 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                     <input type="number" min="0" value={staffForm.meal_allow} onChange={e => setStaffForm(p => ({ ...p, meal_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Attendance Allow. (LKR)</label>
+                    <input type="number" min="0" value={staffForm.attendance_allowance} onChange={e => setStaffForm(p => ({ ...p, attendance_allowance: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Performance Allow. (LKR)</label>
+                    <input type="number" min="0" value={staffForm.performance_allowance} onChange={e => setStaffForm(p => ({ ...p, performance_allowance: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Allowance 01 (LKR)</label>
+                    <input type="number" min="0" value={staffForm.allowance_01} onChange={e => setStaffForm(p => ({ ...p, allowance_01: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Allowance 02 (LKR)</label>
+                    <input type="number" min="0" value={staffForm.allowance_02} onChange={e => setStaffForm(p => ({ ...p, allowance_02: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                  </div>
+                  <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Commission Rate (%)</label>
                     <input type="number" min="0" max="100" value={staffForm.commission_rate} onChange={e => setStaffForm(p => ({ ...p, commission_rate: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
@@ -1253,7 +1372,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                 disabled={createStaff.isPending || updateStaff.isPending || !staffForm.full_name || !staffForm.designation}
                 className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
               >
-                {(createStaff.isPending || updateStaff.isPending) ? <><Loader2 size={14} className="inline animate-spin mr-1" />Saving…</> : selectedStaff ? 'Update Staff' : 'Create Staff'}
+                {(createStaff.isPending || updateStaff.isPending) ? <><Loader2 size={14} className="inline animate-spin mr-1" />Savingâ€¦</> : selectedStaff ? 'Update Staff' : 'Create Staff'}
               </button>
             </div>
           </div>

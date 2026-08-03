@@ -127,10 +127,11 @@ export default function GuarantorsPage() {
 
   // 5. Mutation for transfer to guarantor
   const transferMutation = useMutation({
-    mutationFn: (customerId: string) =>
+    mutationFn: (payload: { customerId: string; split: number }) =>
       api.post('/recovery/transfer-guarantor', {
-        customer_id: customerId,
-        reason: 'Deduction default transferred to guarantor'
+        customer_id: payload.customerId,
+        reason: 'Deduction default transferred to guarantor',
+        split_percentage: payload.split,
       }),
     onSuccess: () => {
       alert('Deduction successfully transferred to guarantor.');
@@ -139,6 +140,20 @@ export default function GuarantorsPage() {
     },
     onError: (err: any) => {
       alert(err.response?.data?.error || 'Failed to perform transfer');
+    },
+  });
+
+  // 5.5 Mutation for revert transfer
+  const revertMutation = useMutation({
+    mutationFn: (payload: { application_id: string; guarantor_customer_id: string; original_customer_id: string }) =>
+      api.post('/recovery/transfer-revert', payload),
+    onSuccess: () => {
+      alert('Liability successfully reverted back to original customer.');
+      qc.invalidateQueries({ queryKey: ['guarantors'] });
+      qc.invalidateQueries({ queryKey: ['recovery-overdue'] });
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.error || 'Failed to revert transfer');
     },
   });
 
@@ -391,8 +406,12 @@ export default function GuarantorsPage() {
                   )}
                   <button
                     onClick={() => {
-                      if (confirm(`Are you sure you want to transfer the liability of LKR ${c.arrears_amount.toLocaleString()} from ${c.full_name} to guarantor ${c.guarantor?.name}?`)) {
-                        transferMutation.mutate(c.id);
+                      const splitStr = prompt(`Enter percentage of liability to transfer from ${c.full_name} to guarantor ${c.guarantor?.name || 'Unknown'} (e.g. 50 for 50%):`, "50");
+                      if (!splitStr) return;
+                      const split = parseInt(splitStr);
+                      if (isNaN(split) || split <= 0 || split > 100) return alert('Invalid percentage');
+                      if (confirm(`Are you sure you want to transfer ${split}% of liability from ${c.full_name} to guarantor ${c.guarantor?.name}?`)) {
+                        transferMutation.mutate({ customerId: c.id, split });
                       }
                     }}
                     disabled={transferMutation.isPending}
@@ -599,11 +618,36 @@ export default function GuarantorsPage() {
                   }}
                   className="flex items-center justify-center gap-1.5 px-4 py-2.5 surface-2 hover:bg-[var(--bg-surface-3)] text-base-secondary rounded-xl text-xs font-semibold transition-colors"
                 >
-                  <Share2 size={14} /> Share
+                  <Copy size={14} /> Copy Summary
                 </button>
+              </div>
+
+              {selectedGuarantor.total_liability > 0 && selectedGuarantor.guarantor_requests?.find((r: any) => r.status === 'accepted')?.application && (
+                <div className="px-5 pb-5">
+                  <button
+                    onClick={() => {
+                      const activeReq = selectedGuarantor.guarantor_requests?.find((r: any) => r.status === 'accepted');
+                      if (!activeReq || !activeReq.application) return;
+                      if (confirm(`Are you sure you want to revert liability back to ${activeReq.application.customer?.full_name}?`)) {
+                        revertMutation.mutate({
+                          application_id: activeReq.application.id,
+                          guarantor_customer_id: selectedGuarantor.id,
+                          original_customer_id: activeReq.application.customer_id
+                        });
+                      }
+                    }}
+                    disabled={revertMutation.isPending}
+                    className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-semibold transition-colors"
+                  >
+                    <ArrowRightLeft size={14} /> {revertMutation.isPending ? 'Reverting...' : 'Revert Liability'}
+                  </button>
+                </div>
+              )}
+
+              <div className="px-5 pb-5">
                 <button
                   onClick={() => setShowPayModal(true)}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors"
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold transition-colors"
                 >
                   <Coins size={14} /> Record Payment
                 </button>

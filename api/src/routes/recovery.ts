@@ -24,7 +24,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
 
     // Fetch active applications for these customers
     const { data: appsRaw } = await sb.from('applications')
-      .select('id, ref_number, status, monthly_amount, customer_id')
+      .select('id, ref_number, status, monthly_amount, customer_id, guarantor_id')
       .eq('status', 'active')
       .in('customer_id', custIds);
       
@@ -98,6 +98,17 @@ export default async function recoveryRoutes(app: FastifyInstance) {
       });
     }
 
+    // Fallback: Fetch legacy guarantors directly from the guarantors table if application has guarantor_id
+    const legacyGuarantorIds = customers.map((c: any) => c.applications?.[0]?.guarantor_id).filter(Boolean);
+    let legacyGuarantorsMap = new Map<string, any>();
+    if (legacyGuarantorIds.length > 0) {
+      const { data: legGuarantors } = await sb
+        .from('guarantors')
+        .select('id, full_name, phone_number, service_number')
+        .in('id', legacyGuarantorIds);
+      (legGuarantors ?? []).forEach(g => legacyGuarantorsMap.set(g.id, g));
+    }
+
     const result = (customers ?? []).map((c: any) => {
       const app = c.applications?.[0];
       const installments = app?.installments ?? [];
@@ -106,13 +117,27 @@ export default async function recoveryRoutes(app: FastifyInstance) {
 
       if (missed < minMissed) return null;
 
-      // Guarantor data comes from guarantor_requests
-      const reqRow = app ? reqMap.get(app.id) : null;
-      const guarantor = reqRow ? {
-        name: reqRow.guarantor_name ?? '—',
-        phone: reqRow.guarantor_phone ?? '—',
-        service_number: reqRow.guarantor_customer?.service_number ?? '—',
-      } : null;
+      let guarantor = null;
+      // Guarantor data comes from guarantor_requests or fallback to legacy guarantor
+      if (app) {
+        const reqRow = reqMap.get(app.id);
+        if (reqRow) {
+          guarantor = {
+            name: reqRow.guarantor_name ?? '—',
+            phone: reqRow.guarantor_phone ?? '—',
+            service_number: reqRow.guarantor_customer?.service_number ?? '—',
+          };
+        } else if (app.guarantor_id) {
+          const legG = legacyGuarantorsMap.get(app.guarantor_id);
+          if (legG) {
+            guarantor = {
+              name: legG.full_name ?? '—',
+              phone: legG.phone_number ?? '—',
+              service_number: legG.service_number ?? '—',
+            };
+          }
+        }
+      }
 
       const sortedLogs = c.recovery_logs ? [...c.recovery_logs].sort((a: any, b: any) => new Date(b.contacted_at).getTime() - new Date(a.contacted_at).getTime()) : [];
       const latestLog = sortedLogs[0];
@@ -170,6 +195,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     const body = z.object({
       customer_id: z.string().uuid(),
       reason: z.string().min(10),
+      split_percentage: z.number().min(1).max(100).default(100),
       draft_letter: z.string().optional(),
     }).safeParse(req.body);
 
@@ -240,11 +266,10 @@ AIRVOICE Defence Finance Recovery Department`;
       guarantor_name: guarantorName,
       application_id: activeApp?.id ?? null,
       reason: body.data.reason,
+      split_percentage: body.data.split_percentage,
       requested_by: req.user!.id,
     });
-    const fullBody = `${metaPrefix}
----LETTER---
-${letterContent}`;
+    const fullBody = `${metaPrefix}\n---LETTER---\n${letterContent}`;
 
     const { data: letter, error: letterErr } = await sb.from('recovery_letters').insert({
       customer_id: body.data.customer_id,
@@ -337,14 +362,47 @@ ${letterContent}`;
       return reply.status(400).send({ error: 'Invalid transfer request format' });
     }
 
-    const { guarantor_customer_id, application_id } = meta;
+    const { guarantor_customer_id, application_id, split_percentage } = meta;
 
     if (guarantor_customer_id && application_id) {
-      // 1. Transfer unpaid installments to the guarantor
-      await sb.from('installments')
-        .update({ customer_id: guarantor_customer_id } as any)
-        .eq('application_id', application_id)
-        .in('status', ['pending', 'not_deducted', 'arrears']);
+      const splitPct = split_percentage ?? 100;
+      
+      if (splitPct === 100) {
+        // 1. Transfer unpaid installments completely to the guarantor
+        await sb.from('installments')
+          .update({ customer_id: guarantor_customer_id } as any)
+          .eq('application_id', application_id)
+          .in('status', ['pending', 'not_deducted', 'arrears']);
+      } else {
+        // Splitting logic
+        const { data: unpaidInsts } = await sb.from('installments')
+          .select('*')
+          .eq('application_id', application_id)
+          .in('status', ['pending', 'not_deducted', 'arrears']);
+
+        if (unpaidInsts) {
+          const updates = [];
+          const inserts = [];
+          for (const inst of unpaidInsts) {
+             const splitAmount = inst.expected_amount * (splitPct / 100);
+             const remainAmount = inst.expected_amount - splitAmount;
+             updates.push(sb.from('installments').update({ expected_amount: remainAmount } as any).eq('id', inst.id));
+             inserts.push({
+               ...inst,
+               id: undefined, // DB generated
+               customer_id: guarantor_customer_id,
+               expected_amount: splitAmount,
+               arrears_amount: inst.arrears_amount > 0 ? (inst.arrears_amount * (splitPct / 100)) : 0,
+               deducted_amount: 0,
+             });
+          }
+          if (updates.length > 0) await Promise.all(updates);
+          if (inserts.length > 0) await sb.from('installments').insert(inserts);
+        }
+      }
+
+      // Simulate sending email to guarantor
+      app.log.info(`[EMAIL] Simulated email sent to Guarantor Customer ID ${guarantor_customer_id} about liability transfer.`);
 
       // 2. Add recovery log
       await sb.from('recovery_logs').insert({
@@ -354,7 +412,7 @@ ${letterContent}`;
         contact_method: 'letter',
         contacted_at: new Date().toISOString(),
         outcome: 'transferred_to_guarantor',
-        notes: `Liability officially transferred to guarantor (approved by admin). Reason: ${meta.reason ?? ''}`
+        notes: `Liability officially transferred to guarantor (approved by admin) with ${splitPct}% split. Reason: ${meta.reason ?? ''}`
       } as any);
     }
 
@@ -382,6 +440,78 @@ ${letterContent}`;
     const sb = getSupabase();
     await sb.from('recovery_letters').update({ status: 'cancelled' }).eq('id', id);
     return reply.send({ success: true, message: 'Transfer request rejected.' });
+  });
+
+  // ── POST /recovery/transfer-revert ── Revert a transfer back to customer
+  app.post('/transfer-revert', { preHandler:[authenticate,requireRole('admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
+    const body = z.object({
+      application_id: z.string().uuid(),
+      guarantor_customer_id: z.string().uuid(),
+      original_customer_id: z.string().uuid(),
+    }).safeParse(req.body);
+
+    if (!body.success) return reply.status(400).send({error:'Validation Error'});
+    const sb = getSupabase();
+
+    // Find transferred installments assigned to guarantor
+    const { data: transInsts } = await sb.from('installments')
+      .select('*')
+      .eq('application_id', body.data.application_id)
+      .eq('customer_id', body.data.guarantor_customer_id)
+      .in('status', ['pending', 'not_deducted', 'arrears']);
+
+    if (!transInsts || transInsts.length === 0) {
+      return reply.send({ success: false, message: 'No active transferred installments found.' });
+    }
+
+    // Attempt to merge back with original customer's installments
+    const updates = [];
+    const deletions = [];
+    
+    // Fetch original customer's installments
+    const { data: origInsts } = await sb.from('installments')
+      .select('*')
+      .eq('application_id', body.data.application_id)
+      .eq('customer_id', body.data.original_customer_id);
+
+    const origMap = new Map();
+    origInsts?.forEach(i => origMap.set(`${i.due_year}_${i.due_month}`, i));
+
+    for (const ti of transInsts) {
+      const orig = origMap.get(`${ti.due_year}_${ti.due_month}`);
+      if (orig) {
+        // Merge amounts back
+        updates.push(sb.from('installments').update({
+          expected_amount: orig.expected_amount + ti.expected_amount,
+          arrears_amount: orig.arrears_amount + ti.arrears_amount
+        } as any).eq('id', orig.id));
+        deletions.push(ti.id);
+      } else {
+        // Just move the row back to original customer
+        updates.push(sb.from('installments').update({ customer_id: body.data.original_customer_id } as any).eq('id', ti.id));
+      }
+    }
+
+    if (updates.length > 0) await Promise.all(updates);
+    if (deletions.length > 0) {
+      for (let i = 0; i < deletions.length; i += 50) {
+        await sb.from('installments').delete().in('id', deletions.slice(i, i + 50));
+      }
+    }
+
+    app.log.info(`[EMAIL] Simulated email sent to Guarantor & Customer about liability reverted back.`);
+
+    await sb.from('recovery_logs').insert({
+      application_id: body.data.application_id,
+      customer_id: body.data.original_customer_id,
+      officer_id: req.user!.id,
+      contact_method: 'letter',
+      contacted_at: new Date().toISOString(),
+      outcome: 'kept',
+      notes: `Liability reverted back from guarantor to customer.`
+    } as any);
+
+    return reply.send({ success: true, message: 'Liability reverted back to original customer.' });
   });
 
   // ── POST /recovery/legal-notice ──

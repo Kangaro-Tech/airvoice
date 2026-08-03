@@ -11,7 +11,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   app.get('/staff', { preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')] }, async (_req, reply) => {
     const { data, error } = await getSupabase()
       .from('staff_registry')
-      .select('id,user_id,full_name,designation,department,basic_salary,transport_allow,meal_allow,commission_rate,epf_no,is_active,phone_number,profile_photo_url,joined_date')
+      .select('id,user_id,full_name,designation,department,basic_salary,transport_allow,meal_allow,attendance_allowance,performance_allowance,allowance_01,allowance_02,commission_rate,epf_no,is_active,phone_number,profile_photo_url,joined_date')
       .order('full_name');
     if (error) return reply.status(500).send({ error: error.message });
     return reply.send({ data });
@@ -77,6 +77,10 @@ export default async function payrollRoutes(app: FastifyInstance) {
       basic_salary: z.number().nonnegative(),
       transport_allow: z.number().nonnegative().default(0),
       meal_allow: z.number().nonnegative().default(0),
+      attendance_allowance: z.number().nonnegative().default(0),
+      performance_allowance: z.number().nonnegative().default(0),
+      allowance_01: z.number().nonnegative().default(0),
+      allowance_02: z.number().nonnegative().default(0),
       commission_rate: z.number().nonnegative().max(100).default(0),
       epf_no: z.string().optional(),
       etf_no: z.string().optional(),
@@ -178,6 +182,10 @@ export default async function payrollRoutes(app: FastifyInstance) {
       basic_salary: z.number().nonnegative().optional(),
       transport_allow: z.number().nonnegative().optional(),
       meal_allow: z.number().nonnegative().optional(),
+      attendance_allowance: z.number().nonnegative().optional(),
+      performance_allowance: z.number().nonnegative().optional(),
+      allowance_01: z.number().nonnegative().optional(),
+      allowance_02: z.number().nonnegative().optional(),
       commission_rate: z.number().nonnegative().max(100).optional(),
       epf_no: z.string().optional(),
       etf_no: z.string().optional(),
@@ -358,7 +366,19 @@ export default async function payrollRoutes(app: FastifyInstance) {
       const staffUserId = s.user_id as string | undefined;
       const aggregated = staffUserId ? salesMap[staffUserId] ?? { phonesSold: 0, commissionAmount: 0 } : { phonesSold: 0, commissionAmount: 0 };
       const commAmt = aggregated.commissionAmount;
-      const gross = Number(s.basic_salary) + Number(s.transport_allow) + Number(s.meal_allow) + commAmt;
+      
+      const attendanceAllow = Number(s.attendance_allowance ?? 0);
+      const performanceAllow = Number(s.performance_allowance ?? 0);
+      const allow01 = Number(s.allowance_01 ?? 0);
+      const allow02 = Number(s.allowance_02 ?? 0);
+      
+      // Assume 20 working days by default for the month, can be edited later
+      const workingDays = 20;
+      const leaveDays = 0;
+      const noPayDays = 0;
+      const noPayDeduction = 0;
+
+      const gross = Number(s.basic_salary) + attendanceAllow + performanceAllow + allow01 + allow02 + commAmt;
       const epfEe = Number((gross * 0.08).toFixed(2));
       const epfEr = Number((gross * 0.12).toFixed(2));
       const etf = Number((gross * 0.03).toFixed(2));
@@ -375,10 +395,19 @@ export default async function payrollRoutes(app: FastifyInstance) {
         basic_salary: s.basic_salary,
         transport_allow: s.transport_allow,
         meal_allow: s.meal_allow,
+        attendance_allowance: attendanceAllow,
+        performance_allowance: performanceAllow,
+        allowance_01: allow01,
+        allowance_02: allow02,
         commission_amount: commAmt,
         phones_sold: aggregated.phonesSold,
+        working_days: workingDays,
+        leave_days: leaveDays,
+        no_pay_days: noPayDays,
+        no_pay_deduction: noPayDeduction,
         bonus: 0,
-        deductions: advanceDeduction + otherDeductions,
+        loans: advanceDeduction,
+        deductions: otherDeductions,
         epf_ee: epfEe,
         epf_er: epfEr,
         etf: etf,

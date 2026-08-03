@@ -4,6 +4,7 @@ import { z } from 'zod';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as nodePath from 'path';
+import * as crypto from 'crypto';
 import { authenticate, requireFinance, requireAdmin } from '../middleware/auth';
 import { getSupabase } from '../config/supabase';
 import { uploadToStorage, getFirebaseStorage } from '../config/firebase';
@@ -363,12 +364,12 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       .select('id, status')
       .eq('file_name', filename)
       .eq('file_size_bytes', buffer.length)
-      .in('status', ['importing', 'completed'])
+      .in('status', ['importing'])
       .limit(1)
       .single();
 
     if (existingBatch) {
-      return reply.status(400).send({ error: 'This file is already being imported or has been completed. Duplicate files are rejected.' });
+      return reply.status(400).send({ error: 'This file is currently being imported. Please wait for it to finish before trying again.' });
     }
 
     // Always save to /tmp for reliability in dev; also try Firebase
@@ -909,8 +910,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
     }
 
     const importedCustomerIds = [...new Set(legacyRowsData.map(r => r.customer_id).filter(Boolean) as string[])];
-    let appsByCustomer = new Map<string, string>();
-    let existingAppsByCustomer = new Map<string, any>();
+    let appsByCustomer = new Map<string, string[]>();
+    let existingAppsByCustomer = new Map<string, any[]>();
     if (importedCustomerIds.length > 0) {
       for (let i = 0; i < importedCustomerIds.length; i += 500) {
         const chunk = importedCustomerIds.slice(i, i + 500);
@@ -919,8 +920,10 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           .in('customer_id', chunk);
         if (apps) {
           apps.forEach(a => {
-            appsByCustomer.set(a.customer_id, a.id);
-            existingAppsByCustomer.set(a.customer_id, a);
+            if (!appsByCustomer.has(a.customer_id)) appsByCustomer.set(a.customer_id, []);
+            appsByCustomer.get(a.customer_id)!.push(a.id);
+            if (!existingAppsByCustomer.has(a.customer_id)) existingAppsByCustomer.set(a.customer_id, []);
+            existingAppsByCustomer.get(a.customer_id)!.push(a);
           });
         }
       }
@@ -946,7 +949,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         
         // If application already exists, process its installments but do not recreate application
         if (existingAppsByCustomer.has(legacyRow.customer_id)) {
-          appsToProcessInstallments.push(existingAppsByCustomer.get(legacyRow.customer_id));
+          appsToProcessInstallments.push(...existingAppsByCustomer.get(legacyRow.customer_id)!);
           continue;
         }
 
@@ -1010,7 +1013,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           if (insertedApps) {
             insertedApps.forEach((a: any, j: number) => {
               allInsertedApps.push({ ...a, _insertIndex: globalInsertIndex + j });
-              appsByCustomer.set(a.customer_id, a.id);
+              if (!appsByCustomer.has(a.customer_id)) appsByCustomer.set(a.customer_id, []);
+              appsByCustomer.get(a.customer_id)!.push(a.id);
             });
           }
           globalInsertIndex += chunk.length;
@@ -1155,7 +1159,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
 
     // ── Extract and Insert Guarantors (Runs for ALL rows) ─────────────────────
     interface GuarantorToCreate {
-      app_id?: string;
+      app_ids?: string[];
       service_number?: string;
       full_name: string;
       phone_number?: string;
@@ -1168,13 +1172,13 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
 
     for (const srcRow of legacyRowsData) {
       if (!srcRow.customer_id) continue;
-      const appId = appsByCustomer.get(srcRow.customer_id);
+      const appIds = appsByCustomer.get(srcRow.customer_id) || [];
 
       // 1st Guarantor
       if (srcRow.guarantor_name) {
         const guCampId = srcRow.guarantor_unit ? (lookupCamp(srcRow.guarantor_unit.trim()) || null) : null;
         guarantorsToCreate.push({
-          app_id:          appId,
+          app_ids:         appIds,
           service_number:  srcRow.guarantor_service_number || undefined,
           full_name:       srcRow.guarantor_name,
           phone_number:    srcRow.guarantor_mobile         || undefined,
@@ -1189,7 +1193,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       if (srcRow.guarantor2_name) {
         const gu2CampId = srcRow.guarantor2_unit ? (lookupCamp(srcRow.guarantor2_unit.trim()) || null) : null;
         guarantorsToCreate.push({
-          app_id:          appId,
+          app_ids:         appIds,
           service_number:  undefined,
           full_name:       srcRow.guarantor2_name,
           phone_number:    srcRow.guarantor2_mobile  || undefined,
@@ -1209,26 +1213,45 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
 
       // 1. Bulk lookup existing guarantors by nic_number or service_number in `guarantors` table
       //    Build dedup keys and fetch existing records to avoid re-inserting.
-      const guKeyToId = new Map<string, string>(); // 'svc:XXX' or 'nic:YYY' -> guarantor.id
+      const guKeyToId = new Map<string, string>(); // 'svc:XXX' or 'nic:YYY' or 'name:ZZZ' -> guarantor.id
       const guNicKeys = [...new Set(guarantorsToCreate.map(g => g.nic_number).filter(Boolean) as string[])];
       const guSvcKeys = [...new Set(guarantorsToCreate.map(g => g.service_number).filter(Boolean) as string[])];
 
       for (let i = 0; i < guNicKeys.length; i += 500) {
         const chunk = guNicKeys.slice(i, i + 500);
-        const { data: byNic } = await sb.from('guarantors').select('id, nic_number, service_number').in('nic_number', chunk);
+        const { data: byNic } = await sb.from('guarantors').select('id, nic_number, service_number, full_name').in('nic_number', chunk);
         if (byNic) {
           byNic.forEach(g => {
             if (g.nic_number) guKeyToId.set(`nic:${g.nic_number}`, g.id);
             if (g.service_number) guKeyToId.set(`svc:${g.service_number}`, g.id);
+            if (g.full_name) guKeyToId.set(`name:${g.full_name}`, g.id);
           });
         }
       }
       for (let i = 0; i < guSvcKeys.length; i += 500) {
         const chunkSvc = guSvcKeys.slice(i, i + 500).filter(k => !guKeyToId.has(`svc:${k}`));
         if (chunkSvc.length === 0) continue;
-        const { data: bySvc } = await sb.from('guarantors').select('id, nic_number, service_number').in('service_number', chunkSvc);
+        const { data: bySvc } = await sb.from('guarantors').select('id, nic_number, service_number, full_name').in('service_number', chunkSvc);
         if (bySvc) {
           bySvc.forEach(g => {
+            if (g.nic_number) guKeyToId.set(`nic:${g.nic_number}`, g.id);
+            if (g.service_number) guKeyToId.set(`svc:${g.service_number}`, g.id);
+            if (g.full_name) guKeyToId.set(`name:${g.full_name}`, g.id);
+          });
+        }
+      }
+      // Fallback: lookup by full_name for guarantors who have no NIC or service number
+      const guNameOnlyKeys = [...new Set(
+        guarantorsToCreate
+          .filter(g => !g.nic_number && !g.service_number && g.full_name)
+          .map(g => g.full_name)
+      )];
+      for (let i = 0; i < guNameOnlyKeys.length; i += 500) {
+        const chunk = guNameOnlyKeys.slice(i, i + 500);
+        const { data: byName } = await sb.from('guarantors').select('id, full_name, nic_number, service_number').in('full_name', chunk);
+        if (byName) {
+          byName.forEach(g => {
+            if (g.full_name) guKeyToId.set(`name:${g.full_name}`, g.id);
             if (g.nic_number) guKeyToId.set(`nic:${g.nic_number}`, g.id);
             if (g.service_number) guKeyToId.set(`svc:${g.service_number}`, g.id);
           });
@@ -1239,6 +1262,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       const resolveGuId = (g: GuarantorToCreate): string | undefined => {
         if (g.nic_number && guKeyToId.has(`nic:${g.nic_number}`)) return guKeyToId.get(`nic:${g.nic_number}`);
         if (g.service_number && guKeyToId.has(`svc:${g.service_number}`)) return guKeyToId.get(`svc:${g.service_number}`);
+        if (g.full_name && guKeyToId.has(`name:${g.full_name}`)) return guKeyToId.get(`name:${g.full_name}`);
         return undefined;
       };
 
@@ -1255,6 +1279,41 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       const appsToLinkGuarantor = new Map<string, string>(); // app_id -> guarantor_id
       const batchGuKeySet = new Set<string>(); // dedup within this import batch
 
+      // First, create missing customers for guarantors since customer_id is NOT NULL in the guarantors table
+      const missingCustForGus = resolvedGuarantors.filter(g => !g.linked_customer_id && !resolveGuId(g));
+      const newGuCustomersToInsert: any[] = [];
+      const newGuCustIdMap = new Map<string, string>(); // batchKey -> generated id
+      
+      for (const g of missingCustForGus) {
+        const batchKey = g.nic_number ? `nic:${g.nic_number}` : g.service_number ? `svc:${g.service_number}` : `name:${g.full_name}`;
+        if (!newGuCustIdMap.has(batchKey)) {
+           // We'll generate an ID here to insert later
+           const fakeId = crypto.randomUUID();
+           newGuCustIdMap.set(batchKey, fakeId);
+           newGuCustomersToInsert.push({
+             id: fakeId,
+             full_name: g.full_name,
+             phone_number: g.phone_number ?? null,
+             nic_number: g.nic_number ?? null,
+             service_number: g.service_number ?? `GU-${crypto.randomUUID().substring(0,8)}`, // fallback if null
+             branch: 'army',
+             camp_id: g.camp_id ?? null,
+             address: g.address ?? null,
+             is_active: true,
+             risk_score: 50,
+             risk_level: 'medium'
+           });
+        }
+        g.linked_customer_id = newGuCustIdMap.get(batchKey);
+      }
+
+      if (newGuCustomersToInsert.length > 0) {
+         for (let i = 0; i < newGuCustomersToInsert.length; i += 500) {
+            const chunk = newGuCustomersToInsert.slice(i, i + 500);
+            await sb.from('customers').insert(chunk);
+         }
+      }
+
       for (const g of resolvedGuarantors) {
         const existingGuId = resolveGuId(g);
 
@@ -1267,14 +1326,18 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
             nic_number:   g.nic_number   || undefined,
             camp_id:      g.camp_id      || undefined,
           });
-          if (g.guarantor_order === 1 && g.app_id) appsToLinkGuarantor.set(g.app_id, existingGuId);
+          if (g.guarantor_order === 1 && g.app_ids) {
+            for (const appId of g.app_ids) {
+              appsToLinkGuarantor.set(appId, existingGuId);
+            }
+          }
         } else {
           // New guarantor – insert directly into `guarantors` table
           const batchKey = g.nic_number ? `nic:${g.nic_number}` : g.service_number ? `svc:${g.service_number}` : `name:${g.full_name}`;
           if (!batchGuKeySet.has(batchKey)) {
             batchGuKeySet.add(batchKey);
             guarantorsToInsert.push({
-              customer_id:    g.linked_customer_id ?? null, // null unless already a customer
+              customer_id:    g.linked_customer_id, // now guaranteed to not be null
               full_name:      g.full_name,
               phone_number:   g.phone_number   ?? null,
               nic_number:     g.nic_number     ?? null,
@@ -1295,12 +1358,13 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       if (guarantorsToInsert.length > 0) {
         for (let i = 0; i < guarantorsToInsert.length; i += 500) {
           const chunk = guarantorsToInsert.slice(i, i + 500);
-          const { data: insertedGus } = await sb.from('guarantors').insert(chunk).select('id, nic_number, service_number');
+          const { data: insertedGus } = await sb.from('guarantors').insert(chunk).select('id, nic_number, service_number, full_name');
           if (insertedGus) {
             addedGuarantorsCount += insertedGus.length;
             insertedGus.forEach(ig => {
               if (ig.nic_number) guKeyToId.set(`nic:${ig.nic_number}`, ig.id);
               if (ig.service_number) guKeyToId.set(`svc:${ig.service_number}`, ig.id);
+              if (ig.full_name) guKeyToId.set(`name:${ig.full_name}`, ig.id);
             });
           }
         }
@@ -1308,9 +1372,13 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
 
       // 5. Link newly inserted/existing guarantors to applications
       for (const g of resolvedGuarantors) {
-        if (g.guarantor_order === 1 && g.app_id) {
+        if (g.guarantor_order === 1 && g.app_ids && g.app_ids.length > 0) {
           const guId = resolveGuId(g);
-          if (guId) appsToLinkGuarantor.set(g.app_id, guId);
+          if (guId) {
+            for (const appId of g.app_ids) {
+              appsToLinkGuarantor.set(appId, guId);
+            }
+          }
         }
       }
 
