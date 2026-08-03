@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import {
   Shield, User, Phone, CheckCircle2, MessageCircle, AlertTriangle,
-  Search, Download, Loader2, ChevronRight, XCircle, Share2, Eye, ArrowRightLeft, Coins, Plus, X
+  Search, Download, Loader2, ChevronRight, XCircle, Share2, Eye, ArrowRightLeft, Coins, Plus, X, Copy
 } from 'lucide-react';
 
 interface CustomerSummary {
@@ -632,7 +632,7 @@ export default function GuarantorsPage() {
                         revertMutation.mutate({
                           application_id: activeReq.application.id,
                           guarantor_customer_id: selectedGuarantor.id,
-                          original_customer_id: activeReq.application.customer_id
+                          original_customer_id: activeReq.application.customer?.id
                         });
                       }
                     }}
