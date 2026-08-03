@@ -954,7 +954,7 @@ export default function InventoryPage() {
           </button>
           <button
             onClick={() => setShowOrderModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
           >
             <Truck size={15} /> Stock Order
           </button>

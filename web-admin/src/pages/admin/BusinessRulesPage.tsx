@@ -62,7 +62,7 @@ export default function BusinessRulesPage() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 onClick={() => showToast('Business rules saved ✓')}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}
               >
                 <Save size={14} /> Save Changes
               </button>
@@ -81,7 +81,7 @@ export default function BusinessRulesPage() {
                 {rule.type === 'toggle' ? (
                   <button
                     onClick={() => setRuleValues(p => ({ ...p, [rule.key]: !p[rule.key] }))}
-                    style={{ width: 44, height: 24, borderRadius: 12, background: ruleValues[rule.key] ? '#16a34a' : 'var(--bg-surface-3)', position: 'relative', cursor: 'pointer', border: 'none', flexShrink: 0 }}
+                    style={{ width: 44, height: 24, borderRadius: 12, background: ruleValues[rule.key] ? '#2563eb' : 'var(--bg-surface-3)', position: 'relative', cursor: 'pointer', border: 'none', flexShrink: 0 }}
                   >
                     <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: ruleValues[rule.key] ? 23 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                   </button>

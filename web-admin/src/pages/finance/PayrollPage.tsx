@@ -530,7 +530,7 @@ export default function PayrollPage() {
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
         >
           <Plus size={16} /> New Payroll Run
         </button>
@@ -950,7 +950,7 @@ export default function PayrollPage() {
             </div>
             <button
               onClick={() => openStaffModal()}
-              className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition-colors"
+              className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors"
             >
               <Plus size={14} /> Add Staff
             </button>

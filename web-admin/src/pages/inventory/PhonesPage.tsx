@@ -443,7 +443,7 @@ export default function PhonesPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setDetailModel(m)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold rounded-lg transition"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition"
                   >
                     <Eye size={13} /> View Details
                   </button>

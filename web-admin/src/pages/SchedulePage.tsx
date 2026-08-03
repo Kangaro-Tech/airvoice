@@ -148,7 +148,7 @@ export default function SchedulePage() {
           <input type="month" value={month} onChange={e => setMonth(e.target.value)}
             className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
           <button onClick={openCreate}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
             <Plus size={16} /> New Event
           </button>
         </div>
@@ -296,7 +296,7 @@ export default function SchedulePage() {
               <button
                 onClick={handleSubmit}
                 disabled={createMutation.isPending || updateMutation.isPending}
-                className="flex items-center gap-2 px-5 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
               >
                 {(createMutation.isPending || updateMutation.isPending) ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {editEvent ? 'Save Changes' : 'Create Event'}

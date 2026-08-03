@@ -586,7 +586,7 @@ export default function SalesOfficerPage() {
           />
           <button
             onClick={() => setShowAppModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
             <Plus size={16} /> New Application
           </button>

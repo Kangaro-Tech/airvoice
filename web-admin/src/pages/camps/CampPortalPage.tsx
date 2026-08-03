@@ -490,7 +490,7 @@ export default function CampPortalPage() {
           <button
             onClick={() => bulkSubmitMutation.mutate()}
             disabled={bulkSubmitMutation.isPending || isLocked}
-            className="flex items-center gap-1.5 text-sm px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 text-sm px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             <Send size={14} className="text-white" />
             {bulkSubmitMutation.isPending ? 'Submitting…' : 'Submit Sheet'}

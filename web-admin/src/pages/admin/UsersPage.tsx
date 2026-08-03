@@ -185,7 +185,7 @@ export default function AdminUsersPage() {
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 flex items-center gap-2"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 flex items-center gap-2 font-semibold"
           >
             <Plus size={18} />
             Add Staff

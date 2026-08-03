@@ -134,7 +134,7 @@ export default function StockOrdersPage() {
           <button
             id="btn-new-order"
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm"
           >
             <Plus size={16} /> New Order Request
           </button>
@@ -176,7 +176,7 @@ export default function StockOrdersPage() {
               key={f}
               onClick={() => setStatusFilter(f)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold capitalize transition-colors ${
-                statusFilter === f ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                statusFilter === f ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
               {f}

@@ -146,7 +146,7 @@ export default function PettyCashPage() {
           </button>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
           >
             <Plus size={16} /> Add Entry
           </button>
@@ -298,7 +298,7 @@ export default function PettyCashPage() {
               <button
                 onClick={handleSubmit}
                 disabled={createMutation.isPending || updateMutation.isPending}
-                className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
+                className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
               >
                 {(createMutation.isPending || updateMutation.isPending) ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
                 {editEntry ? 'Save Changes' : 'Add Entry'}

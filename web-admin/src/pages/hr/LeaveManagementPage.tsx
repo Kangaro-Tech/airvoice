@@ -79,7 +79,7 @@ export default function LeaveManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#8b5cf6', opacity: 0.9 }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600">
             <ClipboardList size={20} className="text-white" />
           </div>
           <div>
@@ -90,8 +90,7 @@ export default function LeaveManagementPage() {
         <button
           id="new-leave-request-btn"
           onClick={() => { setShowRequestForm(true); setError(''); }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-          style={{ backgroundColor: '#8b5cf6' }}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors"
         >
           <Plus size={14} /> New Request
         </button>
@@ -170,8 +169,8 @@ export default function LeaveManagementPage() {
               id="submit-leave-request"
               onClick={() => requestMutation.mutate(reqForm)}
               disabled={!reqForm.staff_id || !reqForm.start_date || !reqForm.end_date || requestMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ backgroundColor: '#8b5cf6', opacity: (!reqForm.staff_id || !reqForm.start_date || !reqForm.end_date) ? 0.5 : 1 }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors"
+              style={{ opacity: (!reqForm.staff_id || !reqForm.start_date || !reqForm.end_date) ? 0.5 : 1 }}
             >
               {requestMutation.isPending && <Loader2 size={14} className="animate-spin" />}
               Submit
