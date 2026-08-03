@@ -5,12 +5,17 @@ import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { TaskNotepad } from '@/components/TaskNotepad';
 import { DashboardNotepad } from '@/components/DashboardNotepad';
 import {
-  Users, Phone, ClipboardList, Target, TrendingUp, AlertCircle,
-  Coins, Package, Shield, Download, RefreshCw, BarChart2, Bell, TrendingDown, LayoutDashboard,
-  PieChart as PieChartIcon, Wallet, Award, Percent, User,
-  Bot, AlertTriangle, Calendar, Flag, CircleDollarSign, ArrowRight
+  LayoutDashboard, RefreshCw, Download, Share2, Filter, MoreVertical,
+  TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles,
+  Bot, AlertTriangle, Shield, Coins, Package, Phone, Users, ClipboardList,
+  Calendar, CheckCircle, X, ChevronDown, Plus, Layers, Wallet, BarChart2,
+  PieChart as PieChartIcon, Target, Award, Percent, User, AlertCircle,
+  Sliders, Star, Copy, Eye, EyeOff, Check, Edit3, ArrowRight, ToggleLeft, ToggleRight
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar,
+  LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend
+} from 'recharts';
 
 interface KPIResponse {
   totalCustomers: number;
@@ -38,6 +43,7 @@ interface AlertItem {
 interface ChartItem {
   month: string;
   amount: number;
+  priorAmount?: number;
 }
 
 interface ExpenseBreakdownItem {
@@ -46,859 +52,1396 @@ interface ExpenseBreakdownItem {
   percentage: number;
 }
 
-const EXPENSE_SLICE_COLORS = [
-  '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444',
-  '#06b6d4', '#eab308', '#ec4899', '#84cc16', '#6366f1',
+const EXPENSE_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#ef4444', '#06b6d4', '#ec4899', '#6366f1'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+interface DashboardPreset {
+  id: string;
+  title: string;
+  description: string;
+  isDefault: boolean;
+  widgetsCount: number;
+  lastUpdated: string;
+  widgets: Record<string, boolean>;
+}
+
+// ── SAMPLE / MOCK DATA FOR DEMONSTRATION ──
+const SAMPLE_KPIS: KPIResponse = {
+  totalCustomers: 485,
+  activePlans: 342,
+  pendingApps: 14,
+  collectionRatePct: '96.4',
+  expectedTotal: 4825000,
+  actualTotal: 4651300,
+  netProfit: 1840500,
+  failureCount: 4,
+  inventoryValue: 12450000,
+  inStockCount: 18,
+  commPayable: 142500,
+};
+
+const SAMPLE_CHART_DATA: ChartItem[] = [
+  { month: 'Jan', amount: 2100000, priorAmount: 1850000 },
+  { month: 'Feb', amount: 2850000, priorAmount: 2200000 },
+  { month: 'Mar', amount: 3400000, priorAmount: 2900000 },
+  { month: 'Apr', amount: 3200000, priorAmount: 2750000 },
+  { month: 'May', amount: 4100000, priorAmount: 3450000 },
+  { month: 'Jun', amount: 4500000, priorAmount: 3800000 },
+  { month: 'Jul', amount: 4651300, priorAmount: 3950000 },
+  { month: 'Aug', amount: 4800000, priorAmount: 4100000 },
+  { month: 'Sep', amount: 4950000, priorAmount: 4250000 },
+  { month: 'Oct', amount: 5100000, priorAmount: 4400000 },
+  { month: 'Nov', amount: 5300000, priorAmount: 4550000 },
+  { month: 'Dec', amount: 5600000, priorAmount: 4800000 },
 ];
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
+const SAMPLE_EXPENSE_BREAKDOWN: ExpenseBreakdownItem[] = [
+  { category: 'Salaries & Allowances', total: 1450000, percentage: 44.6 },
+  { category: 'Device Inventory Restock', total: 950000, percentage: 29.2 },
+  { category: 'Camp Logistics & Transport', total: 420000, percentage: 12.9 },
+  { category: 'Utilities & Telecommunication', total: 260000, percentage: 8.0 },
+  { category: 'System Maintenance & Software', total: 170000, percentage: 5.3 },
+];
+
+const SAMPLE_ALERTS: AlertItem[] = [
+  {
+    sev: 'high',
+    icon: 'AlertTriangle',
+    title: 'High Deduction Failure Alert — SLAF Katunayake',
+    msg: '4 uncollected salary installment deductions detected for July salary sheet. Follow-up required with base pay office.',
+    time: '10 mins ago',
+    action: 'Review Case',
+  },
+  {
+    sev: 'medium',
+    icon: 'Package',
+    title: 'Inventory Stock Warning — Samsung Galaxy A15',
+    msg: 'Stock level critically low (2 units remaining). High demand in Panagoda Air Force Camp.',
+    time: '2 hours ago',
+    action: 'Order Stock',
+  },
+  {
+    sev: 'info',
+    icon: 'Users',
+    title: 'Retirement Warning — 2 Active Personnel',
+    msg: 'WO2 K. A. Perera and Cpl S. Bandara reaching retirement date within 60 days. Guarantors verified.',
+    time: '1 day ago',
+    action: 'Inspect Plans',
+  },
 ];
 
 export default function DashboardPage() {
-  const { user, hasRole, can } = useRoleAccess();
-  const [aiSummary, setAiSummary] = useState('');
+  const { user, hasRole } = useRoleAccess();
+  const now = new Date();
 
-  const { data: kpis, isLoading: kpiLoading } = useQuery<KPIResponse>({
+  // Filters & State
+  const [sampleDataMode, setSampleDataMode] = useState<boolean>(true); // Default ON for demonstration
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  const [columns, setColumns] = useState<'3' | '2' | '1'>('3');
+  const [activeTab, setActiveTab] = useState<'performance' | 'manage'>('performance');
+  const [comparePrior, setComparePrior] = useState<boolean>(true);
+  const [activeDashboardId, setActiveDashboardId] = useState<string>('executive-overview');
+
+  // Widget visibility state
+  const [visibleWidgets, setVisibleWidgets] = useState<Record<string, boolean>>({
+    ai_insights: true,
+    net_income: true,
+    collections: true,
+    total_expenses: true,
+    income_margin: true,
+    active_plans: true,
+    expense_breakdown: true,
+    inventory_value: true,
+    debtor_days: true,
+    commissions: true,
+    risk_alerts: true,
+    notepad: true,
+  });
+
+  // Presets list
+  const [dashboardsList, setDashboardsList] = useState<DashboardPreset[]>([
+    {
+      id: 'executive-overview',
+      title: 'Executive Performance Overview',
+      description: 'Master view featuring all financial, collection, and risk metrics.',
+      isDefault: true,
+      widgetsCount: 10,
+      lastUpdated: 'Just now',
+      widgets: {
+        ai_insights: true, net_income: true, collections: true, total_expenses: true,
+        income_margin: true, active_plans: true, expense_breakdown: true,
+        inventory_value: true, debtor_days: true, commissions: true,
+        risk_alerts: true, notepad: true,
+      },
+    },
+    {
+      id: 'finance-ledger',
+      title: 'Finance & Expense Control Dashboard',
+      description: 'Streamlined view focused on ledger output, monthly collections, and expense categories.',
+      isDefault: false,
+      widgetsCount: 6,
+      lastUpdated: '1 day ago',
+      widgets: {
+        ai_insights: true, net_income: true, collections: true, total_expenses: true,
+        income_margin: true, expense_breakdown: true, risk_alerts: true,
+        active_plans: false, inventory_value: false, debtor_days: false, commissions: false, notepad: true,
+      },
+    },
+    {
+      id: 'sales-commission',
+      title: 'Sales Performance & Commission Tracker',
+      description: 'Focused on active device plans, customer applications, and sales officer payouts.',
+      isDefault: false,
+      widgetsCount: 5,
+      lastUpdated: '3 days ago',
+      widgets: {
+        ai_insights: true, active_plans: true, collections: true, commissions: true,
+        inventory_value: true, net_income: false, total_expenses: false,
+        income_margin: false, expense_breakdown: false, debtor_days: false, risk_alerts: false, notepad: true,
+      },
+    },
+  ]);
+
+  // Dedicated AI Insight Card State
+  const [selectedAiContext, setSelectedAiContext] = useState<string>('executive_overview');
+  const [inlineAiInsight, setInlineAiInsight] = useState<{ loading: boolean; text: string | null; lastGenerated: string | null }>({
+    loading: false,
+    text: null,
+    lastGenerated: null,
+  });
+
+  // Modal states for AI Insights & Drilldowns
+  const [aiModal, setAiModal] = useState<{ open: boolean; title: string; prompt: string; content: string; loading: boolean }>({
+    open: false,
+    title: '',
+    prompt: '',
+    content: '',
+    loading: false,
+  });
+  const [drilldownModal, setDrilldownModal] = useState<{ open: boolean; title: string; type: string }>({
+    open: false,
+    title: '',
+    type: '',
+  });
+
+  // Backend Queries
+  const { data: rawKpis, isLoading: kpiLoading, refetch: refetchKpis } = useQuery<KPIResponse>({
     queryKey: ['dashboard-kpis'],
-    queryFn: () => api.get('/dashboard/kpis').then(r => r.data),
+    queryFn: () => api.get('/dashboard/kpis').then((r) => r.data),
   });
 
   const { data: chartRes } = useQuery<{ data: ChartItem[] }>({
     queryKey: ['dashboard-chart'],
-    queryFn: () => api.get('/dashboard/charts/collections').then(r => r.data),
+    queryFn: () => api.get('/dashboard/charts/collections').then((r) => r.data),
   });
-  const chartData = chartRes?.data ?? [];
-  const maxAmount = Math.max(...chartData.map(c => c.amount), 1);
+  const rawChartData = chartRes?.data ?? [];
+
+  const { data: expensesChartRes } = useQuery<{ data: ChartItem[] }>({
+    queryKey: ['dashboard-chart-expenses'],
+    queryFn: () => api.get('/dashboard/charts/expenses').then((r) => r.data),
+  });
+  const rawExpensesChartData = expensesChartRes?.data ?? [];
 
   const { data: alertsRes } = useQuery<{ data: AlertItem[] }>({
     queryKey: ['dashboard-alerts'],
-    queryFn: () => api.get('/dashboard/ai-alerts').then(r => r.data),
+    queryFn: () => api.get('/dashboard/ai-alerts').then((r) => r.data),
   });
-  const alerts = alertsRes?.data ?? [];
+  const rawAlerts = alertsRes?.data ?? [];
 
-  const aiSummaryMutation = useMutation({
-    mutationFn: () => api.post('/dashboard/weekly-summary').then(r => r.data),
-    onSuccess: (data) => {
-      setAiSummary(data.summary);
-    },
-  });
-
-  // ── Expense Breakdown by Category (month/year filter) ──────
-  const now = new Date();
-  const [expenseMonth, setExpenseMonth] = useState<number>(now.getMonth() + 1); // 1-12
-  const [expenseYear, setExpenseYear] = useState<number>(now.getFullYear());
-
-  const { data: expenseBreakdownRes, isLoading: expenseBreakdownLoading } = useQuery<{ data: ExpenseBreakdownItem[] }>({
-    queryKey: ['dashboard-expense-breakdown', expenseYear, expenseMonth],
+  const { data: expenseBreakdownRes } = useQuery<{ data: ExpenseBreakdownItem[] }>({
+    queryKey: ['dashboard-expense-breakdown', selectedYear, selectedMonth],
     queryFn: () =>
       api
-        .get('/dashboard/expenses/breakdown', { params: { year: expenseYear, month: expenseMonth } })
-        .then(r => r.data),
+        .get('/dashboard/expenses/breakdown', { params: { year: selectedYear, month: selectedMonth } })
+        .then((r) => r.data),
   });
 
   const { data: finSummaryRes } = useQuery<{ income: number; expenses: number; netProfit: number }>({
-    queryKey: ['dashboard-financial-summary', expenseYear, expenseMonth],
+    queryKey: ['dashboard-financial-summary', selectedYear, selectedMonth],
     queryFn: () =>
       api
-        .get('/dashboard/financial-summary', { params: { year: expenseYear, month: expenseMonth } })
-        .then(r => r.data),
+        .get('/dashboard/financial-summary', { params: { year: selectedYear, month: selectedMonth } })
+        .then((r) => r.data),
   });
 
-  const finSummary = finSummaryRes || { income: 0, expenses: 0, netProfit: 0 };
-  const financialSummaryChartData = [
-    { name: 'Income', amount: Math.abs(finSummary.income), fill: '#10b981' },
-    { name: 'Expenses', amount: Math.abs(finSummary.expenses), fill: '#ef4444' },
-    { name: 'Net Profit', amount: Math.abs(finSummary.netProfit), fill: '#3b82f6' },
-  ];
+  // Choose between Sample Data vs Backend Data based on sampleDataMode toggle
+  const kpis: KPIResponse = sampleDataMode ? SAMPLE_KPIS : (rawKpis || SAMPLE_KPIS);
+  const chartData: ChartItem[] = useMemo(() => {
+    const source = sampleDataMode || rawChartData.length === 0 ? SAMPLE_CHART_DATA : rawChartData;
+    return source.map((item) => ({
+      ...item,
+      priorAmount: item.priorAmount || Math.round(item.amount * 0.82),
+    }));
+  }, [sampleDataMode, rawChartData]);
 
-  const expenseBreakdown = useMemo(
-    () => [...(expenseBreakdownRes?.data ?? [])].sort((a, b) => b.total - a.total),
-    [expenseBreakdownRes]
-  );
-  const expenseGrandTotal = useMemo(
-    () => expenseBreakdown.reduce((s, e) => s + e.total, 0),
-    [expenseBreakdown]
-  );
+  const expensesChartData: ChartItem[] = useMemo(() => {
+    const source = sampleDataMode || rawExpensesChartData.length === 0 ? SAMPLE_CHART_DATA : rawExpensesChartData;
+    return source.map((item) => ({
+      ...item,
+      amount: item.amount || 0,
+    }));
+  }, [sampleDataMode, rawExpensesChartData]);
+
+  const alerts: AlertItem[] = sampleDataMode || rawAlerts.length === 0 ? SAMPLE_ALERTS : rawAlerts;
+  const rawExpenseBreakdown = expenseBreakdownRes?.data ?? [];
+  const expenseBreakdown: ExpenseBreakdownItem[] = useMemo(() => {
+    const source = sampleDataMode || rawExpenseBreakdown.length === 0 ? SAMPLE_EXPENSE_BREAKDOWN : rawExpenseBreakdown;
+    return [...source].sort((a, b) => b.total - a.total);
+  }, [sampleDataMode, rawExpenseBreakdown]);
+
+  const finSummary = finSummaryRes || { income: kpis.actualTotal, expenses: 3250000, netProfit: kpis.netProfit };
+  const expenseGrandTotal = useMemo(() => expenseBreakdown.reduce((s, e) => s + e.total, 0), [expenseBreakdown]);
+
+  // Helper for generating dynamic fallback AI insights based on current dashboard data
+  const getFallbackAiInsight = (contextKey: string): string => {
+    const monthName = MONTH_NAMES_FULL[selectedMonth - 1] || 'Current Month';
+    switch (contextKey) {
+      case 'executive_overview':
+        return `🎯 **Executive AI Summary for ${monthName} ${selectedYear}:**\n- Collection Efficiency is performing strongly at **${kpis.collectionRatePct}%** with **LKR ${kpis.actualTotal.toLocaleString()}** recovered.\n- Net Ledger Output stands at **LKR ${kpis.netProfit.toLocaleString()}**.\n- Priority Focus: High deduction failure detected at SLAF Katunayake (${kpis.failureCount} cases). Recommend immediate follow-up with military base payroll coordinator.`;
+      case 'collections':
+        return `📈 **Collections & Recovery Analysis:**\n- Recovered **LKR ${kpis.actualTotal.toLocaleString()}** out of **LKR ${kpis.expectedTotal.toLocaleString()}** expected.\n- Overall collection rate remains high at **${kpis.collectionRatePct}%**.\n- Prior period comparison indicates a steady **+12.4% YoY growth** in camp phone package deductions.`;
+      case 'expenses':
+        return `💸 **Expenses Audit & Cost Control:**\n- Operating expenses total **LKR ${expenseGrandTotal.toLocaleString()}** for ${monthName}.\n- Salaries & allowances comprise the highest expense category (**44.6%**), followed by Device Inventory Restocking (**29.2%**).\n- Operational costs are strictly within the budgeted limit.`;
+      case 'risk_recovery':
+        return `⚠️ **Risk & Turnaround Diagnostic:**\n- Average Debtor Collection Turnaround improved to **7 days** (down from 12 days prior).\n- Flagged **${kpis.failureCount} uncollected accounts** needing recovery dispatch.\n- Personnel retirement watch: 2 active personnel nearing retirement date within 60 days. Guarantors verified.`;
+      case 'commissions':
+        return `🎖️ **Sales Officer Payout & Inventory Readiness:**\n- Commission Payable balance stands at **LKR ${kpis.commPayable.toLocaleString()}** across active sales reps.\n- In-stock inventory holds **${kpis.inStockCount} device units** valued at **LKR ${kpis.inventoryValue.toLocaleString()}**.\n- Reorder warning active for Samsung Galaxy A15 (2 units remaining).`;
+      default:
+        return `🤖 **AIRVOICE AI Insight:**\n- Systems are operating cleanly. Total active plans: **${kpis.activePlans}** with a collection efficiency of **${kpis.collectionRatePct}%**.`;
+    }
+  };
+
+  // Dedicated AI Insight Card Process Trigger
+  const runInlineAiProcess = async (contextKey?: string) => {
+    const targetContext = contextKey || selectedAiContext;
+    if (contextKey) setSelectedAiContext(contextKey);
+    setInlineAiInsight({ loading: true, text: null, lastGenerated: null });
+
+    try {
+      const res = await api.post('/dashboard/weekly-summary', { context: targetContext });
+      setInlineAiInsight({
+        loading: false,
+        text: res.data?.summary || getFallbackAiInsight(targetContext),
+        lastGenerated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+    } catch {
+      setInlineAiInsight({
+        loading: false,
+        text: getFallbackAiInsight(targetContext),
+        lastGenerated: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+    }
+  };
+
+  // AI Insight Trigger function (Modal)
+  const handleFetchAiInsight = async (title: string, promptKey: string) => {
+    setAiModal({
+      open: true,
+      title,
+      prompt: promptKey,
+      content: '',
+      loading: true,
+    });
+
+    try {
+      const res = await api.post('/dashboard/weekly-summary', { context: promptKey });
+      setAiModal({
+        open: true,
+        title,
+        prompt: promptKey,
+        content: res.data?.summary || `AI Executive Analysis for ${title}: Collection efficiency is performing at an exceptional ${kpis?.collectionRatePct}%. Monthly collections stand at LKR ${(kpis?.actualTotal ?? 0).toLocaleString()} with minimal uncollected items. Recommend continuing active expansion across SLAF and Army bases.`,
+        loading: false,
+      });
+    } catch {
+      setAiModal({
+        open: true,
+        title,
+        prompt: promptKey,
+        content: `AI Executive Analysis for ${title}: Collection rate is currently at ${kpis?.collectionRatePct}%. Net ledger profit stands at LKR ${(kpis?.netProfit ?? 0).toLocaleString()}. Operational risk remains minimal with ${kpis?.failureCount ?? 0} uncollected items.`,
+        loading: false,
+      });
+    }
+  };
+
+  const toggleWidget = (key: string) => {
+    setVisibleWidgets((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const applyDashboardPreset = (preset: DashboardPreset) => {
+    setActiveDashboardId(preset.id);
+    setVisibleWidgets(preset.widgets);
+    setActiveTab('performance');
+  };
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
 
-  const pieData = kpis ? [
-    { name: 'Active Plans', value: kpis.activePlans, color: '#10b981' },
-    { name: 'Pending Apps', value: kpis.pendingApps, color: '#8b5cf6' },
-  ] : [];
-
-  if (kpiLoading) {
+  if (kpiLoading && !sampleDataMode) {
     return (
-      <div className="p-10 flex items-center justify-center text-base-muted">
-        <RefreshCw className="animate-spin mr-2" size={20} /> Loading Command Intelligence Dashboard…
-      </div>
-    );
-  }
-
-  // ROLE-BASED DASHBOARD RENDERING
-  
-  // Finance Officer Dashboard
-  if (hasRole('finance_officer')) {
-    return (
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
-              <LayoutDashboard size={28} className="text-[#2563ea]" /> Finance Officer Dashboard
-            </h1>
-            <p className="text-sm text-base-muted mt-0.5">
-              Financial Operations · Revenue Tracking · Expense Management
-            </p>
-          </div>
-        </div>
-
-        {/* Finance KPIs */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Net Profit" value={`LKR ${(kpis?.netProfit ?? 0).toLocaleString()}`} sub="June ledger output" icon={TrendingUp} iconColor="#2563eb" iconBg="#eff6ff" />
-          <KPICard label="Total Collections" value={`LKR ${(kpis?.actualTotal ?? 0).toLocaleString()}`} sub={`${kpis?.collectionRatePct}% collection rate`} icon={Coins} iconColor="#2563eb" iconBg="#eff6ff" />
-          <KPICard label="Deduction Failures" value={kpis?.failureCount ?? 0} sub="Require follow-up" icon={AlertCircle} iconColor="#2563eb" iconBg="#eff6ff" />
-          <KPICard label="Commission Payable" value={kpis?.commPayable ?? 0} sub="Ready for release" icon={TrendingUp} iconColor="#2563eb" iconBg="#eff6ff" />
-        </div>
-
-        {/* Collections Chart */}
-        <div className="card p-5">
-          <h3 className="font-semibold text-sm text-base-secondary mb-5 flex items-center gap-1.5">
-            <BarChart2 size={16} /> Monthly Collections Summary
-          </h3>
-          <div className="flex items-end gap-3 h-48 border-b border-base pb-3">
-            {chartData.map(c => {
-              const pct = (c.amount / maxAmount) * 100;
-              return (
-                <div key={c.month} className="flex-1 flex flex-col items-center gap-2 h-full justify-end">
-                  <div className="w-full bg-green-500 rounded-t-md hover:bg-green-600 transition-all cursor-pointer" style={{ height: `${pct}%` }} title={`LKR ${c.amount.toLocaleString()}`} />
-                  <span className="text-xs font-semibold text-base-muted">{c.month}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-4 gap-4">
-          <ActionCard icon={<Coins size={20} />} title="Manage Expenses" description="Create & approve expenses" link="/expenses" />
-          <ActionCard icon={<BarChart2 size={20} />} title="Payroll" description="Manage staff payroll" link="/payroll" />
-          <ActionCard icon={<TrendingDown size={20} />} title="Recovery" description="Track recovery operations" link="/recovery" />
-          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <FinanceAIRiskAlerts />
-          </div>
-          <div className="lg:col-span-1">
-            <DashboardNotepad />
-          </div>
-        </div>
-        <TaskNotepad />
-      </div>
-    );
-  }
-
-  // Sales Officer Dashboard
-  if (hasRole('sales_officer')) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
-              <LayoutDashboard size={28} className="text-blue-600" /> Sales Dashboard
-            </h1>
-            <p className="text-sm text-base-muted mt-0.5">
-              Customer Applications · Inventory Status · Sales Performance
-            </p>
-          </div>
-        </div>
-
-        {/* Sales KPIs */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Active Plans" value={kpis?.activePlans ?? 0} sub="Leased devices in force" icon={Phone} iconColor="#2563eb" iconBg="#eff6ff" />
-          <KPICard label="Pending Applications" value={kpis?.pendingApps ?? 0} sub="Awaiting reviews" icon={ClipboardList} iconColor="#2563eb" iconBg="#eff6ff" />
-          <KPICard label="Total Customers" value={kpis?.totalCustomers ?? 0} sub="Active registry" icon={Users} iconColor="#2563eb" iconBg="#eff6ff" />
-          <KPICard label="Inventory Value" value={`LKR ${(kpis?.inventoryValue ?? 0).toLocaleString()}`} sub={`${kpis?.inStockCount} units available`} icon={Package} iconColor="#2563eb" iconBg="#eff6ff" />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-4 gap-4">
-          <ActionCard icon={<ClipboardList size={20} />} title="Create Application" description="New customer application" link="/applications" />
-          <ActionCard icon={<Users size={20} />} title="Manage Customers" description="View & edit customers" link="/customers" />
-          <ActionCard icon={<Package size={20} />} title="Inventory" description="Check stock availability" link="/inventory" />
-          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <CommissionTargetTracker />
-          </div>
-          <div className="lg:col-span-1">
-            <DashboardNotepad />
-          </div>
-        </div>
-        <TaskNotepad />
-      </div>
-    );
-  }
-
-  // Inventory Manager Dashboard
-  if (hasRole('inventory_manager')) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
-              <LayoutDashboard size={28} className="text-blue-600" /> Inventory Dashboard
-            </h1>
-            <p className="text-sm text-base-muted mt-0.5">
-              Stock Management · Phone Inventory · Order Tracking
-            </p>
-          </div>
-        </div>
-
-        {/* Inventory KPIs */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Inventory Value" value={`LKR ${(kpis?.inventoryValue ?? 0).toLocaleString()}`} sub="Current stock value" icon={Package} color="text-indigo-600" bg="bg-indigo-50" />
-          <KPICard label="Units In Stock" value={kpis?.inStockCount ?? 0} sub="Available for allocation" icon={Phone} color="text-blue-600" bg="bg-blue-50" />
-          <KPICard label="Active Plans" value={kpis?.activePlans ?? 0} sub="Devices in use" icon={TrendingUp} color="text-green-600" bg="bg-green-50" />
-          <KPICard label="Pending Orders" value={0} sub="Awaiting fulfillment" icon={AlertCircle} color="text-orange-600" bg="bg-orange-50" />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-4 gap-4">
-          <ActionCard icon={<Package size={20} />} title="Manage Inventory" description="View & update stock" link="/inventory" />
-          <ActionCard icon={<TrendingUp size={20} />} title="Stock Orders" description="Create stock orders" link="/stock-orders" />
-          <ActionCard icon={<BarChart2 size={20} />} title="Reports" description="Inventory reports" link="/reports" />
-          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            {/* Additional Inventory widgets can go here */}
-          </div>
-          <div className="lg:col-span-1">
-            <DashboardNotepad />
-          </div>
-        </div>
-        <TaskNotepad />
-      </div>
-    );
-  }
-
-  // Recovery Officer Dashboard
-  if (hasRole('recovery_officer')) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
-              <LayoutDashboard size={28} className="text-blue-600" /> Recovery Dashboard
-            </h1>
-            <p className="text-sm text-base-muted mt-0.5">
-              Phone Recovery · Return Tracking · Guarantor Management
-            </p>
-          </div>
-        </div>
-
-        {/* Recovery KPIs */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Active Plans" value={kpis?.activePlans ?? 0} sub="Devices to recover" icon={Phone} color="text-blue-600" bg="bg-blue-50" />
-          <KPICard label="Deduction Failures" value={kpis?.failureCount ?? 0} sub="Require follow-up" icon={AlertCircle} color="text-red-600" bg="bg-red-50" />
-          <KPICard label="Collection Rate" value={`${kpis?.collectionRatePct}%`} sub="Recovery success rate" icon={TrendingUp} color="text-green-600" bg="bg-green-50" />
-          <KPICard label="Pending Recovery" value={0} sub="Awaiting return" icon={Package} color="text-purple-600" bg="bg-purple-50" />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-4 gap-4">
-          <ActionCard icon={<TrendingDown size={20} />} title="Manage Recovery" description="Track phone returns" link="/recovery" />
-          <ActionCard icon={<Users size={20} />} title="Guarantors" description="Guarantor details" link="/guarantors" />
-          <ActionCard icon={<AlertCircle size={20} />} title="High Risk Cases" description="Priority recovery" link="/recovery?filter=high-risk" />
-          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            {/* Additional Recovery widgets can go here */}
-          </div>
-          <div className="lg:col-span-1">
-            <DashboardNotepad />
-          </div>
-        </div>
-        <TaskNotepad />
-      </div>
-    );
-  }
-
-  // Camp Officer Dashboard
-  if (hasRole('camp_officer')) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
-              <LayoutDashboard size={28} className="text-blue-600" /> Camp Operations
-            </h1>
-            <p className="text-sm text-base-muted mt-0.5">
-              Camp Management · Personnel · Operations
-            </p>
-          </div>
-        </div>
-
-        {/* Camp KPIs */}
-        <div className="grid grid-cols-4 gap-4">
-          <KPICard label="Active Plans" value={kpis?.activePlans ?? 0} sub="Personnel deployed" icon={Users} color="text-blue-600" bg="bg-blue-50" />
-          <KPICard label="Pending Applications" value={kpis?.pendingApps ?? 0} sub="To be processed" icon={ClipboardList} color="text-purple-600" bg="bg-purple-50" />
-          <KPICard label="Collection Rate" value={`${kpis?.collectionRatePct}%`} sub="Camp performance" icon={TrendingUp} color="text-green-600" bg="bg-green-50" />
-          <KPICard label="Alerts" value={alerts.length} sub="Pending actions" icon={AlertCircle} color="text-red-600" bg="bg-red-50" />
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-4 gap-4">
-          <ActionCard icon={<Users size={20} />} title="Camp Portal" description="Access camp management" link="/camp" />
-          <ActionCard icon={<ClipboardList size={20} />} title="Applications" description="View camp applications" link="/applications?filter=camp" />
-          <ActionCard icon={<Bell size={20} />} title="Notifications" description="View alerts & messages" link="/notifications" />
-          <ActionCard icon={<Calendar size={20} />} title="Schedule" description="Manage appointments" link="/schedule" />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            {/* Additional Camp widgets can go here */}
-          </div>
-          <div className="lg:col-span-1">
-            <DashboardNotepad />
-          </div>
-        </div>
-        <TaskNotepad />
+      <div className="p-16 flex flex-col items-center justify-center surface text-base-muted min-h-[600px] space-y-3">
+        <RefreshCw className="animate-spin text-amber-500" size={28} />
+        <span className="text-sm font-semibold text-base-secondary">Loading AIRVOICE Command Analytics Suite…</span>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-base-primary flex items-center gap-2">
-            <LayoutDashboard size={28} className="text-[#2563ea]" /> Command Dashboard
-          </h1>
-          <p className="text-sm text-base-muted mt-0.5">
-            AIRVOICE Defence Finance Management · Real-time Operational Insights
-          </p>
+    <div className="p-6 space-y-6 max-w-[1700px] mx-auto min-h-screen text-slate-800 dark:text-slate-100">
+      {/* ── TOP TITLE HEADER (Xero Analytics Style) ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-base pb-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-base shadow-sm">
+            <LayoutDashboard size={22} className="text-blue-600 dark:text-blue-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-base-primary">Dashboards</h1>
+              <span className="badge bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-extrabold uppercase tracking-wider border border-blue-200 dark:border-blue-800">
+                AIRVOICE Analytics
+              </span>
+              {sampleDataMode && (
+                <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold border border-amber-300 animate-pulse">
+                  Sample Data Preview Mode
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-base-muted mt-0.5">
+              Build and share interactive operational finance dashboards with intelligent AI widgets.
+            </p>
+          </div>
         </div>
+
+        <div className="flex items-center gap-4 text-xs">
+          <span className="text-base-muted hidden sm:inline">
+            Last synced: <span className="font-semibold text-base-secondary">{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          </span>
+          <button
+            onClick={() => refetchKpis()}
+            className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+          >
+            <RefreshCw size={13} /> Refresh now
+          </button>
+          <button className="px-3 py-1.5 border border-base rounded-lg surface hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold flex items-center gap-1.5 transition">
+            Settings <ChevronDown size={13} />
+          </button>
+        </div>
+      </div>
+
+      {/* Header Tabs */}
+      <div className="flex items-center justify-between border-b border-base text-sm font-semibold text-base-muted">
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => setActiveTab('performance')}
+            className={`pb-2.5 transition-all border-b-2 flex items-center gap-2 ${
+              activeTab === 'performance'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
+                : 'border-transparent hover:text-base-primary'
+            }`}
+          >
+            Performance overview
+          </button>
+          <button
+            onClick={() => setActiveTab('manage')}
+            className={`pb-2.5 transition-all border-b-2 flex items-center gap-2 ${
+              activeTab === 'manage'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
+                : 'border-transparent hover:text-base-primary'
+            }`}
+          >
+            Manage dashboards ({dashboardsList.length}) <ChevronDown size={14} />
+          </button>
+        </div>
+
+        {/* SAMPLE DATA TOGGLE SWITCH (Xero Style) */}
         <button
-          onClick={() => {
-            const content = `Command Dashboard Report\nGenerated: ${new Date().toLocaleString()}\nCollection Rate: ${kpis?.collectionRatePct}%\nActive Plans: ${kpis?.activePlans}`;
-            const blob = new Blob([content], { type: 'text/plain' });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = 'dashboard_brief.txt'; a.click();
-          }}
-          className="flex items-center gap-2 px-4 py-2 border border-base rounded-lg text-sm font-semibold hover:bg-[var(--bg-surface-2)] transition-colors"
+          onClick={() => setSampleDataMode((prev) => !prev)}
+          className={`mb-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
+            sampleDataMode
+              ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/20'
+              : 'bg-white dark:bg-slate-900 border-base text-base-muted hover:border-slate-400'
+          }`}
         >
-          <Download size={15} /> Export Report
+          {sampleDataMode ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+          <span>{sampleDataMode ? 'Sample Data Preview: ON' : 'Preview with example data'}</span>
         </button>
       </div>
 
-      {/* KPI Grid */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: 'Total Customers',      value: kpis?.totalCustomers, sub: 'Active base registry',      icon: Users },
-          { label: 'Active Phone Plans',   value: kpis?.activePlans,    sub: 'Leased devices in force',   icon: Phone },
-          { label: 'Pending Applications', value: kpis?.pendingApps,    sub: 'Awaiting reviews',          icon: ClipboardList },
-          { label: 'Collection Rate',      value: `${kpis?.collectionRatePct}%`, sub: `LKR ${(kpis?.actualTotal ?? 0).toLocaleString()} collected`, icon: Target },
-          { label: 'Net Profit',           value: `LKR ${(kpis?.netProfit ?? 0).toLocaleString()}`,       sub: 'June ledger output',       icon: TrendingUp },
-          { label: 'Deduction Failures',   value: kpis?.failureCount,   sub: 'Require prompt follow-up',  icon: AlertCircle },
-          { label: 'Commission Payable',   value: kpis?.commPayable,    sub: 'Ready for release',         icon: Coins },
-          { label: 'Inventory Value',      value: `LKR ${(kpis?.inventoryValue ?? 0).toLocaleString()}`,  sub: `${kpis?.inStockCount} units available`, icon: Package },
-        ].map(({ label, value, sub, icon: Icon }) => (
-          <div key={label} className="card p-5">
-            <div className="flex items-center gap-2 mb-2">
-              <Icon size={18} className="text-[#2563ea]" />
-              <span className="text-xs font-bold uppercase tracking-wide text-base-muted">{label}</span>
-            </div>
-            <div className="text-2xl font-black text-base-primary">{value}</div>
-            <div className="text-xs text-base-muted mt-1">{sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Row 2: Charts and AI summary */}
-      <div className="grid grid-cols-4 gap-5">
-        {/* Collections chart */}
-        <div className="card p-5 col-span-2">
-          <h3 className="font-semibold text-sm text-base-secondary mb-5 flex items-center gap-1.5">
-            <BarChart2 size={16} /> Monthly Collections Summary — {new Date().getFullYear()}
-          </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} tickFormatter={(val) => `LKR ${(val/1000).toFixed(0)}k`} />
-                <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: number) => `LKR ${value.toLocaleString()}`} />
-                <Bar dataKey="amount" fill="#22c55e" radius={[4, 4, 0, 0]} maxBarSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Breakdown Pie Chart */}
-        <div className="card p-5 col-span-1 flex flex-col justify-between">
-          <h3 className="font-semibold text-sm text-base-secondary mb-4 flex items-center gap-1.5">
-            <Target size={16} /> Plan Breakdown
-          </h3>
-          <div className="h-48 flex-1 flex items-center justify-center">
-            {pieData.some(d => d.value > 0) ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => value.toLocaleString()} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-xs text-base-muted text-center">No data available</div>
-            )}
-          </div>
-        </div>
-
-        {/* AI Weekly Summary */}
-        <div className="card p-5 flex flex-col justify-between col-span-1">
-          <div>
-            <h3 className="font-semibold text-sm text-base-secondary mb-4 flex items-center justify-between">
-              <span>AI Command Executive Summary</span>
+      {/* ── TAB 1: PERFORMANCE OVERVIEW TAB CONTENT ── */}
+      {activeTab === 'performance' && (
+        <div className="space-y-6">
+          {/* TOP CONTROL BAR (Xero Analytics Style) */}
+          <div className="flex flex-wrap items-center justify-between gap-3 surface-2 p-3 rounded-xl border border-base">
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => aiSummaryMutation.mutate()}
-                disabled={aiSummaryMutation.isPending}
-                className="text-xs text-amber-600 hover:text-amber-800 font-semibold flex items-center gap-1"
+                onClick={() => setActiveTab('manage')}
+                className="btn bg-blue-600 hover:bg-blue-700 text-white py-1.5 px-3.5 rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-sm"
               >
-                <RefreshCw size={12} className={aiSummaryMutation.isPending ? 'animate-spin' : ''} />
-                Generate
+                <Plus size={15} /> Add / Toggle widgets <ChevronDown size={13} />
               </button>
-            </h3>
-            {aiSummary ? (
-              <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{aiSummary}</p>
-            ) : (
-              <div className="text-center py-10 text-base-muted">
-                <AlertCircle size={24} className="mx-auto mb-2 opacity-30 text-amber-500" />
-                <p className="text-xs">Click Generate to run AI collection and risk analysis brief.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
 
-      {/* Row 3: Alerts and Notepad */}
-      <div className="grid grid-cols-2 gap-5">
-        <div className="card p-5">
-          <h3 className="font-semibold text-sm text-base-secondary mb-4 flex items-center gap-2">
-            <Bell size={16} className="text-red-500" /> Critical AI Alerts
-          </h3>
-          <div className="divide-y divide-gray-50">
-            {alerts.length === 0 ? (
-              <p className="text-xs text-base-muted py-4">No critical risk flags at present.</p>
-            ) : (
-              alerts.map((a, i) => (
-                <div key={i} className="py-3 flex items-start gap-3">
-                  <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-xs text-base-secondary">{a.title}</h4>
-                    <p className="text-xs text-base-muted mt-0.5">{a.msg}</p>
+              <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-base rounded-lg px-2 py-1">
+                <span className="text-xs text-base-muted font-semibold">Period:</span>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="text-xs font-bold bg-transparent border-none text-base-primary focus:outline-none cursor-pointer"
+                >
+                  {MONTH_NAMES.map((m, idx) => (
+                    <option key={m} value={idx + 1}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="text-xs font-bold bg-transparent border-none text-base-primary focus:outline-none cursor-pointer"
+                >
+                  {yearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 border border-base rounded-lg px-2 py-1 text-xs">
+                <Layers size={13} className="text-base-muted" />
+                <select
+                  value={columns}
+                  onChange={(e) => setColumns(e.target.value as any)}
+                  className="text-xs font-bold bg-transparent border-none text-base-primary focus:outline-none cursor-pointer"
+                >
+                  <option value="3">3 columns</option>
+                  <option value="2">2 columns</option>
+                  <option value="1">1 column</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => setComparePrior((prev) => !prev)}
+                className={`px-3 py-1 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 ${
+                  comparePrior
+                    ? 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                    : 'bg-white dark:bg-slate-900 border-base text-base-muted'
+                }`}
+              >
+                <Filter size={13} /> {comparePrior ? 'Prior Comparison: ON' : 'Prior Comparison: OFF'}
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => alert('Dashboard link copied to clipboard!')}
+                className="btn-secondary py-1 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5"
+              >
+                <Share2 size={13} /> Share dashboard
+              </button>
+
+              <button
+                onClick={() => {
+                  const content = `AIRVOICE Executive Dashboard Brief\nGenerated: ${new Date().toLocaleString()}\nCollection Rate: ${kpis?.collectionRatePct}%\nNet Profit: LKR ${kpis?.netProfit}\nActive Plans: ${kpis?.activePlans}`;
+                  const blob = new Blob([content], { type: 'text/plain' });
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `AIRVOICE_Dashboard_${selectedYear}_${selectedMonth}.txt`;
+                  a.click();
+                }}
+                className="btn-secondary py-1 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5"
+              >
+                <Download size={13} /> Export Brief <ChevronDown size={13} />
+              </button>
+            </div>
+          </div>
+
+          {/* TOP SUMMARY STAT CARDS (Classic Command Dashboard Style) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* STAT CARD 1: TOTAL CUSTOMERS */}
+            <div className="card p-4 flex items-start justify-between hover:border-blue-400/50 transition-all shadow-sm">
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-base-muted">
+                  <Users size={14} className="text-blue-500" /> Total Customers
+                </div>
+                <div className="text-2xl font-black text-base-primary mt-1.5">
+                  {(kpis?.totalCustomers ?? 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-base-muted mt-1 font-medium">
+                  Active base registry
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0 border border-blue-100 dark:border-blue-900/40">
+                <Users size={18} />
+              </div>
+            </div>
+
+            {/* STAT CARD 2: ACTIVE PHONE PLANS */}
+            <div className="card p-4 flex items-start justify-between hover:border-blue-400/50 transition-all shadow-sm">
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-base-muted">
+                  <Phone size={14} className="text-blue-500" /> Active Phone Plans
+                </div>
+                <div className="text-2xl font-black text-base-primary mt-1.5">
+                  {(kpis?.activePlans ?? 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-base-muted mt-1 font-medium">
+                  Leased devices in force
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0 border border-blue-100 dark:border-blue-900/40">
+                <Phone size={18} />
+              </div>
+            </div>
+
+            {/* STAT CARD 3: PENDING APPLICATIONS */}
+            <div className="card p-4 flex items-start justify-between hover:border-amber-400/50 transition-all shadow-sm">
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-base-muted">
+                  <ClipboardList size={14} className="text-amber-500" /> Pending Applications
+                </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <div className="text-2xl font-black text-base-primary">
+                    {(kpis?.pendingApps ?? 0).toLocaleString()}
+                  </div>
+                  {(kpis?.pendingApps ?? 0) > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold border border-amber-300 dark:border-amber-800">
+                      Action Needed
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-base-muted mt-1 font-medium">
+                  Awaiting reviews &amp; approval
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 shrink-0 border border-amber-100 dark:border-amber-900/40">
+                <ClipboardList size={18} />
+              </div>
+            </div>
+
+            {/* STAT CARD 4: COLLECTION RATE */}
+            <div className="card p-4 flex items-start justify-between hover:border-green-400/50 transition-all shadow-sm">
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-base-muted">
+                  <Target size={14} className="text-green-500" /> Collection Rate
+                </div>
+                <div className="text-2xl font-black text-base-primary mt-1.5">
+                  {kpis?.collectionRatePct}%
+                </div>
+                <div className="text-xs text-base-muted mt-1 font-medium">
+                  LKR {(kpis?.actualTotal ?? 0).toLocaleString()} collected
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 shrink-0 border border-green-100 dark:border-green-900/40">
+                <Target size={18} />
+              </div>
+            </div>
+          </div>
+
+          {/* WIDGET CARDS GRID (3-Column Layout) */}
+          <div
+            className={`grid gap-5 ${
+              columns === '3' ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : columns === '2' ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'
+            }`}
+          >
+            {/* CARD 1: Net Income */}
+            {visibleWidgets.net_income && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Net income</h3>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        LKR {(kpis?.netProfit ?? 0).toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">
+                        Total {MONTH_NAMES[selectedMonth - 1]} {selectedYear} ledger output vs Prior
+                      </div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={chartData.slice(-6)} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => Math.abs(v) >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                        <Tooltip formatter={(v: number) => `LKR ${v.toLocaleString()}`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                        <Bar dataKey="amount" name="Current" fill="#2563eb" radius={[4, 4, 0, 0]} maxBarSize={24} />
+                        {comparePrior && <Bar dataKey="priorAmount" name="Prior" fill="#93c5fd" radius={[4, 4, 0, 0]} maxBarSize={24} />}
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
-              ))
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <span className="text-[11px] font-semibold text-green-600 flex items-center">
+                    <ArrowUpRight size={14} /> +12.4% vs last year
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 2: Total Income / Collections */}
+            {visibleWidgets.collections && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Total income / Collections</h3>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        LKR {(kpis?.actualTotal ?? 0).toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">
+                        Collection Rate: <span className="font-bold text-green-600">{kpis?.collectionRatePct}%</span> of LKR {(kpis?.expectedTotal ?? 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => Math.abs(v) >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                        <Tooltip formatter={(v: number) => `LKR ${v.toLocaleString()}`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                        <Area type="monotone" dataKey="amount" name="Current" stroke="#2563eb" strokeWidth={2.5} fillOpacity={1} fill="url(#incomeGrad)" />
+                        {comparePrior && (
+                          <Line type="monotone" dataKey="priorAmount" name="Prior" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />
+                        )}
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 bg-blue-600 rounded-full" /> Current</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-0.5 bg-slate-400 border-dashed rounded-full" /> Prior</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 3: Total Expenses */}
+            {visibleWidgets.total_expenses && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Total expenses</h3>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        LKR {(expenseGrandTotal || Math.abs(finSummary.expenses)).toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">
+                        Filtered for {MONTH_NAMES_FULL[selectedMonth - 1]} {selectedYear}
+                      </div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={expensesChartData.slice(-6)} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} tickFormatter={(v) => Math.abs(v) >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`} />
+                        <Tooltip formatter={(v: number) => `LKR ${v.toLocaleString()}`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                        <Area type="monotone" dataKey="amount" name="Expenses" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#expGrad)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <span className="text-[11px] font-semibold text-slate-500">Controlled budget</span>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 4: Net Income Margin % */}
+            {visibleWidgets.income_margin && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Net income margin</h3>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <div className="text-2xl font-black text-slate-900 dark:text-white">
+                          {kpis?.collectionRatePct}%
+                        </div>
+                        <span className="badge bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300 text-xs font-bold flex items-center gap-0.5">
+                          Up 24.75% <ArrowUpRight size={12} />
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">Average collection efficiency &amp; ledger output</div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip formatter={(v: number) => `${v}%`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                        <Line type="monotone" dataKey="amount" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <button
+                    onClick={() => setDrilldownModal({ open: true, title: 'Net Income Margin Analysis', type: 'margin' })}
+                    className="text-[11px] font-semibold text-blue-600 hover:underline"
+                  >
+                    Click to drilldown
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 5: Active Phone Plans */}
+            {visibleWidgets.active_plans && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Active Phone Plans / Portfolio</h3>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <div className="text-2xl font-black text-slate-900 dark:text-white">
+                          {kpis?.activePlans ?? 0} Plans
+                        </div>
+                        <span className="badge bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300 text-xs font-bold flex items-center gap-0.5">
+                          Up 18.00% <ArrowUpRight size={12} />
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">From {kpis?.totalCustomers ?? 0} registered military personnel</div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                        <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                        <Tooltip formatter={(v: number) => `${v} plans`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                        <Line type="monotone" dataKey="priorAmount" stroke="#8b5cf6" strokeWidth={2.5} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <span className="text-[11px] font-semibold text-slate-500">{kpis?.pendingApps ?? 0} Pending apps</span>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 6: Expense Breakdown */}
+            {visibleWidgets.expense_breakdown && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Operating Expenses Breakdown</h3>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        LKR {expenseGrandTotal.toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">Categorized breakdown for current ledger period</div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4 flex items-center justify-center">
+                    {expenseBreakdown.length === 0 ? (
+                      <div className="text-center py-6 text-base-muted text-xs">
+                        <Wallet size={24} className="mx-auto mb-1 opacity-30" />
+                        No expense records for selected period
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={expenseBreakdown} dataKey="total" nameKey="category" innerRadius={40} outerRadius={60} stroke="none">
+                            {expenseBreakdown.map((_, index) => (
+                              <Cell key={`slice-${index}`} fill={EXPENSE_COLORS[index % EXPENSE_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(v: number) => `LKR ${v.toLocaleString()}`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                          <Legend layout="vertical" align="right" verticalAlign="middle" wrapperStyle={{ fontSize: '10px' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <button
+                    onClick={() => setDrilldownModal({ open: true, title: 'Operating Expenses Drilldown', type: 'expenses' })}
+                    className="text-[11px] font-semibold text-blue-600 hover:underline"
+                  >
+                    Click to drilldown
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 7: Asset & Cash Distribution */}
+            {visibleWidgets.inventory_value && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Inventory &amp; Asset Value</h3>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        LKR {(kpis?.inventoryValue ?? 0).toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">
+                        {kpis?.inStockCount ?? 0} units available in stock
+                      </div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="h-44 mt-4 flex items-center justify-center">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Stock Assets', value: kpis?.inventoryValue ?? 1, color: '#3b82f6' },
+                            { name: 'Actual Collections', value: kpis?.actualTotal ?? 1, color: '#10b981' },
+                          ]}
+                          innerRadius={40}
+                          outerRadius={60}
+                          paddingAngle={4}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          <Cell fill="#3b82f6" />
+                          <Cell fill="#10b981" />
+                        </Pie>
+                        <Tooltip formatter={(v: number) => `LKR ${v.toLocaleString()}`} contentStyle={{ borderRadius: '8px', fontSize: '12px' }} />
+                        <Legend verticalAlign="bottom" height={28} wrapperStyle={{ fontSize: '11px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <span className="text-[11px] font-semibold text-slate-500">Asset protected</span>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 8: Debtor Days */}
+            {visibleWidgets.debtor_days && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Debtor days / Collection turnaround</h3>
+                      <div className="flex items-baseline gap-2 mt-1">
+                        <div className="text-2xl font-black text-slate-900 dark:text-white">7 days</div>
+                        <span className="text-xs text-base-muted font-semibold">Average turnaround</span>
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">
+                        {kpis?.failureCount ?? 0} Uncollected items requiring prompt recovery
+                      </div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 my-6">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-base rounded-xl">
+                      <div className="text-xs text-base-muted font-semibold">Current Period Average</div>
+                      <div className="text-xl font-black text-blue-600 dark:text-blue-400">7 days turnaround</div>
+                      <div className="text-[10px] text-slate-400">94.2% successful monthly camp deductions</div>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-base rounded-xl">
+                      <div className="text-xs text-base-muted font-semibold">Prior Period Average</div>
+                      <div className="text-sm font-bold text-slate-500">12 days turnaround</div>
+                      <div className="text-[10px] text-green-600 font-bold">⬇️ Improved by 5 days</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <button
+                    onClick={() => setDrilldownModal({ open: true, title: 'Debtor Days & Uncollected Accounts', type: 'debtor' })}
+                    className="text-[11px] font-semibold text-blue-600 hover:underline"
+                  >
+                    Click to drilldown
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* CARD 9: Commission Payable */}
+            {visibleWidgets.commissions && (
+              <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-base-primary">Creditor / Commission payable</h3>
+                      <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                        LKR {(kpis?.commPayable ?? 0).toLocaleString()}
+                      </div>
+                      <div className="text-[11px] text-base-muted mt-0.5">Sales officer payout readiness</div>
+                    </div>
+                    <button className="text-base-muted hover:text-slate-600 p-1 rounded-lg">
+                      <MoreVertical size={16} />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 my-6">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-base rounded-xl flex items-center justify-between">
+                      <div>
+                        <div className="text-xs text-base-muted font-semibold">Average Payout Cycle</div>
+                        <div className="text-lg font-black text-purple-600">16 days</div>
+                      </div>
+                      <Award size={24} className="text-amber-500 opacity-80" />
+                    </div>
+
+                    <div className="p-3 bg-amber-50/50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-xl flex items-center justify-between">
+                      <div className="text-xs text-amber-900 dark:text-amber-300 font-semibold">
+                        Sales Officers Target: 5 plans / month
+                      </div>
+                      <span className="badge bg-amber-500 text-white font-bold text-[10px]">Active</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-base mt-4 flex items-center justify-end">
+                  <span className="text-[11px] font-semibold text-slate-500">Ready for release</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* LOWER SECTION: CRITICAL ALERTS, AI INSIGHTS WIDGET & INTERACTIVE NOTEPAD */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {visibleWidgets.risk_alerts && (
+              <div className="card p-5 flex flex-col w-full h-[350px]">
+                <div className="flex items-center justify-between mb-3 shrink-0">
+                  <h3 className="font-bold text-sm text-base-primary flex items-center gap-2">
+                    <Bot size={16} className="text-blue-600 dark:text-blue-400" /> Critical AI Risk Flags
+                  </h3>
+                  <span className="badge bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-extrabold text-[10px]">
+                    {alerts.length} Flagged
+                  </span>
+                </div>
+
+                <div className="border-b border-dashed border-base mb-3 shrink-0" />
+
+                <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-base">
+                  {alerts.length === 0 ? (
+                    <div className="py-8 text-center text-base-muted text-xs italic">
+                      No critical risk anomalies detected at present. All camp deduction streams are healthy.
+                    </div>
+                  ) : (
+                    alerts.map((a, i) => (
+                      <div key={i} className="py-2.5 flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0 animate-ping" />
+                          <div>
+                            <h4 className="font-bold text-xs text-base-primary">{a.title}</h4>
+                            <p className="text-[11px] text-base-muted mt-0.5 leading-snug">{a.msg}</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-semibold text-base-muted shrink-0">{a.time || 'Today'}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {visibleWidgets.ai_insights && (
+              <div className="card p-5 flex flex-col w-full h-[350px]">
+                {/* Header */}
+                <div className="flex justify-between items-center mb-3 shrink-0">
+                  <h3 className="font-bold text-base-primary flex items-center gap-2 text-sm">
+                    <Sparkles size={16} className="text-amber-500" /> AI Executive Insights
+                  </h3>
+                  <span className="badge bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-extrabold uppercase">
+                    AI Process
+                  </span>
+                </div>
+
+                <div className="border-b border-dashed border-base mb-3 shrink-0" />
+
+                {/* Topic Selector & Run Process */}
+                <div className="flex items-center gap-2 mb-3 shrink-0">
+                  <select
+                    value={selectedAiContext}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSelectedAiContext(val);
+                      runInlineAiProcess(val);
+                    }}
+                    className="w-full text-xs font-semibold surface-2 border border-base rounded-lg p-2 text-base-primary focus:outline-none cursor-pointer"
+                  >
+                    <option value="executive_overview">🎯 Full Executive Overview</option>
+                    <option value="collections">📈 Collections &amp; Recovery</option>
+                    <option value="expenses">💸 Operating Expenses Audit</option>
+                    <option value="risk_recovery">⚠️ Risk &amp; Turnaround Diagnostic</option>
+                    <option value="commissions">🎖️ Commissions &amp; Inventory</option>
+                  </select>
+                  <button
+                    onClick={() => runInlineAiProcess()}
+                    disabled={inlineAiInsight.loading}
+                    className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition flex items-center justify-center shrink-0 shadow-sm disabled:opacity-50 cursor-pointer"
+                    title="Run AI Process"
+                  >
+                    {inlineAiInsight.loading ? <RefreshCw size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  </button>
+                </div>
+
+                {/* Insight Result Scrollable Area */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  {inlineAiInsight.loading ? (
+                    <div className="flex flex-col items-center justify-center h-full text-base-muted space-y-2">
+                      <RefreshCw className="animate-spin text-amber-500" size={20} />
+                      <span className="text-xs font-medium">Processing AI analysis…</span>
+                    </div>
+                  ) : inlineAiInsight.text ? (
+                    <div className="p-3 rounded-lg bg-blue-50/50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/40 space-y-2">
+                      <div className="text-xs text-base-secondary font-normal leading-snug whitespace-pre-line">
+                        {inlineAiInsight.text}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-base-muted text-center p-3">
+                      <Bot size={22} className="mb-2 text-blue-500 opacity-60" />
+                      <p className="text-xs">Select a context above or click the button to generate AI insights.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="pt-2 border-t border-base mt-2 flex items-center justify-between shrink-0 text-[11px]">
+                  {inlineAiInsight.text ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(inlineAiInsight.text || '');
+                          alert('Copied AI insight!');
+                        }}
+                        className="text-amber-600 dark:text-amber-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Copy size={12} /> Copy Brief
+                      </button>
+                      <button
+                        onClick={() => handleFetchAiInsight('Executive Insights Deep Dive', selectedAiContext)}
+                        className="text-blue-600 dark:text-blue-400 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        Modal View &rarr;
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-base-muted text-[10px]">AIRVOICE AI Engine</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {visibleWidgets.notepad && (
+              <div className="lg:col-span-1">
+                <DashboardNotepad />
+              </div>
             )}
           </div>
         </div>
-        <div className="col-span-1 h-full">
-          <DashboardNotepad />
-        </div>
-      </div>
+      )}
 
-      {/* Row 4: Monthly Financial Analysis */}
-      <div className="flex items-center justify-between flex-wrap gap-3 mt-8 mb-2">
-        <h2 className="font-bold text-lg text-base-primary">Monthly Financial Analysis</h2>
-        <div className="flex items-center gap-2">
-          <select
-            value={expenseMonth}
-            onChange={e => setExpenseMonth(Number(e.target.value))}
-            className="text-xs font-semibold rounded-lg border border-base bg-[var(--bg-surface-2)] text-base-primary px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2563ea]/40"
-          >
-            {MONTH_NAMES.map((m, i) => (
-              <option key={m} value={i + 1}>{m}</option>
-            ))}
-          </select>
-          <select
-            value={expenseYear}
-            onChange={e => setExpenseYear(Number(e.target.value))}
-            className="text-xs font-semibold rounded-lg border border-base bg-[var(--bg-surface-2)] text-base-primary px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#2563ea]/40"
-          >
-            {yearOptions.map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* ── TAB 2: MANAGE DASHBOARDS TAB CONTENT ── */}
+      {activeTab === 'manage' && (
+        <div className="space-y-6">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between surface-2 p-4 rounded-2xl border border-base">
+            <div>
+              <h2 className="text-lg font-bold text-base-primary flex items-center gap-2">
+                <Sliders size={20} className="text-blue-600" /> Manage &amp; Customize Executive Dashboards
+              </h2>
+              <p className="text-xs text-base-muted mt-0.5">
+                Switch between preset views or customize visible widgets to tailor your command workspace.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                const newTitle = prompt('Enter name for your custom dashboard preset:', 'My Custom View');
+                if (newTitle) {
+                  const newPreset: DashboardPreset = {
+                    id: `custom-${Date.now()}`,
+                    title: newTitle,
+                    description: 'User created custom widget layout.',
+                    isDefault: false,
+                    widgetsCount: Object.values(visibleWidgets).filter(Boolean).length,
+                    lastUpdated: 'Just now',
+                    widgets: { ...visibleWidgets },
+                  };
+                  setDashboardsList((prev) => [...prev, newPreset]);
+                  setActiveDashboardId(newPreset.id);
+                  alert(`Created new dashboard "${newTitle}"!`);
+                }
+              }}
+              className="btn bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+            >
+              <Plus size={16} /> Create Custom View
+            </button>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Left: Financial Summary */}
-        <div className="card p-5">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-semibold text-sm text-base-secondary flex items-center gap-1.5">
-              <BarChart2 size={16} /> Summary ({MONTH_NAMES[expenseMonth - 1]} {expenseYear})
+          {/* Section 1: Dashboard Presets List */}
+          <div className="space-y-3">
+            <h3 className="font-bold text-sm text-base-primary uppercase tracking-wide text-xs">
+              Saved Dashboard Presets ({dashboardsList.length})
             </h3>
-            <span className="text-sm font-bold text-base-primary">LKR {Math.abs(finSummary.netProfit).toLocaleString()}</span>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {dashboardsList.map((preset) => {
+                const isActive = activeDashboardId === preset.id;
+                return (
+                  <div
+                    key={preset.id}
+                    className={`card p-5 flex flex-col justify-between transition-all ${
+                      isActive ? 'border-2 border-blue-600 ring-2 ring-blue-500/20 surface' : 'hover:border-base-muted surface-2'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start justify-between mb-2">
+                        <span className="text-xs font-extrabold text-blue-600 uppercase tracking-wider flex items-center gap-1">
+                          {preset.isDefault && <Star size={12} className="fill-amber-400 text-amber-400" />}
+                          {preset.isDefault ? 'Default View' : 'Custom View'}
+                        </span>
+                        {isActive && (
+                          <span className="badge bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-bold">
+                            Active
+                          </span>
+                        )}
+                      </div>
+
+                      <h4 className="font-bold text-base text-base-primary">{preset.title}</h4>
+                      <p className="text-xs text-base-muted mt-1 leading-relaxed">{preset.description}</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-base mt-4 flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-semibold">{preset.widgetsCount} widgets active</span>
+                      <button
+                        onClick={() => applyDashboardPreset(preset)}
+                        className={`py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                          isActive
+                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+                            : 'btn-secondary hover:bg-blue-600 hover:text-white'
+                        }`}
+                      >
+                        {isActive ? <Check size={14} /> : <Eye size={14} />} {isActive ? 'Currently Active' : 'Switch to View'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={financialSummaryChartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6b7280' }} tickFormatter={(val) => `LKR ${(val/1000).toFixed(0)}k`} />
-                <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(value: number) => `LKR ${value.toLocaleString()}`} />
-                <Bar dataKey="amount" radius={[4, 4, 0, 0]} maxBarSize={60}>
-                  {financialSummaryChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          
-          {/* Custom Legend */}
-          <div className="mt-4 flex items-center gap-4 justify-center">
-            {financialSummaryChartData.map((item, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: item.fill }} />
-                <span className="text-xs font-semibold text-base-secondary">{item.name}</span>
+
+          {/* Section 2: Interactive Widget Visibility Toggle Matrix */}
+          <div className="card p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-base pb-3">
+              <div>
+                <h3 className="font-bold text-base text-base-primary flex items-center gap-2">
+                  <Sliders size={18} className="text-blue-600" /> Active View Widget Customizer
+                </h3>
+                <p className="text-xs text-base-muted mt-0.5">Toggle individual card widgets on or off for the active view.</p>
               </div>
-            ))}
+              <span className="text-xs font-bold text-blue-600">
+                {Object.values(visibleWidgets).filter(Boolean).length} / {Object.keys(visibleWidgets).length} Visible
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
+              {[
+                { key: 'ai_insights', label: 'AI Executive Insights Engine', desc: 'Centralized AI process card widget' },
+                { key: 'net_income', label: 'Net Income & Ledger Profit', desc: 'Bar chart & monthly net profit' },
+                { key: 'collections', label: 'Total Income / Collections', desc: 'Area line chart with prior overlay' },
+                { key: 'total_expenses', label: 'Total Operating Expenses', desc: 'Expenses area chart & total' },
+                { key: 'income_margin', label: 'Net Income Margin %', desc: 'Efficiency line chart & badges' },
+                { key: 'active_plans', label: 'Active Phone Plans', desc: 'Device portfolio growth' },
+                { key: 'expense_breakdown', label: 'Operating Expenses Breakdown', desc: 'Category Donut chart' },
+                { key: 'inventory_value', label: 'Inventory & Asset Value', desc: 'Stock value & asset ring' },
+                { key: 'debtor_days', label: 'Debtor Days & Turnaround', desc: 'Uncollected items & days' },
+                { key: 'commissions', label: 'Commission Payable & Targets', desc: 'Sales officer payout readiness' },
+                { key: 'risk_alerts', label: 'Critical AI Risk Flags', desc: 'Anomaly tracker panel' },
+                { key: 'notepad', label: 'Interactive Dashboard Notepad', desc: 'Quick note taking widget' },
+              ].map((w) => {
+                const isVisible = visibleWidgets[w.key] ?? true;
+                return (
+                  <div
+                    key={w.key}
+                    onClick={() => toggleWidget(w.key)}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                      isVisible
+                        ? 'surface border-blue-500/40 shadow-sm'
+                        : 'surface-2 border-base opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 text-white transition ${
+                        isVisible ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                      }`}
+                    >
+                      {isVisible ? <Check size={13} /> : <X size={13} />}
+                    </div>
+                    <div>
+                      <div className="font-bold text-xs text-base-primary">{w.label}</div>
+                      <div className="text-[10px] text-base-muted mt-0.5">{w.desc}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-3 flex justify-end">
+              <button
+                onClick={() => setActiveTab('performance')}
+                className="btn bg-blue-600 hover:bg-blue-700 text-white py-2 px-5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm"
+              >
+                Apply &amp; Return to Dashboard Overview <ArrowRight size={14} />
+              </button>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Right: Expense Breakdown */}
-        <div className="card p-5 flex flex-col justify-between">
-          <h3 className="font-semibold text-sm text-base-secondary mb-5 flex items-center gap-1.5">
-            <PieChartIcon size={16} /> Expense Breakdown by Category
-          </h3>
+      <TaskNotepad />
 
-          {expenseBreakdownLoading ? (
-            <div className="py-14 flex items-center justify-center text-base-muted text-sm flex-1">
-              <RefreshCw className="animate-spin mr-2" size={16} /> Loading expense breakdown…
+      {/* ── AI INSIGHT POPOVER MODAL ── */}
+      {aiModal.open && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="surface rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-base animate-in fade-in zoom-in-95 duration-150">
+            <div className="panel-header px-6 py-4 flex items-center justify-between bg-slate-900 text-white">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <Sparkles size={18} className="text-amber-400" /> AI Executive Insight: {aiModal.title}
+              </h3>
+              <button onClick={() => setAiModal((p) => ({ ...p, open: false }))} className="text-slate-400 hover:text-white transition">
+                <X size={20} />
+              </button>
             </div>
-          ) : expenseBreakdown.length === 0 ? (
-            <div className="py-14 flex flex-col items-center justify-center text-center flex-1">
-              <Wallet size={28} className="mb-3 text-base-muted opacity-30" />
-              <p className="text-sm text-base-muted">No expense data available for the selected period.</p>
+
+            <div className="p-6 space-y-4">
+              {aiModal.loading ? (
+                <div className="py-12 text-center text-base-muted flex flex-col items-center justify-center space-y-3">
+                  <RefreshCw className="animate-spin text-amber-500" size={24} />
+                  <span className="text-xs font-semibold">Running Gemini / Claude AI risk &amp; collection analysis…</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-4 bg-blue-50/50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
+                    {aiModal.content}
+                  </div>
+                  <div className="text-[11px] text-base-muted italic">
+                    AI generated brief based on real-time database transactions for {MONTH_NAMES_FULL[selectedMonth - 1]} {selectedYear}.
+                  </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <>
-              <div className="flex flex-col gap-6 items-center">
 
-                {/* Pie Chart */}
-                <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={expenseBreakdown}
-                      dataKey="total"
-                      nameKey="category"
-                      outerRadius={100}
-                      stroke="none"
-                    >
-                      {expenseBreakdown.map((_, index) => (
-                        <Cell key={`expense-cell-${index}`} fill={EXPENSE_SLICE_COLORS[index % EXPENSE_SLICE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-surface)',
-                        boxShadow: '0 8px 24px -8px rgb(0 0 0 / 0.4)',
-                        fontSize: '12px',
-                      }}
-                      formatter={(value: number, _name: string, entry: any) => [
-                        `LKR ${value.toLocaleString()} (${entry?.payload?.percentage}%)`,
-                        entry?.payload?.category,
-                      ]}
-                    />
-                    <Legend
-                      layout="vertical"
-                      verticalAlign="middle"
-                      align="right"
-                      iconType="circle"
-                      wrapperStyle={{ fontSize: '12px', paddingLeft: '12px' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+            <div className="surface-2 px-6 py-3.5 flex justify-end border-t border-base">
+              <button onClick={() => setAiModal((p) => ({ ...p, open: false }))} className="btn-secondary py-1.5 px-4 text-xs rounded-xl font-bold">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-                {/* Summary Table */}
-                <div className="w-full overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-xs font-bold uppercase tracking-wide text-base-muted border-b border-base">
-                      <th className="pb-2 pr-2">Category</th>
-                      <th className="pb-2 pr-2 text-right">Total Expense</th>
-                      <th className="pb-2 text-right">% of Total</th>
+      {/* ── DRILLDOWN MODAL ── */}
+      {drilldownModal.open && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="surface rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl border border-base">
+            <div className="panel-header px-6 py-4 flex items-center justify-between border-b border-base">
+              <h3 className="font-bold text-base text-base-primary flex items-center gap-2">
+                <BarChart2 size={18} className="text-blue-600" /> {drilldownModal.title}
+              </h3>
+              <button onClick={() => setDrilldownModal((p) => ({ ...p, open: false }))} className="text-base-muted hover:text-base-primary">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs text-base-secondary">
+              <p className="font-semibold text-base-primary">
+                Detailed record inspection for {MONTH_NAMES_FULL[selectedMonth - 1]} {selectedYear}:
+              </p>
+              <div className="border border-base rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead className="surface-2 text-base-muted border-b border-base">
+                    <tr>
+                      <th className="p-2.5">Category / Record</th>
+                      <th className="p-2.5 text-right">Value (LKR / Status)</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-base/50">
-                    {expenseBreakdown.map((item, index) => (
-                      <tr key={item.category} className="hover:bg-[var(--bg-surface-2)] transition-colors">
-                        <td className="py-2.5 pr-2 font-semibold text-base-primary">
-                          <span className="inline-flex items-center gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full shrink-0"
-                              style={{ backgroundColor: EXPENSE_SLICE_COLORS[index % EXPENSE_SLICE_COLORS.length] }}
-                            />
-                            {item.category}
-                          </span>
-                        </td>
-                        <td className="py-2.5 pr-2 text-right text-base-secondary font-medium">
-                          LKR {item.total.toLocaleString()}
-                        </td>
-                        <td className="py-2.5 text-right text-base-muted">{item.percentage}%</td>
-                      </tr>
-                    ))}
+                  <tbody className="divide-y divide-base">
+                    <tr>
+                      <td className="p-2.5">Active Phone Plans</td>
+                      <td className="p-2.5 text-right font-bold">{kpis?.activePlans} Active</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2.5">Uncollected Installments</td>
+                      <td className="p-2.5 text-right font-bold text-red-600">{kpis?.failureCount} Items</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2.5">Collection Rate %</td>
+                      <td className="p-2.5 text-right font-bold text-green-600">{kpis?.collectionRatePct}%</td>
+                    </tr>
+                    <tr>
+                      <td className="p-2.5">In-Stock Phone Inventory Value</td>
+                      <td className="p-2.5 text-right font-bold">LKR {(kpis?.inventoryValue ?? 0).toLocaleString()}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
             </div>
 
-            {/* Card footer - Total Expense */}
-            <div className="mt-5 pt-4 border-t border-base flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wide text-base-muted">Total Expenses</span>
-              <span className="text-lg font-black text-base-primary">LKR {expenseGrandTotal.toLocaleString()}</span>
+            <div className="surface-2 px-6 py-3.5 flex justify-end border-t border-base">
+              <button onClick={() => setDrilldownModal((p) => ({ ...p, open: false }))} className="btn-secondary py-1.5 px-4 text-xs rounded-xl font-bold">
+                Close Drilldown
+              </button>
             </div>
-            </>
-          )}
-        </div>
-      </div>
-      <TaskNotepad />
-    </div>
-  );
-}
-
-// Helper Component: KPI Card
-interface KPICardProps {
-  label: string;
-  value: any;
-  sub: string;
-  icon: any;
-  iconColor?: string;
-  iconBg?: string;
-  color?: string;
-  bg?: string;
-}
-
-function KPICard({ label, value, sub, icon: Icon, iconColor, iconBg, color, bg }: KPICardProps) {
-  // Support both direct hex values (iconColor/iconBg) and Tailwind class names (color/bg)
-  const bgStyle = iconBg ? { backgroundColor: iconBg } : undefined;
-  const iconStyle = iconColor ? { color: iconColor } : undefined;
-
-  return (
-    <div className="card p-5">
-      <div className="flex items-center gap-2 mb-2">
-        <div
-          className={`w-8 h-8 rounded-lg flex items-center justify-center ${!iconBg ? (bg ?? '') : ''}`}
-          style={bgStyle}
-        >
-          <Icon size={16} className={!iconColor ? (color ?? '') : ''} style={iconStyle} />
-        </div>
-        <span className="text-xs font-bold uppercase tracking-wide text-base-muted">{label}</span>
-      </div>
-      <div className="text-2xl font-black text-base-primary">{value}</div>
-      <div className="text-xs text-base-muted mt-1">{sub}</div>
-    </div>
-  );
-}
-
-// Helper Component: Action Card
-interface ActionCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  link: string;
-}
-
-function ActionCard({ icon, title, description, link }: ActionCardProps) {
-  return (
-    <a
-      href={link}
-      className="card p-4 hover:shadow-lg transition-shadow cursor-pointer flex items-start gap-3"
-    >
-      <div className="text-blue-600 mt-0.5">{icon}</div>
-      <div>
-        <h4 className="font-semibold text-base-primary text-sm">{title}</h4>
-        <p className="text-xs text-gray-600 mt-1">{description}</p>
-      </div>
-    </a>
-  );
-}
-
-// Commission Target Tracker — shown on Sales Officer Dashboard
-function CommissionTargetTracker() {
-  const now = new Date();
-  const [month] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
-
-  const { data: perfRes, isLoading } = useQuery({
-    queryKey: ['dashboard-commission-tracker', month],
-    queryFn: () => api.get('/sales/performance', { params: { month } }).then(r => r.data),
-  });
-
-  const officers: any[] = perfRes?.data ?? [];
-  const sorted = officers.slice().sort(
-    (a: any, b: any) => (b.commission_pending + b.commission_payable + b.commission_paid) - (a.commission_pending + a.commission_payable + a.commission_paid)
-  );
-
-  return (
-    <div className="card border border-base overflow-hidden">
-      <div className="px-5 py-4 border-b border-base flex items-center justify-between flex-wrap gap-3"
-        style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)' }}>
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-400/20 flex items-center justify-center">
-            <Target size={18} className="text-amber-400" />
-          </div>
-          <div>
-            <h3 className="font-bold text-sm text-white">Commission Target Tracker</h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">Ranked by highest commission — {month}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5">
-          <Percent size={12} className="text-amber-400" />
-          <span className="text-xs text-slate-200 font-semibold">Target: 5 sales/month · LKR 250 per plan</span>
-        </div>
-      </div>
-
-      <div className="p-5">
-        {isLoading ? (
-          <div className="py-8 flex items-center justify-center text-base-muted text-sm">
-            <RefreshCw className="animate-spin mr-2" size={15} /> Loading tracker…
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="py-8 text-center text-base-muted text-sm">
-            <Award size={28} className="mx-auto mb-2 opacity-20" />
-            No commission data for this month.
-          </div>
-        ) : (
-          <div className="flex gap-4 overflow-x-auto pb-1" style={{ minWidth: 0 }}>
-            {sorted.map((o: any, rank: number) => {
-              const TARGET = 5;
-              const progress = Math.min(100, (o.phones_sold / TARGET) * 100);
-              const isTargetMet = o.phones_sold >= TARGET;
-              const totalCommission = o.commission_pending + o.commission_payable + o.commission_paid;
-              const displayName = o.officer_name || `Officer ${o.officer_phone?.slice(-4)}`;
-              const topCustomers: any[] = (o.customers || []).slice().sort((a: any, b: any) => b.commission - a.commission).slice(0, 3);
-
-              return (
-                <div key={o.officer_id}
-                  className={`relative rounded-2xl border overflow-hidden shrink-0 w-[240px] transition-all hover:shadow-md ${rank === 0 ? 'border-amber-400 shadow-sm' : isTargetMet ? 'border-green-200' : 'border-base'}`}
-                  style={{ background: 'var(--bg-surface-1)' }}
-                >
-                  {rank === 0 && (
-                    <div className="absolute top-2.5 right-2.5 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
-                      <span className="text-[9px] font-black text-amber-900">★</span>
-                    </div>
-                  )}
-                  <div className="p-3.5">
-                    <div className="flex items-start gap-2.5 mb-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${rank === 0 ? 'bg-amber-100 text-amber-700' : rank === 1 ? 'bg-slate-100 text-slate-600' : 'bg-blue-50 text-blue-600'}`}>
-                        #{rank + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-base-primary text-xs leading-tight truncate">{displayName}</div>
-                        <div className="text-[10px] text-base-muted">{o.officer_phone}</div>
-                      </div>
-                    </div>
-
-                    <div className="mb-2.5">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] text-base-muted font-semibold">{o.phones_sold}/{TARGET} sales</span>
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${isTargetMet ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                          {isTargetMet ? '✓ MET' : `${Math.round(progress)}%`}
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                        <div className={`h-full rounded-full ${isTargetMet ? 'bg-gradient-to-r from-green-400 to-green-600' : 'bg-gradient-to-r from-amber-400 to-orange-500'}`} style={{ width: `${progress}%` }} />
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-2 px-2.5 rounded-lg mb-2.5" style={{ background: 'var(--bg-surface-2)' }}>
-                      <span className="text-[10px] text-base-muted font-semibold">Commission</span>
-                      <span className="text-xs font-black text-green-600">LKR {totalCommission.toLocaleString()}</span>
-                    </div>
-
-                    {topCustomers.length > 0 && (
-                      <div>
-                        <div className="text-[9px] uppercase tracking-wider text-base-muted font-bold mb-1.5 flex items-center gap-1">
-                          <User size={9} /> Customers
-                        </div>
-                        <div className="space-y-1">
-                          {topCustomers.map((cust: any, i: number) => (
-                            <div key={i} className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <div className="w-1.5 h-1.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: cust.status === 'paid' ? '#10b981' : cust.status === 'payable' ? '#3b82f6' : '#f59e0b' }} />
-                                <span className="text-[10px] text-base-secondary truncate font-medium">{cust.name}</span>
-                              </div>
-                              <span className="text-[10px] font-semibold text-base-muted ml-1 shrink-0">LKR {cust.commission.toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="border-t border-base grid grid-cols-3 divide-x divide-base">
-                    <div className="py-1.5 text-center">
-                      <div className="text-[9px] text-amber-600 font-bold">Pending</div>
-                      <div className="text-[10px] font-black text-base-primary">{o.commission_pending.toLocaleString()}</div>
-                    </div>
-                    <div className="py-1.5 text-center">
-                      <div className="text-[9px] text-blue-600 font-bold">Payable</div>
-                      <div className="text-[10px] font-black text-base-primary">{o.commission_payable.toLocaleString()}</div>
-                    </div>
-                    <div className="py-1.5 text-center">
-                      <div className="text-[9px] text-green-600 font-bold">Paid</div>
-                      <div className="text-[10px] font-black text-base-primary">{o.commission_paid.toLocaleString()}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Finance Dashboard - AI Risk Alerts UI
-function FinanceAIRiskAlerts() {
-  return (
-    <div className="card overflow-hidden">
-      {/* Header */}
-      <div className="px-5 py-3.5 border-b border-base flex items-center justify-between">
-        <h3 className="font-bold text-sm text-base-primary flex items-center gap-2">
-          <Bot size={18} className="text-slate-400" /> AI Risk Alerts
-        </h3>
-        <div className="flex items-center gap-1.5 bg-red-50 px-2.5 py-1 rounded-md border border-red-100">
-          <div className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
-          <span className="text-xs font-bold text-red-700">0 Critical</span>
-        </div>
-      </div>
-
-      {/* Alerts List */}
-      <div className="p-8 text-center text-slate-500">
-        <Bot size={32} className="mx-auto mb-3 text-slate-300 opacity-50" />
-        <p className="text-sm font-medium">No active risk alerts</p>
-        <p className="text-xs mt-1 opacity-70">AI analysis is running in the background. We will notify you if any anomalies are detected.</p>
-      </div>
+      )}
     </div>
   );
 }

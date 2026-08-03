@@ -509,7 +509,7 @@ export default function ChequePrinterPage() {
                 });
               }
             }}
-            className="flex items-center gap-1 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg transition-colors"
+            className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus size={15}/> Add Bank
           </button>
@@ -520,7 +520,7 @@ export default function ChequePrinterPage() {
             <select
               value={selectedBankId}
               onChange={e => setSelectedBankId(e.target.value)}
-              className="form-input w-64 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="form-input w-64 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <optgroup label="Global Defaults">
                 {banks.filter(b => b.is_global_default).map(b => (
@@ -551,10 +551,10 @@ export default function ChequePrinterPage() {
             onClick={() => setActiveTab(t.key)}
             className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
               activeTab === t.key
-                ? 'border-amber-500 text-amber-500'
-                : 'border-transparent hover:text-amber-500'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent hover:text-blue-600'
             }`}
-            style={{ color: activeTab === t.key ? '#f59e0b' : 'var(--text-secondary)' }}
+            style={{ color: activeTab === t.key ? '#2563eb' : 'var(--text-secondary)' }}
           >
             {t.icon} {t.label}
           </button>
@@ -647,7 +647,7 @@ export default function ChequePrinterPage() {
             <div className="flex flex-wrap gap-2 pt-2">
               <button
                 onClick={handlePrint}
-                className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
               >
                 <Printer size={15}/> Print Cheque
               </button>
@@ -773,7 +773,7 @@ export default function ChequePrinterPage() {
             <div className="flex flex-wrap gap-2 pt-2">
               <button onClick={handleSaveCalibration}
                 disabled={saveBankMutation.isPending || createBankMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
               >
                 <Save size={14}/>
                 {currentBank?.is_global_default ? 'Save as My Copy' : 'Save Template'}

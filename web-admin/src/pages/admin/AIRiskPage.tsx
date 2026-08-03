@@ -121,7 +121,7 @@ export default function AIRiskPage() {
           id="btn-run-analysis"
           onClick={() => aiMutation.mutate()}
           disabled={aiMutation.isPending || isLoading}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-semibold hover:bg-purple-700 disabled:opacity-60 transition-colors shadow-sm"
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-sm"
         >
           {aiMutation.isPending
             ? <RefreshCw size={15} className="animate-spin" />

@@ -188,8 +188,8 @@ export default function CampManagementPage() {
       <div className="flex gap-2">
         {(['', ...BRANCHES] as const).map(b => (
           <button key={b} onClick={() => setBranchFilter(b as Branch | '')}
-            className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${branchFilter === b ? 'bg-navy text-white border-transparent' : 'border-base text-gray-600 hover:border-gray-400'}`}
-            style={{ backgroundColor: branchFilter === b ? '#1A3A6B' : undefined }}>
+            className={`px-3 py-1.5 text-sm rounded-full border transition-colors ${branchFilter === b ? 'bg-blue-600 text-white border-transparent' : 'border-base text-gray-600 hover:border-gray-400'}`}
+            style={{ backgroundColor: branchFilter === b ? '#2563eb' : undefined }}>
             {b ? BRANCH_LABEL[b as Branch] : 'All'}
           </button>
         ))}

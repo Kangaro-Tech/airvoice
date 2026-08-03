@@ -266,8 +266,7 @@ export default function ExpensesPage() {
             </button>
             <button
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-lg shadow-amber-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{background:'linear-gradient(135deg,#f59e0b,#ea580c)'}}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all hover:scale-[1.02] active:scale-[0.98] shadow-sm"
             >
               <Plus size={16} /> Add Expense
             </button>
@@ -444,7 +443,7 @@ export default function ExpensesPage() {
                     onClick={() => setStatusFilter(s)}
                     className={`px-3 py-2 rounded-lg text-xs font-bold capitalize transition-all ${
                       statusFilter===s
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'surface-2 text-base-muted hover:bg-[var(--bg-surface-3)]'
                     }`}
                   >{s}</button>

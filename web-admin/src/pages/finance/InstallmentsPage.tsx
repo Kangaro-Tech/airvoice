@@ -368,10 +368,10 @@ export default function InstallmentsPage() {
           </button>
           <button
             onClick={() => { setView('camp_entry'); setSubmitResult(null); resetEdits(); }}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold border flex items-center gap-1.5 transition-colors ${view === 'camp_entry' ? 'bg-amber-500 text-slate-900 border-amber-500' : 'btn-secondary'
+            className={`px-4 py-2 rounded-lg text-sm font-semibold border flex items-center gap-1.5 transition-colors ${view === 'camp_entry' ? 'bg-blue-600 text-white border-blue-600' : 'btn-secondary'
               }`}
           >
-            <Building size={14} className={view === 'camp_entry' ? 'text-slate-900' : ''} /> Camp Entry
+            <Building size={14} className={view === 'camp_entry' ? 'text-white' : ''} /> Camp Entry
           </button>
           <button onClick={exportExcel} className="btn-secondary text-sm px-4 py-2 flex items-center gap-1.5">
             <FileSpreadsheet size={14} /> Export Excel
@@ -749,7 +749,7 @@ export default function InstallmentsPage() {
                 onClick={() => setStatusFilter(t)}
                 className="px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5"
                 style={statusFilter === t
-                  ? { backgroundColor: '#f59e0b', color: '#0f172a' }
+                  ? { backgroundColor: '#2563eb', color: '#ffffff' }
                   : { backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }
                 }
               >

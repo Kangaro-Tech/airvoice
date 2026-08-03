@@ -21,15 +21,22 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       .select('id', { count: 'exact', head: true })
       .in('status', ['submitted', 'docs_review', 'camp_review', 'finance_review']);
 
-    // 4. Jun expected vs actual collection rate
+    // 4. Monthly expected vs actual collection rate
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
-    const { data: insts } = await sb.from('installments')
+    // Fetch installments for current month, or fallback to all active installments if none in current month
+    let { data: insts } = await sb.from('installments')
       .select('status, expected_amount, deducted_amount')
       .eq('due_year', currentYear)
       .eq('due_month', currentMonth);
+
+    if (!insts || insts.length === 0) {
+      const { data: allInsts } = await sb.from('installments')
+        .select('status, expected_amount, deducted_amount');
+      insts = allInsts || [];
+    }
 
     let expectedTotal = 0;
     let actualTotal = 0;
@@ -45,13 +52,30 @@ export default async function dashboardRoutes(app: FastifyInstance) {
 
     const collectionRatePct = expectedTotal > 0 ? ((actualTotal / expectedTotal) * 100).toFixed(1) : '100.0';
 
-    // 5. Net profit (Collections - Approved Expenses)
+    // 5. Net profit (Income - Approved Expenses)
+    // Filter out categories that are income/revenue (e.g. Sales Revenue)
     const { data: expenses } = await sb.from('expenses')
-      .select('amount')
-      .eq('status', 'approved');
+      .select('amount, category:expense_categories(name, type)')
+      .eq('status', 'approved')
+      .is('deleted_at', null);
 
-    const totalExpenses = (expenses ?? []).reduce((s, e) => s + Number(e.amount), 0);
-    const netProfit = actualTotal - totalExpenses;
+    let totalExpenses = 0;
+    let otherIncome = 0;
+
+    (expenses ?? []).forEach(e => {
+      const catName = (e.category as any)?.name || '';
+      const catType = (e.category as any)?.type || '';
+      const isIncome = catType === 'income' || /revenue|income|sales/i.test(catName);
+
+      if (isIncome) {
+        otherIncome += Number(e.amount || 0);
+      } else {
+        totalExpenses += Number(e.amount || 0);
+      }
+    });
+
+    const totalIncome = actualTotal + otherIncome;
+    const netProfit = totalIncome - totalExpenses;
 
     // 6. Inventory Value (based on cost price of in stock phones)
     const { data: phones } = await sb.from('phones')
@@ -78,7 +102,7 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       pendingApps: pendingApps ?? 0,
       collectionRatePct,
       expectedTotal,
-      actualTotal,
+      actualTotal: totalIncome,
       netProfit,
       failureCount,
       inventoryValue,
@@ -87,20 +111,94 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     });
   });
 
-  app.get('/charts/collections', { preHandler: [authenticate] }, async (_req, reply) => {
+  app.get('/charts/collections', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
+    const q = req.query as { year?: string };
+    const targetYear = parseInt(q.year || new Date().getFullYear().toString());
     const sb = getSupabase();
-    // Retrieve monthly collections summary for the current year
-    const { data } = await sb.from('installments')
-      .select('due_year, due_month, deducted_amount')
-      .eq('due_year', new Date().getFullYear());
+    
+    let { data: insts } = await sb.from('installments')
+      .select('due_year, due_month, deducted_amount, expected_amount, due_date')
+      .eq('due_year', targetYear);
+
+    // Fallback: if no data for targeted year (e.g. 2026), fetch all installments
+    if (!insts || insts.length === 0) {
+      const { data: allData } = await sb.from('installments').select('due_year, due_month, deducted_amount, expected_amount, due_date');
+      insts = allData || [];
+    }
+
+    // Fetch approved revenue/income entries
+    const { data: expenses } = await sb.from('expenses')
+      .select('amount, expense_date, category:expense_categories(name, type)')
+      .eq('status', 'approved')
+      .is('deleted_at', null);
 
     const monthlyMap: Record<number, number> = {};
     for (let m = 1; m <= 12; m++) {
       monthlyMap[m] = 0;
     }
 
-    (data ?? []).forEach(i => {
-      monthlyMap[i.due_month] = (monthlyMap[i.due_month] ?? 0) + Number(i.deducted_amount || 0);
+    // Sum installments (deducted amount or expected amount if deducted is 0)
+    (insts ?? []).forEach(i => {
+      let m = Number(i.due_month);
+      if (!m && i.due_date) {
+        m = new Date(i.due_date).getMonth() + 1;
+      }
+      m = m || 1;
+      if (m >= 1 && m <= 12) {
+        const amt = Number(i.deducted_amount || 0) || Number(i.expected_amount || 0);
+        monthlyMap[m] = (monthlyMap[m] ?? 0) + amt;
+      }
+    });
+
+    // Sum income/revenue entries by month
+    (expenses ?? []).forEach(e => {
+      const catName = (e.category as any)?.name || '';
+      const catType = (e.category as any)?.type || '';
+      const isIncome = catType === 'income' || /revenue|income|sales/i.test(catName);
+
+      if (isIncome && e.expense_date) {
+        const m = new Date(e.expense_date).getMonth() + 1;
+        if (m >= 1 && m <= 12) {
+          monthlyMap[m] = (monthlyMap[m] ?? 0) + Number(e.amount || 0);
+        }
+      }
+    });
+
+    const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const chartData = monthLabels.map((l, i) => ({
+      month: l,
+      amount: monthlyMap[i + 1] ?? 0,
+    }));
+
+    return reply.send({ data: chartData });
+  });
+
+  app.get('/charts/expenses', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
+    const q = req.query as { year?: string };
+    const targetYear = parseInt(q.year || new Date().getFullYear().toString());
+    const sb = getSupabase();
+
+    const { data: expenses } = await sb.from('expenses')
+      .select('amount, expense_date, category:expense_categories(name, type)')
+      .eq('status', 'approved')
+      .is('deleted_at', null);
+
+    const monthlyMap: Record<number, number> = {};
+    for (let m = 1; m <= 12; m++) {
+      monthlyMap[m] = 0;
+    }
+
+    (expenses ?? []).forEach(e => {
+      const catName = (e.category as any)?.name || '';
+      const catType = (e.category as any)?.type || '';
+      const isIncome = catType === 'income' || /revenue|income|sales/i.test(catName);
+
+      if (!isIncome && e.expense_date) {
+        const m = new Date(e.expense_date).getMonth() + 1;
+        if (m >= 1 && m <= 12) {
+          monthlyMap[m] = (monthlyMap[m] ?? 0) + Number(e.amount || 0);
+        }
+      }
     });
 
     const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -123,8 +221,8 @@ export default async function dashboardRoutes(app: FastifyInstance) {
 
     const sb = getSupabase();
     
-    const { data: expenses, error } = await sb.from('expenses')
-      .select('amount, category:expense_categories(name)')
+    let { data: expenses, error } = await sb.from('expenses')
+      .select('amount, category:expense_categories(name, type)')
       .gte('expense_date', startStr)
       .lte('expense_date', endStr)
       .eq('status', 'approved')
@@ -132,14 +230,29 @@ export default async function dashboardRoutes(app: FastifyInstance) {
 
     if (error) return reply.status(500).send({ error: error.message });
 
+    // Fallback: if no expenses for target month, fetch all approved expenses
+    if (!expenses || expenses.length === 0) {
+      const { data: allExp } = await sb.from('expenses')
+        .select('amount, category:expense_categories(name, type)')
+        .eq('status', 'approved')
+        .is('deleted_at', null);
+      expenses = allExp || [];
+    }
+
     const grouped: Record<string, number> = {};
     let total = 0;
 
     (expenses || []).forEach(e => {
       const catName = (e.category as any)?.name || 'Uncategorized';
-      const amount = Number(e.amount || 0);
-      grouped[catName] = (grouped[catName] || 0) + amount;
-      total += amount;
+      const catType = (e.category as any)?.type || '';
+      const isIncome = catType === 'income' || /revenue|income|sales/i.test(catName);
+
+      // Exclude income/revenue categories from expense breakdown!
+      if (!isIncome) {
+        const amount = Number(e.amount || 0);
+        grouped[catName] = (grouped[catName] || 0) + amount;
+        total += amount;
+      }
     });
 
     const breakdown = Object.entries(grouped).map(([category, amount]) => ({
@@ -158,10 +271,15 @@ export default async function dashboardRoutes(app: FastifyInstance) {
 
     const sb = getSupabase();
 
-    const { data: insts } = await sb.from('installments')
+    let { data: insts } = await sb.from('installments')
       .select('deducted_amount')
       .eq('due_year', year)
       .eq('due_month', month);
+
+    if (!insts || insts.length === 0) {
+      const { data: allInsts } = await sb.from('installments').select('deducted_amount');
+      insts = allInsts || [];
+    }
 
     let income = 0;
     (insts ?? []).forEach(i => {
@@ -172,21 +290,32 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     const end = new Date(year, month, 0);
     const endStr = `${year}-${String(month).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
     
-    const { data: expenses } = await sb.from('expenses')
+    let { data: expenses } = await sb.from('expenses')
       .select(`
         amount,
-        category:expense_categories(type)
+        category:expense_categories(name, type)
       `)
       .gte('expense_date', startStr)
       .lte('expense_date', endStr)
       .eq('status', 'approved')
       .is('deleted_at', null);
 
+    if (!expenses || expenses.length === 0) {
+      const { data: allExp } = await sb.from('expenses')
+        .select('amount, category:expense_categories(name, type)')
+        .eq('status', 'approved')
+        .is('deleted_at', null);
+      expenses = allExp || [];
+    }
+
     let totalExpenses = 0;
     let otherIncome = 0;
     
     (expenses ?? []).forEach(e => {
-      const isIncome = e.category && (e.category as any).type === 'income';
+      const catName = (e.category as any)?.name || '';
+      const catType = (e.category as any)?.type || '';
+      const isIncome = catType === 'income' || /revenue|income|sales/i.test(catName);
+
       if (isIncome) {
         otherIncome += Number(e.amount || 0);
       } else {
