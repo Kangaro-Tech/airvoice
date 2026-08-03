@@ -85,6 +85,7 @@ interface PayrollLine {
   epf_ee: number;
   epf_er: number;
   etf: number;
+  deductions?: number;
   gross_salary: number;
   net_salary: number;
 }
@@ -150,12 +151,12 @@ export default function PayrollPage() {
     }
   }, [runs, selectedRunId]);
 
-  const { data: staffRes, isLoading: staffLoading } = useQuery({
+  const { data: staffList, isLoading: staffLoading } = useQuery({
     queryKey: ['payroll-staff'],
-    queryFn: () => payrollApi.listStaff().then(r => r.data),
+    queryFn: () => payrollApi.listStaff().then(r => r.data.data as Staff[]),
     staleTime: 5 * 60 * 1000, // 5 minutes – staff list rarely changes
   });
-  const staff: Staff[] = staffRes?.data ?? [];
+  const staff: Staff[] = staffList ?? [];
 
   const { data: staffUsersRes } = useQuery({
     queryKey: ['payroll-staff-users'],
@@ -243,6 +244,7 @@ GROSS:              LKR ${line.gross_salary.toLocaleString()}
 
 DEDUCTIONS
 EPF (8%):           LKR ${line.epf_ee.toLocaleString()}
+Other (Loan/Adv):   LKR ${Number(line.deductions ?? 0).toLocaleString()}
 
 NET PAY:            LKR ${line.net_salary.toLocaleString()}
 
@@ -338,7 +340,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
 
   const exportCSV = () => {
     if (!selectedRun || !selectedRun.lines || selectedRun.lines.length === 0) return;
-    const headers = ['Staff Name', 'Designation', 'Department', 'Basic Salary', 'Allowances', 'Commission', 'Gross Salary', 'EPF Employee', 'Net Salary'];
+    const headers = ['Staff Name', 'Designation', 'Department', 'Basic Salary', 'Allowances', 'Commission', 'Gross Salary', 'EPF Employee', 'Other Deductions', 'Net Salary'];
     const rows = selectedRun.lines.map(line => [
       line.staff?.full_name,
       line.staff?.designation,
@@ -348,6 +350,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
       line.commission_amount,
       line.gross_salary,
       line.epf_ee,
+      line.deductions ?? 0,
       line.net_salary
     ]);
     const csvContent = "data:text/csv;charset=utf-8,"
@@ -599,7 +602,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="surface-2 border-b border-base">
-                          {['Staff', 'Basic', 'Allowances', 'Commission', 'Gross', 'EPF(EE)', 'Net Pay', ''].map(h => (
+                          {['Staff', 'Basic', 'Allowances', 'Commission', 'Gross', 'EPF(EE)', 'Other Deductions', 'Net Pay', ''].map(h => (
                             <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-base-muted">{h}</th>
                           ))}
                         </tr>
@@ -621,6 +624,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                             </td>
                             <td className="px-4 py-3 font-bold font-mono">LKR {Number(line.gross_salary ?? 0).toLocaleString()}</td>
                             <td className="px-4 py-3 font-mono text-sm text-amber-600">- LKR {Number(line.epf_ee ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-3 font-mono text-sm text-red-500">- LKR {Number(line.deductions ?? 0).toLocaleString()}</td>
                             <td className="px-4 py-3 font-bold font-mono text-green-700">LKR {Number(line.net_salary ?? 0).toLocaleString()}</td>
                             <td className="px-4 py-3">
                               <button onClick={() => downloadPayslip(line)} className="p-1.5 rounded-lg surface-2 text-base-muted hover:bg-[var(--bg-surface-2)] transition-colors" title="Download Payslip">
@@ -785,6 +789,7 @@ ETF (3%):           LKR ${line.etf.toLocaleString()}
                             { label: 'Allowances',   value: allowances,                       neg: false },
                             { label: 'Commission',   value: Number(line.commission_amount ?? 0), neg: false },
                             { label: 'EPF (EE 8%)', value: Number(line.epf_ee ?? 0),          neg: true  },
+                            { label: 'Other Deductions', value: Number(line.deductions ?? 0), neg: true  },
                           ].map(({ label, value, neg }) => (
                             <div key={label} className="flex items-center justify-between text-xs">
                               <span className="text-base-muted">{label}</span>
