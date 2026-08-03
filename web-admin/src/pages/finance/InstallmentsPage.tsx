@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, deductionsApi } from '@/services/api';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import * as XLSX from 'xlsx';
 import {
   Download, FileText, CheckCircle, Clock, AlertTriangle,
@@ -388,18 +389,19 @@ export default function InstallmentsPage() {
           <div className="card p-4 flex flex-wrap gap-4 items-end">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Camp / Base</label>
-              <select
-                className="form-input text-sm min-w-[220px]"
-                value={campId}
-                onChange={e => { setCampId(e.target.value); resetEdits(); setSubmitResult(null); }}
-              >
-                <option value="">— Select Camp —</option>
-                {camps.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.branch.replace('_', ' ')})
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-[240px]">
+                <SearchableSelect
+                  options={camps.map(c => ({
+                    value: c.id,
+                    label: c.name,
+                    sublabel: c.branch ? c.branch.replace('_', ' ') : undefined,
+                  }))}
+                  value={campId}
+                  onChange={val => { setCampId(val); resetEdits(); setSubmitResult(null); }}
+                  placeholder="Select Camp / Base"
+                  searchPlaceholder="Search camp..."
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Month</label>
