@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api, applicationsApi, customersApi } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { uploadDocumentViaApi, DocumentType } from '@/services/supabaseStorage';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import {
   ChevronRight, AlertTriangle, Search, Plus, Download, Mail,
   Printer, Eye, Check, X, FileText, Smartphone, RefreshCw,
@@ -821,16 +822,23 @@ export default function ApplicationsPage() {
             <option value="air_force">Air Force</option>
           </select>
           {/* Camp filter */}
-          <select
-            value={filterCamp}
-            onChange={e => setParams(p => { if (e.target.value) p.set('camp_id', e.target.value); else p.delete('camp_id'); p.set('page', '1'); return p; })}
-            className="form-input w-full md:w-52"
-          >
-            <option value="">All Camps</option>
-            {(campsList as any[] | undefined)?.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div className="w-full md:w-52">
+            <SearchableSelect
+              options={[
+                { value: '', label: 'All Camps' },
+                ...((campsList as any[] | undefined) || []).map((c: any) => ({
+                  value: String(c.id),
+                  label: c.name,
+                  sublabel: c.code ? `Code: ${c.code}` : undefined,
+                }))
+              ]}
+              value={filterCamp}
+              onChange={val => setParams(p => { if (val) p.set('camp_id', val); else p.delete('camp_id'); p.set('page', '1'); return p; })}
+              placeholder="All Camps"
+              searchPlaceholder="Search camp..."
+              minSearchLength={0}
+            />
+          </div>
           {(filterBranch || filterCamp || search) && (
             <button
               onClick={() => setParams(p => { p.delete('branch'); p.delete('camp_id'); p.delete('q'); p.set('page', '1'); return p; })}
@@ -1375,17 +1383,21 @@ export default function ApplicationsPage() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Camp / Base</label>
-                    <select
+                    <SearchableSelect
+                      options={(campsList || [])
+                        .filter((c: any) => c.branch === newCustForm.branch || !c.branch)
+                        .map((c: any) => ({
+                          value: String(c.id),
+                          label: c.name,
+                          sublabel: c.code ? `Code: ${c.code}` : undefined,
+                        }))}
                       value={newCustForm.camp_id}
-                      onChange={e => setNewCustForm(p => ({ ...p, camp_id: e.target.value }))}
+                      onChange={val => setNewCustForm(p => ({ ...p, camp_id: val }))}
                       disabled={!!existingCustomer}
-                      className={`form-input w-full ${existingCustomer ? 'surface-2 text-base-muted' : ''}`}
-                    >
-                      <option value="">Select Camp</option>
-                      {(campsList || []).filter((c: any) => c.branch === newCustForm.branch || !c.branch).map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      placeholder="Select Camp / Base"
+                      searchPlaceholder="Search camp by name..."
+                      emptyMessage="No matching camps found"
+                    />
                   </div>
                 </div>
               </div>
@@ -1584,18 +1596,21 @@ export default function ApplicationsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                   <div>
                     <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Select Device (in stock)</label>
-                    <select
+                    <SearchableSelect
+                      options={(devicesList || [])
+                        .filter((d: any) => d.in_stock > 0)
+                        .map((d: any) => ({
+                          value: String(d.id),
+                          label: `${d.brand} ${d.model}`,
+                          sublabel: `${fmtLKR(d.sale_price)} · Storage: ${d.storage || 'Standard'}`,
+                        }))}
                       value={newAppForm.phone_model_id}
-                      onChange={e => setNewAppForm(p => ({ ...p, phone_model_id: e.target.value }))}
-                      className="form-input w-full"
-                    >
-                      <option value="">Choose Device</option>
-                      {(devicesList || []).filter((d: any) => d.in_stock > 0).map((d: any) => (
-                        <option key={d.id} value={d.id}>
-                          {d.brand} {d.model} — {fmtLKR(d.sale_price)} ({d.storage})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setNewAppForm(p => ({ ...p, phone_model_id: val }))}
+                      placeholder="Choose Device"
+                      searchPlaceholder="Search brand, model, storage..."
+                      minSearchPrompt="Type phone brand or model to search..."
+                      emptyMessage="No matching devices in stock"
+                    />
                   </div>
 
                   <div>

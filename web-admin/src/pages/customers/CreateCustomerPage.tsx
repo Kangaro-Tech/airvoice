@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { api, customersApi } from '@/services/api';
 import { ArrowLeft, Save, Loader2, AlertCircle } from 'lucide-react';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 interface Regiment {
   id: string;
@@ -164,19 +165,17 @@ export default function CreateCustomerPage() {
 
             <div>
               <label className="form-label">Camp</label>
-              <select
-                className="form-input"
+              <SearchableSelect
+                options={filteredCamps.map(c => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
                 value={formData.camp_id}
-                onChange={e => handleCampChange(e.target.value)}
+                onChange={handleCampChange}
                 disabled={isLoadingCamps}
-              >
-                <option value="">Select Camp</option>
-                {filteredCamps.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="Select Camp"
+                searchPlaceholder="Search camp..."
+              />
             </div>
 
             <div>

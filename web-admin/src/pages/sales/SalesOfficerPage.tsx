@@ -10,6 +10,7 @@ import {
   Camera, Check, Search, Smartphone
 } from 'lucide-react';
 import SpecialApprovalRequestModal from '@/components/SpecialApprovalRequestModal';
+import { SearchableSelect } from '@/components/SearchableSelect';
 
 function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCapture: (f: File) => void; label: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -1239,17 +1240,21 @@ export default function SalesOfficerPage() {
                   </div>
                   <div>
                     <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Camp / Base</label>
-                    <select
+                    <SearchableSelect
+                      options={(campsList || [])
+                        .filter((c: any) => c.branch === newCustForm.branch || !c.branch)
+                        .map((c: any) => ({
+                          value: String(c.id),
+                          label: c.name,
+                          sublabel: c.code ? `Code: ${c.code}` : undefined,
+                        }))}
                       value={newCustForm.camp_id}
-                      onChange={e => setNewCustForm(p => ({ ...p, camp_id: e.target.value }))}
+                      onChange={val => setNewCustForm(p => ({ ...p, camp_id: val }))}
                       disabled={!!existingCustomer}
-                      className={`w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${existingCustomer ? 'surface-2 text-base-muted' : ''}`}
-                    >
-                      <option value="">Select Camp</option>
-                      {(campsList || []).filter((c: any) => c.branch === newCustForm.branch || !c.branch).map((c: any) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                      placeholder="Select Camp / Base"
+                      searchPlaceholder="Search camp by name..."
+                      emptyMessage="No matching camps found"
+                    />
                   </div>
                 </div>
               </div>
@@ -1448,18 +1453,21 @@ export default function SalesOfficerPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                   <div>
                     <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Select Device (in stock)</label>
-                    <select
+                    <SearchableSelect
+                      options={(phoneModels || [])
+                        .filter((d: any) => d.in_stock > 0 || d.sale_price)
+                        .map((d: any) => ({
+                          value: String(d.id),
+                          label: `${d.brand} ${d.model}`,
+                          sublabel: `LKR ${d.sale_price?.toLocaleString() ?? 0} · Storage: ${d.storage || '128GB'}`,
+                        }))}
                       value={newAppForm.phone_model_id}
-                      onChange={e => setNewAppForm(p => ({ ...p, phone_model_id: e.target.value }))}
-                      className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 surface"
-                    >
-                      <option value="">Choose Device</option>
-                      {(phoneModels || []).filter((d: any) => d.in_stock > 0 || d.sale_price).map((d: any) => (
-                        <option key={d.id} value={d.id}>
-                          {d.brand} {d.model} — LKR {d.sale_price?.toLocaleString()} ({d.storage || '128GB'})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={val => setNewAppForm(p => ({ ...p, phone_model_id: val }))}
+                      placeholder="Choose Device"
+                      searchPlaceholder="Search brand, model, storage..."
+                      minSearchPrompt="Type phone brand or model to search..."
+                      emptyMessage="No matching devices in stock"
+                    />
                   </div>
 
                   <div>

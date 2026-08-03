@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import {
   CheckCircle, XCircle, Minus, Download, AlertTriangle,
   FileText, Clock, ChevronDown, Send, TrendingUp, Eye,
@@ -519,15 +520,20 @@ export default function CampPortalPage() {
       <div className="card p-4 flex flex-wrap gap-3 items-end">
         <div>
           <label className="form-label">Camp</label>
-          <select
-            className="form-input w-56"
-            value={campId || activeCamp}
-            onChange={e => setCampId(e.target.value)}
-          >
-            {(campsRes ?? []).map((c: Record<string, unknown>) => (
-              <option key={c.id as string} value={c.id as string}>{c.name as string}</option>
-            ))}
-          </select>
+          <div className="w-72">
+            <SearchableSelect
+              options={(campsRes ?? []).map((c: Record<string, unknown>) => ({
+                value: String(c.id),
+                label: String(c.name),
+                sublabel: c.branch ? String(c.branch).replace('_', ' ') : undefined,
+              }))}
+              value={campId || activeCamp}
+              onChange={val => setCampId(val)}
+              placeholder="Select Camp"
+              searchPlaceholder="Search camp..."
+              minSearchPrompt="Type camp name to search..."
+            />
+          </div>
         </div>
         <div>
           <label className="form-label">Year</label>
