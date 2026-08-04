@@ -185,9 +185,15 @@ export const hrApi = {
   listAttendance: (params?: Record<string, unknown>) => api.get('/hr/attendance/list', { params }),
   // Leaves
   requestLeave: (data: unknown) => api.post('/hr/leaves/request', data),
+  createLeaveBalance: (data: unknown) => api.post('/hr/leaves/balances', data),
   listLeaveBalances: (params?: Record<string, unknown>) => api.get('/hr/leaves/balances', { params }),
+  updateLeaveBalance: (id: string, data: unknown) => api.put(`/hr/leaves/balances/${id}`, data),
+  listLeaveRequests: (params?: Record<string, unknown>) => api.get('/hr/leaves/requests', { params }),
+  updateLeaveRequestStatus: (id: string, data: { status: string }) => api.put(`/hr/leaves/requests/${id}/status`, data),
   // Advances
   createAdvance: (data: unknown) => api.post('/hr/payroll/advance', data),
+  listSalaryAdvances: (params?: Record<string, unknown>) => api.get('/hr/payroll/advances', { params }),
+  updateSalaryAdvanceStatus: (id: string, data: { status: string }) => api.put(`/hr/payroll/advances/${id}/status`, data),
   // Deductions
   createDeduction: (data: unknown) => api.post('/hr/payroll/deduction', data),
   // Audit logs

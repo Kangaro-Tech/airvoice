@@ -41,22 +41,34 @@ export default function PayrollManagementPage() {
     queryFn: () => payrollApi.listStaff().then(r => r.data.data as StaffMember[]),
   });
 
-  // For demo, we display recently submitted ones from the API
-  // The real data would come from backend queries, but we use optimistic local state for now
-  const [localAdvances, setLocalAdvances] = useState<SalaryAdvance[]>([]);
+  // The real data comes from backend query
+  const { data: advances, isLoading: loadingAdvances } = useQuery({
+    queryKey: ['salary-advances'],
+    queryFn: () => hrApi.listSalaryAdvances().then(r => r.data.data as SalaryAdvance[]),
+  });
+
   const [localDeductions, setLocalDeductions] = useState<SalaryDeduction[]>([]);
 
   const advMutation = useMutation({
     mutationFn: (data: unknown) => hrApi.createAdvance(data),
-    onSuccess: (res) => {
-      const d = res.data.data;
-      setLocalAdvances(prev => [d, ...prev]);
+    onSuccess: () => {
       setSuccess('Salary advance recorded!');
       setShowAdvForm(false);
       setAdvForm({ staff_id: '', amount: '', request_date: todayStr(), deduction_month: currentMonth() });
+      queryClient.invalidateQueries({ queryKey: ['salary-advances'] });
       setTimeout(() => setSuccess(''), 3000);
     },
     onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to create advance'),
+  });
+
+  const updateAdvStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: string }) => hrApi.updateSalaryAdvanceStatus(id, { status }),
+    onSuccess: () => {
+      setSuccess('Advance status updated!');
+      queryClient.invalidateQueries({ queryKey: ['salary-advances'] });
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to update status'),
   });
 
   const dedMutation = useMutation({
@@ -181,7 +193,9 @@ export default function PayrollManagementPage() {
             </div>
           )}
 
-          {localAdvances.length === 0 ? (
+          {loadingAdvances ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="animate-spin" size={24} style={{ color: 'var(--text-muted)' }} /></div>
+          ) : !advances || advances.length === 0 ? (
             <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
               <BadgeDollarSign size={36} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">No advances recorded yet. Use "New Advance" to add one.</p>
@@ -191,15 +205,15 @@ export default function PayrollManagementPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border-color)' }}>
-                    {['Employee', 'Amount', 'Request Date', 'Deduction Month', 'Status'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    {['Employee', 'Amount', 'Request Date', 'Deduction Month', 'Status', 'Actions'].map(h => (
+                      <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider ${h === 'Actions' ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
-                  {localAdvances.map(adv => (
-                    <tr key={adv.id} className="hover:bg-white/5">
-                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{staffName(adv.staff_id)}</td>
+                  {(advances || []).map(adv => (
+                    <tr key={adv.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{adv.staff_id ? staffName(adv.staff_id) : (adv as any).staff?.full_name ?? '—'}</td>
                       <td className="px-4 py-3 font-semibold" style={{ color: '#f59e0b' }}>LKR {Number(adv.amount).toLocaleString()}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{adv.request_date}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{adv.deduction_month}</td>
@@ -207,6 +221,18 @@ export default function PayrollManagementPage() {
                         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${ADV_STATUS[adv.status]?.bg ?? ''} ${ADV_STATUS[adv.status]?.text ?? ''}`}>
                           {adv.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {adv.status === 'pending' && (
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => updateAdvStatusMutation.mutate({ id: adv.id, status: 'approved' })} disabled={updateAdvStatusMutation.isPending} className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-950/50" title="Approve">
+                              <CheckCircle2 size={16} />
+                            </button>
+                            <button onClick={() => updateAdvStatusMutation.mutate({ id: adv.id, status: 'rejected' })} disabled={updateAdvStatusMutation.isPending} className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50" title="Reject">
+                              <XCircle size={16} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
