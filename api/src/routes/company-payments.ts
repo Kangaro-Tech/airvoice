@@ -17,21 +17,29 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
     let query = sb
       .from('company_payments')
-      .select(`
-        *,
-        customer:customers(id, full_name, service_number, phone_number),
-        application:applications(id, ref_number, monthly_amount),
-        installment:installments(id, due_date, expected_amount),
-        processed_by_user:users!processed_by(phone_number)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
     if (q.status) query = query.eq('status', q.status);
     if (q.customer_id) query = query.eq('customer_id', q.customer_id);
 
-    const { data, count, error } = await query;
+    const { data: rawData, count, error } = await query;
     if (error) return reply.status(500).send({ error: error.message });
+
+    const customerIds = [...new Set((rawData ?? []).map((r: any) => r.customer_id))].filter(Boolean);
+    const appIds = [...new Set((rawData ?? []).map((r: any) => r.application_id))].filter(Boolean);
+    
+    const [custRes, appRes] = await Promise.all([
+      customerIds.length ? sb.from('customers').select('id, full_name, service_number, phone_number').in('id', customerIds) : { data: [] },
+      appIds.length ? sb.from('applications').select('id, ref_number, monthly_amount').in('id', appIds) : { data: [] }
+    ]);
+
+    const data = (rawData ?? []).map((p: any) => ({
+      ...p,
+      customer: (custRes.data ?? []).find((c: any) => c.id === p.customer_id),
+      application: (appRes.data ?? []).find((a: any) => a.id === p.application_id)
+    }));
 
     return reply.send({ data, meta: { total: count, page, limit } });
   });
@@ -165,12 +173,22 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
     preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
   }, async (_req: FastifyRequest, reply) => {
     const sb = getSupabase();
-    const { data, error } = await sb
+    const { data: rawData, error } = await sb
       .from('company_payments')
-      .select('customer_id, amount, recovered_amount, status, customer:customers(full_name, service_number)')
+      .select('customer_id, amount, recovered_amount, status')
       .neq('status', 'fully_recovered');
 
     if (error) return reply.status(500).send({ error: error.message });
+    
+    const customerIds = [...new Set((rawData ?? []).map((r: any) => r.customer_id))].filter(Boolean);
+    const { data: custRes } = customerIds.length > 0 
+      ? await sb.from('customers').select('id, full_name, service_number').in('id', customerIds) 
+      : { data: [] };
+
+    const data = (rawData ?? []).map((p: any) => ({
+      ...p,
+      customer: (custRes ?? []).find((c: any) => c.id === p.customer_id)
+    }));
 
     const customerMap: Record<string, any> = {};
     (data ?? []).forEach((p: any) => {
