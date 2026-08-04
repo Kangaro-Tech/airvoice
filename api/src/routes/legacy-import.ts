@@ -1970,24 +1970,34 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           if (apps) insertedApps.push(...apps);
         }
 
-        // 6. Generate future installments for each application
+        // 6. Generate installments for each application
         const installmentsToInsert: any[] = [];
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1;
+
         for (const insertedApp of insertedApps) {
           const termMonths = insertedApp.term_months ?? 24;
           const startDate = insertedApp.sale_date ? new Date(insertedApp.sale_date) : new Date();
           for (let m = 1; m <= termMonths; m++) {
             const dueDate = new Date(startDate.getFullYear(), startDate.getMonth() + m, 1);
+            const dueYear = dueDate.getFullYear();
+            const dueMonth = dueDate.getMonth() + 1;
+            
+            // If the due date is strictly in the past (before current month/year), it's in arrears
+            const isPastDue = (dueYear < currentYear) || (dueYear === currentYear && dueMonth < currentMonth);
+
             installmentsToInsert.push({
               application_id:  insertedApp.id,
               customer_id:     insertedApp.customer_id,
               due_date:        dueDate.toISOString().split('T')[0],
-              due_year:        dueDate.getFullYear(),
-              due_month:       dueDate.getMonth() + 1,
+              due_year:        dueYear,
+              due_month:       dueMonth,
               month_number:    m,
               expected_amount: insertedApp.monthly_amount,
               deducted_amount: 0,
-              arrears_amount:  0,
-              status:          'pending',
+              arrears_amount:  isPastDue ? insertedApp.monthly_amount : 0,
+              status:          isPastDue ? 'not_deducted' : 'pending',
             });
           }
         }

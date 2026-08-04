@@ -296,6 +296,33 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
 
     if (insertErr) return reply.status(500).send({ error: insertErr.message });
 
+    // --- Automatically create expenses for auto-flagged company payments ---
+    try {
+      let catRes = await sb.from('expense_categories').select('id').eq('name', 'Company Payments').single();
+      let catId = catRes.data?.id;
+      if (!catId) {
+        const newCat = await sb.from('expense_categories').insert({ name: 'Company Payments', type: 'expense' }).select('id').single();
+        catId = newCat.data?.id;
+      }
+
+      if (catId && insertedCPs) {
+        const expensesToInsert = insertedCPs.map((cp: any) => ({
+          category_id: catId,
+          amount: cp.amount,
+          description: `Company Payment for Customer ID: ${cp.customer_id} - ${cp.notes}`,
+          expense_date: new Date().toISOString().split('T')[0],
+          status: 'approved',
+          payment_method: 'Bank Transfer',
+          submitted_by: req.user!.id
+        }));
+
+        await sb.from('expenses').insert(expensesToInsert);
+      }
+    } catch (err) {
+      console.error('Failed to create expenses for auto-flagged company payments:', err);
+    }
+    // ------------------------------------------------------------------------
+
     await writeAuditLog({
       user_id: req.user!.id,
       action: 'COMPANY_PAYMENT_AUTO_CREATED',
