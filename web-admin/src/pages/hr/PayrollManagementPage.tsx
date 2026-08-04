@@ -8,7 +8,7 @@ import {
 
 interface StaffMember { id: string; full_name: string; designation: string; }
 interface SalaryAdvance { id: string; staff_id: string; amount: number; request_date: string; deduction_month: string; status: string; }
-interface SalaryDeduction { id: string; staff_id: string; deduction_type: string; amount: number; effective_date: string; is_active: boolean; notes?: string; }
+interface SalaryDeduction { id: string; staff_id: string; deduction_type: string; amount: number; effective_date: string; is_active: boolean | null; notes?: string; }
 
 const DEDUCTION_COLORS: Record<string, string> = { loan: '#2563eb', epf: '#1d4ed8', etf: '#0284c7', other: '#6b7280' };
 const ADV_STATUS: Record<string, { bg: string; text: string }> = {
@@ -77,17 +77,34 @@ export default function PayrollManagementPage() {
   const dedMutation = useMutation({
     mutationFn: (data: unknown) => hrApi.createDeduction(data),
     onSuccess: () => {
-      setSuccess('Deduction entry added!');
+      setSuccess('Deduction entry added! Awaiting Finance Officer approval.');
       setShowDedForm(false);
       setDedForm({ staff_id: '', deduction_type: 'loan', amount: '', effective_date: todayStr(), notes: '' });
       queryClient.invalidateQueries({ queryKey: ['salary-deductions'] });
-      setTimeout(() => setSuccess(''), 3000);
+      setTimeout(() => setSuccess(''), 4000);
     },
     onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to add deduction'),
   });
 
+  const updateDedStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: string }) => hrApi.updateDeductionStatus(id, { status }),
+    onSuccess: () => {
+      setSuccess('Deduction status updated!');
+      queryClient.invalidateQueries({ queryKey: ['salary-deductions'] });
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to update deduction status'),
+  });
+
+  // Helper: derive a display status from is_active (null=pending, true=approved, false=rejected)
+  const dedStatus = (ded: SalaryDeduction) => {
+    if (ded.is_active === null || ded.is_active === undefined) return 'pending';
+    return ded.is_active ? 'approved' : 'rejected';
+  };
+
   const staffName = (id: string) => (staffList ?? []).find(s => s.id === id)?.full_name ?? '—';
   const pendingAdvancesCount = (advances ?? []).filter(a => a.status === 'pending').length;
+  const pendingDeductionsCount = (deductions ?? []).filter(d => d.is_active === null || d.is_active === undefined).length;
 
   return (
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
@@ -133,6 +150,11 @@ export default function PayrollManagementPage() {
           }}
         >
           <Scissors size={14} /> Deductions
+          {pendingDeductionsCount > 0 && (
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+              tab === 'deductions' ? 'bg-white text-blue-600' : 'bg-orange-500 text-white'
+            }`}>{pendingDeductionsCount}</span>
+          )}
         </button>
       </div>
 
@@ -365,14 +387,15 @@ export default function PayrollManagementPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border-color)' }}>
-                    {['Employee', 'Type', 'Amount', 'Effective Date', 'Notes'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    {['Employee', 'Type', 'Amount', 'Effective Date', 'Notes', 'Status', 'Actions'].map(h => (
+                      <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider ${h === 'Actions' ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
                   {deductions.map(ded => {
                     const color = DEDUCTION_COLORS[ded.deduction_type] ?? '#6b7280';
+                    const status = dedStatus(ded);
                     return (
                       <tr key={ded.id} className="hover:bg-white/5">
                         <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{ded.staff_id ? staffName(ded.staff_id) : (ded as any).staff?.full_name ?? '—'}</td>
@@ -384,6 +407,37 @@ export default function PayrollManagementPage() {
                         <td className="px-4 py-3 font-semibold" style={{ color }}>LKR {Number(ded.amount).toLocaleString()}</td>
                         <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{ded.effective_date}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{ded.notes ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
+                            status === 'pending' ? 'bg-sky-100 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300' :
+                            status === 'approved' ? 'bg-green-500/15 text-green-500' :
+                            'bg-red-500/15 text-red-500'
+                          }`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {status === 'pending' && (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => updateDedStatusMutation.mutate({ id: ded.id, status: 'approved' })}
+                                disabled={updateDedStatusMutation.isPending}
+                                className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-950/50"
+                                title="Approve"
+                              >
+                                <CheckCircle2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => updateDedStatusMutation.mutate({ id: ded.id, status: 'rejected' })}
+                                disabled={updateDedStatusMutation.isPending}
+                                className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                title="Reject"
+                              >
+                                <XCircle size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

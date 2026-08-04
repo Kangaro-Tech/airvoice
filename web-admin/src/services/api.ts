@@ -134,7 +134,6 @@ export const payrollApi = {
   },
 };
 
-
 export const documentsApi = {
   list: (customerId: string) =>
     api.get(`/customers/${customerId}/documents`),
@@ -194,8 +193,9 @@ export const hrApi = {
   createAdvance: (data: unknown) => api.post('/hr/payroll/advance', data),
   listSalaryAdvances: (params?: Record<string, unknown>) => api.get('/hr/payroll/advances', { params }),
   updateSalaryAdvanceStatus: (id: string, data: { status: string }) => api.put(`/hr/payroll/advances/${id}/status`, data),
-  listSalaryDeductions: () => api.get('/hr/payroll/deductions'),
   // Deductions
+  listSalaryDeductions: () => api.get('/hr/payroll/deductions'),
+  updateDeductionStatus: (id: string, data: { status: string }) => api.put(`/hr/payroll/deductions/${id}/status`, data),
   createDeduction: (data: unknown) => api.post('/hr/payroll/deduction', data),
   // Audit logs
   listAuditLogs: (params?: Record<string, unknown>) => api.get('/hr/audit-logs', { params }),

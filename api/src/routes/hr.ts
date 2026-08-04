@@ -324,12 +324,38 @@ export default async function hrRoutes(app: FastifyInstance) {
     if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
 
     const sb = getSupabase();
-    const { data, error } = await sb.from('salary_deductions').insert(body.data).select().single();
+    // is_active = null means 'pending' approval
+    const { data, error } = await sb.from('salary_deductions').insert({ ...body.data, is_active: null }).select().single();
     if (error) return reply.status(500).send({ error: error.message });
     
     // @ts-ignore
     writeAuditLog({ user_id: req.user!.id, action: 'SALARY_DEDUCTION_ADDED', entity_type: 'salary_deductions', entity_id: data.id });
     return reply.status(201).send({ data });
+  });
+
+  // PUT /hr/payroll/deductions/:id/status — Finance Officer approve/reject
+  app.put<{ Params: { id: string } }>('/payroll/deductions/:id/status', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req, reply) => {
+    const { id } = req.params;
+    const body = z.object({
+      status: z.enum(['approved', 'rejected'])
+    }).safeParse(req.body);
+
+    if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
+
+    const sb = getSupabase();
+    // Map: approved -> is_active=true, rejected -> is_active=false
+    const is_active = body.data.status === 'approved' ? true : false;
+    const { data, error } = await sb.from('salary_deductions')
+      .update({ is_active, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    
+    // @ts-ignore
+    writeAuditLog({ user_id: req.user!.id, action: `DEDUCTION_${body.data.status.toUpperCase()}`, entity_type: 'salary_deductions', entity_id: id });
+    return reply.send({ data });
   });
   
   // ── AUDIT LOGS FOR SYSTEM OPERATOR ──────────────────────────────────────────

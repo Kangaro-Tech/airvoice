@@ -66,13 +66,31 @@ export default function AttendanceManagementPage() {
     onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to mark attendance'),
   });
 
-  const handleMark = (staff: StaffMember) => {
-    setMarkForm({ staff_id: staff.id, in_time: '', out_time: '', status: 'present' });
-    setError('');
-  };
-
   const today = attendanceData ?? [];
   const markedIds = new Set(today.map(r => r.staff_id));
+
+  const handleMark = (staff: StaffMember) => {
+    const existing = today.find(r => r.staff_id === staff.id);
+    let in_time = '';
+    let out_time = '';
+    
+    if (existing) {
+      if (existing.in_time) {
+        in_time = new Date(existing.in_time).toLocaleTimeString('en-GB', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' });
+      }
+      if (existing.out_time) {
+        out_time = new Date(existing.out_time).toLocaleTimeString('en-GB', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    
+    setMarkForm({ 
+      staff_id: staff.id, 
+      in_time, 
+      out_time, 
+      status: existing?.status ?? 'present' 
+    });
+    setError('');
+  };
 
   return (
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
@@ -205,24 +223,36 @@ export default function AttendanceManagementPage() {
                 const marked = markedIds.has(staff.id);
                 const rec = today.find(r => r.staff_id === staff.id);
                 return (
-                  <div key={staff.id} className="flex items-center justify-between px-4 py-2.5">
-                    <div>
+                  <div key={staff.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{staff.full_name}</p>
                       <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{staff.designation}</p>
+                      {marked && rec && (
+                        <div className="flex gap-3 mt-0.5">
+                          <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            <Clock size={9} />In: {toLocalTime(rec.in_time)}
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            <Clock size={9} />Out: {toLocalTime(rec.out_time)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {marked && rec ? (
-                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[rec.status]?.bg ?? ''} ${STATUS_STYLES[rec.status]?.text ?? ''}`}>
-                        {STATUS_STYLES[rec.status]?.label ?? rec.status}
-                      </span>
-                    ) : (
+                    <div className="flex items-center gap-2 shrink-0">
+                      {marked && rec && (
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[rec.status]?.bg ?? ''} ${STATUS_STYLES[rec.status]?.text ?? ''}`}>
+                          {STATUS_STYLES[rec.status]?.label ?? rec.status}
+                        </span>
+                      )}
                       <button
                         id={`mark-att-${staff.id}`}
                         onClick={() => handleMark(staff)}
-                        className="text-xs px-3 py-1 rounded-lg font-semibold transition-colors bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300 hover:bg-blue-600 hover:text-white"
+                        className="text-xs px-3 py-1 rounded-lg font-semibold transition-colors"
+                        style={marked ? { backgroundColor: 'var(--bg-base)', color: 'var(--text-muted)' } : { backgroundColor: '#dbeafe', color: '#2563eb' }}
                       >
-                        Mark
+                        {marked ? 'Edit' : 'Mark'}
                       </button>
-                    )}
+                    </div>
                   </div>
                 );
               })}
