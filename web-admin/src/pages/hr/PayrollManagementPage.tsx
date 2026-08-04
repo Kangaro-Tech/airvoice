@@ -47,7 +47,10 @@ export default function PayrollManagementPage() {
     queryFn: () => hrApi.listSalaryAdvances().then(r => r.data.data as SalaryAdvance[]),
   });
 
-  const [localDeductions, setLocalDeductions] = useState<SalaryDeduction[]>([]);
+  const { data: deductions, isLoading: loadingDeductions } = useQuery({
+    queryKey: ['salary-deductions'],
+    queryFn: () => hrApi.listSalaryDeductions().then(r => r.data.data as SalaryDeduction[]),
+  });
 
   const advMutation = useMutation({
     mutationFn: (data: unknown) => hrApi.createAdvance(data),
@@ -73,18 +76,18 @@ export default function PayrollManagementPage() {
 
   const dedMutation = useMutation({
     mutationFn: (data: unknown) => hrApi.createDeduction(data),
-    onSuccess: (res) => {
-      const d = res.data.data;
-      setLocalDeductions(prev => [d, ...prev]);
+    onSuccess: () => {
       setSuccess('Deduction entry added!');
       setShowDedForm(false);
       setDedForm({ staff_id: '', deduction_type: 'loan', amount: '', effective_date: todayStr(), notes: '' });
+      queryClient.invalidateQueries({ queryKey: ['salary-deductions'] });
       setTimeout(() => setSuccess(''), 3000);
     },
     onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to add deduction'),
   });
 
   const staffName = (id: string) => (staffList ?? []).find(s => s.id === id)?.full_name ?? '—';
+  const pendingAdvancesCount = (advances ?? []).filter(a => a.status === 'pending').length;
 
   return (
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
@@ -104,23 +107,33 @@ export default function PayrollManagementPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1 rounded-xl w-fit" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}>
-        {[
-          { key: 'advances', label: 'Salary Advances', icon: <BadgeDollarSign size={14} /> },
-          { key: 'deductions', label: 'Deductions', icon: <Scissors size={14} /> },
-        ].map(t => (
-          <button
-            key={t.key}
-            id={`tab-${t.key}`}
-            onClick={() => { setTab(t.key as Tab); setError(''); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-            style={{
-              backgroundColor: tab === t.key ? 'var(--accent-primary)' : 'transparent',
-              color: tab === t.key ? '#fff' : 'var(--text-muted)',
-            }}
-          >
-            {t.icon}{t.label}
-          </button>
-        ))}
+        <button
+          id="tab-advances"
+          onClick={() => { setTab('advances'); setError(''); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          style={{
+            backgroundColor: tab === 'advances' ? 'var(--accent-primary)' : 'transparent',
+            color: tab === 'advances' ? '#fff' : 'var(--text-muted)',
+          }}
+        >
+          <BadgeDollarSign size={14} /> Salary Advances
+          {pendingAdvancesCount > 0 && (
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+              tab === 'advances' ? 'bg-white text-blue-600' : 'bg-orange-500 text-white'
+            }`}>{pendingAdvancesCount}</span>
+          )}
+        </button>
+        <button
+          id="tab-deductions"
+          onClick={() => { setTab('deductions'); setError(''); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          style={{
+            backgroundColor: tab === 'deductions' ? 'var(--accent-primary)' : 'transparent',
+            color: tab === 'deductions' ? '#fff' : 'var(--text-muted)',
+          }}
+        >
+          <Scissors size={14} /> Deductions
+        </button>
       </div>
 
       {/* ADVANCES TAB */}
@@ -340,7 +353,9 @@ export default function PayrollManagementPage() {
             </div>
           )}
 
-          {localDeductions.length === 0 ? (
+          {loadingDeductions ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="animate-spin" size={24} style={{ color: 'var(--text-muted)' }} /></div>
+          ) : !deductions || deductions.length === 0 ? (
             <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
               <Scissors size={36} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">No deductions recorded yet. Use "New Deduction" to add one.</p>
@@ -356,11 +371,11 @@ export default function PayrollManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
-                  {localDeductions.map(ded => {
+                  {deductions.map(ded => {
                     const color = DEDUCTION_COLORS[ded.deduction_type] ?? '#6b7280';
                     return (
                       <tr key={ded.id} className="hover:bg-white/5">
-                        <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{staffName(ded.staff_id)}</td>
+                        <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{ded.staff_id ? staffName(ded.staff_id) : (ded as any).staff?.full_name ?? '—'}</td>
                         <td className="px-4 py-3">
                           <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full" style={{ backgroundColor: `${color}20`, color }}>
                             {ded.deduction_type}

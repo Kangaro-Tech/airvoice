@@ -194,6 +194,7 @@ export const hrApi = {
   createAdvance: (data: unknown) => api.post('/hr/payroll/advance', data),
   listSalaryAdvances: (params?: Record<string, unknown>) => api.get('/hr/payroll/advances', { params }),
   updateSalaryAdvanceStatus: (id: string, data: { status: string }) => api.put(`/hr/payroll/advances/${id}/status`, data),
+  listSalaryDeductions: () => api.get('/hr/payroll/deductions'),
   // Deductions
   createDeduction: (data: unknown) => api.post('/hr/payroll/deduction', data),
   // Audit logs

@@ -123,6 +123,7 @@ export default function LeaveManagementPage() {
   });
 
   const staffBalances = (balances ?? []).filter(b => !selectedStaff || b.staff_id === selectedStaff);
+  const pendingRequestsCount = (requests ?? []).filter(r => r.status === 'pending').length;
 
   return (
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
@@ -157,23 +158,29 @@ export default function LeaveManagementPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1 rounded-xl w-fit" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}>
-        {[
-          { key: 'balances', label: 'Leave Balances', icon: <ClipboardList size={14} /> },
-          { key: 'requests', label: 'Leave Requests', icon: <CheckCircle2 size={14} /> },
-        ].map(t => (
-          <button
-            key={t.key}
-            onClick={() => { setTab(t.key as any); setError(''); setSuccess(''); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              tab === t.key
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-            style={tab === t.key ? {} : { color: 'var(--text-muted)' }}
-          >
-            {t.icon} {t.label}
-          </button>
-        ))}
+        <button
+          onClick={() => { setTab('balances'); setError(''); setSuccess(''); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'balances' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+          style={tab === 'balances' ? {} : { color: 'var(--text-muted)' }}
+        >
+          <ClipboardList size={14} /> Leave Balances
+        </button>
+        <button
+          onClick={() => { setTab('requests'); setError(''); setSuccess(''); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            tab === 'requests' ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+          style={tab === 'requests' ? {} : { color: 'var(--text-muted)' }}
+        >
+          <CheckCircle2 size={14} /> Leave Requests
+          {pendingRequestsCount > 0 && (
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+              tab === 'requests' ? 'bg-white text-blue-600' : 'bg-orange-500 text-white'
+            }`}>{pendingRequestsCount}</span>
+          )}
+        </button>
       </div>
 
       {success && <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/15 text-green-500 text-sm"><CheckCircle2 size={16} />{success}</div>}

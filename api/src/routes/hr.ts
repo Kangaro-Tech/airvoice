@@ -300,6 +300,17 @@ export default async function hrRoutes(app: FastifyInstance) {
     return reply.send({ data });
   });
 
+  // GET /hr/payroll/deductions
+  app.get('/payroll/deductions', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
+    const sb = getSupabase();
+    const { data, error } = await sb.from('salary_deductions')
+      .select('*, staff:staff_registry(full_name)')
+      .order('created_at', { ascending: false });
+    
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send({ data });
+  });
+
   // POST /hr/payroll/deduction
   app.post('/payroll/deduction', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant')] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
