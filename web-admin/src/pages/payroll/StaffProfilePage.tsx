@@ -382,7 +382,7 @@ export default function StaffProfilePage() {
                 </span>
               )}
               {Number(staff.meal_allow) > 0 && (
-                <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#2563eb' }}>
                   Meal: LKR {Number(staff.meal_allow).toLocaleString()}
                 </span>
               )}

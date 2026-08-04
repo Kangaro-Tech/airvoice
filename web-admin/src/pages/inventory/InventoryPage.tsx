@@ -547,7 +547,7 @@ function EditModelModal({ model, onClose, onSuccess }: {
           <button
             onClick={submit}
             disabled={submitting}
-            className="px-5 py-2.5 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 flex items-center gap-2 transition"
+            className="px-5 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save Changes
           </button>
@@ -630,8 +630,8 @@ function EditDeviceModal({ device, models, onClose, onSuccess }: {
 
         <div className="p-8 space-y-6 overflow-y-auto max-h-[85vh]">
           {/* Info Banner */}
-          <div className="bg-amber-50/60 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
-            <Info size={18} className="text-amber-500 mt-0.5 shrink-0" />
+          <div className="bg-blue-50/60 border border-blue-100 dark:bg-blue-950/40 dark:border-blue-900 rounded-xl p-4 flex items-start gap-3">
+            <Info size={18} className="text-blue-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-sm font-bold text-slate-800 mb-0.5">Editing device record</p>
               <p className="text-xs text-slate-500 leading-relaxed">Changes to Brand, Model, Storage, Colour and Sale Price will update the shared model record and affect all devices of this model.</p>
@@ -815,7 +815,7 @@ function EditDeviceModal({ device, models, onClose, onSuccess }: {
           <button
             onClick={submit}
             disabled={submitting}
-            className="px-5 py-2.5 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50 flex items-center gap-2 transition"
+            className="px-5 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 transition"
           >
             {submitting ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save Changes
           </button>
@@ -927,7 +927,7 @@ export default function InventoryPage() {
           <p className="text-sm text-base-muted mt-0.5">
             {totalUnits} units in stock · LKR {totalValue.toLocaleString()} total value
             {lowStock.length > 0 && (
-              <span className="ml-2 text-amber-600 font-semibold">⚠ {lowStock.length} models low stock</span>
+              <span className="ml-2 text-blue-600 dark:text-blue-400 font-semibold">⚠ {lowStock.length} models low stock</span>
             )}
           </p>
         </div>
@@ -966,7 +966,7 @@ export default function InventoryPage() {
         {[
           { label: 'Total Models', value: models.length, icon: Phone, color: 'text-blue-600' },
           { label: 'Units In Stock', value: totalUnits, icon: Package, color: 'text-green-600' },
-          { label: 'Total Value', value: `LKR ${(totalValue / 1000).toFixed(0)}K`, icon: CheckCircle2, color: 'text-amber-600' },
+          { label: 'Total Value', value: `LKR ${(totalValue / 1000).toFixed(0)}K`, icon: CheckCircle2, color: 'text-blue-600' },
           { label: 'Low Stock Alerts', value: lowStock.length, icon: AlertTriangle, color: 'text-red-600' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="card p-5">
@@ -991,7 +991,7 @@ export default function InventoryPage() {
             key={id}
             onClick={() => setTab(id as typeof tab)}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-              tab === id ? 'border-amber-500 text-amber-600' : 'border-transparent text-base-muted hover:text-[var(--text-secondary)]'
+              tab === id ? 'border-blue-600 text-blue-600' : 'border-transparent text-base-muted hover:text-[var(--text-secondary)]'
             }`}
           >
             {label}
@@ -1005,7 +1005,7 @@ export default function InventoryPage() {
           <div className="relative max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-muted" />
             <input
-              className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Search models…"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -1018,14 +1018,14 @@ export default function InventoryPage() {
           ) : (
             <div className="grid grid-cols-3 gap-4">
               {filteredModels.map(m => (
-                <div key={m.id} className={`card p-5 ${m.in_stock < 5 ? 'border-amber-300' : ''}`}>
+                <div key={m.id} className={`card p-5 ${m.in_stock < 5 ? 'border-blue-300 dark:border-blue-800' : ''}`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="w-10 h-10 rounded-xl bg-[#1d4ed8] flex items-center justify-center">
                       <Phone size={18} className="text-white" />
                     </div>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                       m.in_stock === 0 ? 'bg-red-100 text-red-700' :
-                      m.in_stock < 5 ? 'bg-amber-100 text-amber-700' :
+                      m.in_stock < 5 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' :
                       'bg-green-100 text-green-700'
                     }`}>
                       {m.in_stock === 0 ? 'Out of Stock' : `${m.in_stock} in stock`}
@@ -1036,7 +1036,7 @@ export default function InventoryPage() {
                   <div className="mt-3 pt-3 border-t border-base flex items-center justify-between">
                     <div>
                       <div className="text-xs text-base-muted">Sale Price</div>
-                      <div className="font-bold text-amber-600 font-mono">LKR {m.sale_price.toLocaleString()}</div>
+                      <div className="font-bold text-blue-600 dark:text-blue-400 font-mono">LKR {m.sale_price.toLocaleString()}</div>
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-base-muted">Sold</div>
@@ -1144,7 +1144,7 @@ export default function InventoryPage() {
           <div className="relative max-w-sm">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-muted" />
             <input
-              className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Search IMEI or Model…"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -1178,8 +1178,8 @@ export default function InventoryPage() {
                     <td className="px-4 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
                         p.status === 'in_stock' ? 'bg-green-100 text-green-700' :
-                        p.status === 'allocated' ? 'bg-amber-100 text-amber-700' :
-                        p.status === 'sold' ? 'bg-blue-100 text-blue-700' :
+                        p.status === 'allocated' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300' :
+                        p.status === 'sold' ? 'bg-sky-100 text-sky-800' :
                         'bg-slate-100 text-slate-700'
                       }`}>
                         {p.status.replace('_', ' ')}
@@ -1190,7 +1190,7 @@ export default function InventoryPage() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => setEditDevice(p)}
-                          className="p-1.5 rounded-lg text-base-muted hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                          className="p-1.5 rounded-lg text-base-muted hover:text-blue-600 hover:bg-blue-50 transition-colors"
                           title="Edit Device"
                         >
                           <Pencil size={15} />
@@ -1222,10 +1222,10 @@ export default function InventoryPage() {
               <p className="text-sm font-medium text-green-600">All models adequately stocked</p>
             </div>
           ) : lowStock.map(m => (
-            <div key={m.id} className="card p-4 border-amber-300 flex items-center justify-between">
+            <div key={m.id} className="card p-4 border-blue-200 dark:border-blue-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                  <AlertTriangle size={18} className="text-amber-600" />
+                <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950/60 flex items-center justify-center">
+                  <AlertTriangle size={18} className="text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
                   <div className="font-semibold text-base-primary">{m.brand} {m.model}</div>
@@ -1234,12 +1234,12 @@ export default function InventoryPage() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-black text-amber-600">{m.in_stock}</div>
+                  <div className="text-2xl font-black text-blue-600 dark:text-blue-400">{m.in_stock}</div>
                   <div className="text-xs text-base-muted">in stock</div>
                 </div>
                 <button
                   onClick={() => { setOrderForm(f => ({ ...f, model_id: m.id })); setShowOrderModal(true); }}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors"
                 >
                   <Truck size={13} /> Order Stock
                 </button>

@@ -72,7 +72,7 @@ export default function ApplicationDetailPage() {
         <div className="flex items-center justify-between">
           {STAGES.slice(0,7).map((s,i)=>(
             <div key={s} className="flex items-center flex-1">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i<stageIdx?'bg-green-500 text-white':i===stageIdx?'bg-amber-500 text-white':'surface-2 text-base-muted'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i<stageIdx?'bg-green-500 text-white':i===stageIdx?'bg-blue-600 text-white':'surface-2 text-base-muted'}`}>
                 {i<stageIdx?<CheckCircle size={16}/>:String(i+1)}
               </div>
               {i<6 ? <div className={`h-0.5 flex-1 mx-1 ${i<stageIdx?'bg-green-400':'surface-3'}`}/> : null}
@@ -109,7 +109,7 @@ export default function ApplicationDetailPage() {
               <div key={l} className="flex justify-between"><span className="text-base-muted">{l}</span><span className="font-medium capitalize">{v}</span></div>
             ))}
           </div>
-          <Link to={`/customers/${cust?.id}`} className="mt-3 text-sm text-amber-600 hover:text-amber-700 font-medium block">View full profile →</Link>
+          <Link to={`/customers/${cust?.id}`} className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 font-semibold block">View full profile →</Link>
         </div>
       </div>
 

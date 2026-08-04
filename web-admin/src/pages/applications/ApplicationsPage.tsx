@@ -16,10 +16,10 @@ import {
 const STATUS_BADGE: Record<string, string> = {
   draft: 'surface-2 text-gray-600 border border-base',
   submitted: 'bg-blue-50 text-blue-700 border border-blue-200',
-  docs_review: 'bg-amber-50 text-amber-700 border border-amber-200',
-  camp_review: 'bg-purple-50 text-purple-700 border border-purple-200',
-  finance_review: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
-  admin_review: 'bg-pink-50 text-pink-700 border border-pink-200',
+  docs_review: 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:border-sky-800 dark:text-sky-300',
+  camp_review: 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300',
+  finance_review: 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300',
+  admin_review: 'bg-indigo-50 text-indigo-800 border border-indigo-200 dark:bg-indigo-950/50 dark:border-indigo-800 dark:text-indigo-300',
   approved: 'bg-teal-50 text-teal-700 border border-teal-200',
   active: 'bg-green-50 text-green-700 border border-green-200',
   rejected: 'bg-red-50 text-red-700 border border-red-200',
@@ -641,25 +641,25 @@ export default function ApplicationsPage() {
       </div>
 
       {isAdminReviewRole && (
-        <div className="card border-amber-200 bg-amber-50/70 p-4">
+        <div className="card border-blue-200 bg-blue-50/70 dark:bg-blue-950/40 dark:border-blue-900 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="flex items-start gap-2">
-              <Shield size={18} className="text-amber-600 mt-0.5" />
+              <Shield size={18} className="text-blue-600 dark:text-blue-400 mt-0.5" />
               <div>
-                <h2 className="font-semibold text-slate-900">Pending special approval requests</h2>
-                <p className="text-sm text-amber-700 mt-1">
+                <h2 className="font-semibold text-slate-900 dark:text-white">Pending special approval requests</h2>
+                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
                   These requests need admin or super admin review before the customer can proceed.
                 </p>
               </div>
             </div>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800 whitespace-nowrap">
+            <span className="rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 px-3 py-1 text-xs font-bold whitespace-nowrap">
               {specialApprovalLoading ? 'Loading…' : `${(specialApprovalRequests as any[]).length} pending`}
             </span>
           </div>
 
           {specialApprovalLoading ? (
             <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-              <Loader2 size={14} className="animate-spin" />
+              <Loader2 size={14} className="animate-spin text-blue-600" />
               <span>Loading pending requests…</span>
             </div>
           ) : !specialApprovalRequests || (specialApprovalRequests as any[]).length === 0 ? (
@@ -667,14 +667,14 @@ export default function ApplicationsPage() {
           ) : (
             <div className="mt-4 space-y-3">
               {(specialApprovalRequests as any[]).map((request: any) => (
-                <div key={request.id} className="rounded-xl border border-amber-200 surface p-3">
+                <div key={request.id} className="rounded-xl border border-blue-200 dark:border-blue-800 surface p-3">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">{request.customer?.full_name || 'Customer'}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{request.customer?.full_name || 'Customer'}</span>
                         <span className="text-xs text-slate-500">{request.customer?.service_number || '—'}</span>
                       </div>
-                      <p className="mt-1 text-sm text-slate-600">{request.reason}</p>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{request.reason}</p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
                         <span className="rounded-full bg-slate-100 px-2 py-1">
                           Requested by {request.requested_by_user?.full_name || request.requested_by_user?.phone_number || 'Sales officer'}
@@ -694,7 +694,7 @@ export default function ApplicationsPage() {
                         rows={3}
                         value={specialApprovalReviewNotes[request.id] || ''}
                         onChange={e => setSpecialApprovalReviewNotes(prev => ({ ...prev, [request.id]: e.target.value }))}
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         placeholder="Add note for the sales officer"
                       />
                     </div>
@@ -1186,15 +1186,15 @@ export default function ApplicationsPage() {
 
               {/* Retirement Risk Checkbox */}
               {showReviewModal.status === 'camp_review' && showReviewModal.retirement_flag === 'retire_risk' && (
-                <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl">
+                <div className="flex items-start gap-2.5 p-3.5 bg-blue-50 border border-blue-200 rounded-xl">
                   <input
                     type="checkbox"
                     id="retirementRisk"
                     checked={retirementRiskConfirmed}
                     onChange={e => setRetirementRiskConfirmed(e.target.checked)}
-                    className="mt-1 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                    className="mt-1 rounded border-blue-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <label htmlFor="retirementRisk" className="text-xs text-amber-900 leading-normal font-semibold">
+                  <label htmlFor="retirementRisk" className="text-xs text-blue-900 leading-normal font-semibold">
                     I confirm that I have reviewed the retirement risk of this customer. The application is eligible for the plan duration despite retirement warning.
                   </label>
                 </div>

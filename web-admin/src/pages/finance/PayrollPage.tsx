@@ -109,7 +109,7 @@ interface PayrollLine {
 
 const STATUS_STYLES: Record<string, string> = {
   draft: 'surface-2 text-gray-600',
-  approved: 'bg-amber-100 text-amber-700',
+  approved: 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300',
   paid: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
 };
@@ -590,11 +590,11 @@ export default function PayrollPage() {
               <div className="card h-full">
                 <div className="px-4 py-3.5 border-b border-base flex items-center justify-between">
                   <h3 className="font-semibold text-sm text-base-secondary">Salary Runs</h3>
-                  <button onClick={() => setShowCreateModal(true)} className="text-amber-600 text-xs font-semibold hover:text-amber-800">New</button>
+                  <button onClick={() => setShowCreateModal(true)} className="text-blue-600 text-xs font-semibold hover:text-blue-800 transition-colors">New</button>
                 </div>
                 {runsLoading ? (
                   <div className="flex items-center justify-center py-10 text-base-muted">
-                    <Loader2 size={18} className="animate-spin mr-2" />
+                    <Loader2 size={18} className="animate-spin mr-2 text-blue-600" />
                   </div>
                 ) : runs.length === 0 ? (
                   <div className="py-10 text-center text-base-muted">
@@ -608,7 +608,7 @@ export default function PayrollPage() {
                         key={run.id}
                         onClick={() => setSelectedRunId(run.id)}
                         className={`w-full px-4 py-3 text-left hover:bg-[var(--bg-surface-2)] transition-colors flex items-center justify-between ${
-                          selectedRunId === run.id ? 'bg-amber-50 border-l-2 border-amber-500' : ''
+                          selectedRunId === run.id ? 'bg-blue-50/70 border-l-2 border-blue-600 dark:bg-blue-950/30' : ''
                         }`}
                       >
                         <div>
@@ -632,7 +632,7 @@ export default function PayrollPage() {
             {runDetailLoading ? (
               <div className="flex-1 min-w-0 flex items-center justify-center py-24">
                 <div className="text-center space-y-3">
-                  <Loader2 size={36} className="animate-spin text-amber-500 mx-auto" />
+                  <Loader2 size={36} className="animate-spin text-blue-600 mx-auto" />
                   <p className="text-sm text-base-muted">Loading payroll run...</p>
                 </div>
               </div>
@@ -641,7 +641,7 @@ export default function PayrollPage() {
                 <div className="card p-5">
                   <div className="flex items-center justify-between mb-5">
                     <div>
-                      <h3 className="font-bold text-lg text-base-primary">Payroll â€” {selectedRun.run_month}</h3>
+                      <h3 className="font-bold text-lg text-base-primary">Payroll — {selectedRun.run_month}</h3>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[selectedRun.status]}`}>
                         {selectedRun.status}
                       </span>
@@ -651,7 +651,7 @@ export default function PayrollPage() {
                         <button
                           onClick={() => approveRun.mutate(selectedRun.id)}
                           disabled={approveRun.isPending}
-                          className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
                         >
                           <CheckCircle2 size={15} /> Approve
                         </button>
@@ -778,8 +778,8 @@ export default function PayrollPage() {
                   onClick={() => setSelectedRunId(run.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
                     selectedRunId === run.id
-                      ? 'bg-amber-500 text-white border-amber-500'
-                      : 'surface text-gray-600 border-base hover:border-amber-300'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'surface text-gray-600 border-base hover:border-blue-300'
                   }`}
                 >
                   {run.run_month}
@@ -792,7 +792,7 @@ export default function PayrollPage() {
                   <button
                     onClick={() => approveRun.mutate(selectedRun.id)}
                     disabled={approveRun.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50 transition-colors"
                   >
                     <CheckCircle2 size={13} /> Approve Run
                   </button>
@@ -829,7 +829,7 @@ export default function PayrollPage() {
                     onClick={() => setDeptFilter(dept)}
                     className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
                       deptFilter === dept
-                        ? 'bg-amber-500 text-white shadow-sm'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'surface-2 text-gray-600 hover:bg-[var(--bg-surface-3)]'
                     }`}
                   >
@@ -871,7 +871,7 @@ export default function PayrollPage() {
                       <div className="px-5 pt-5 pb-4">
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm">
                               {line.staff?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
                             </div>
                             <div>
@@ -990,7 +990,7 @@ export default function PayrollPage() {
                       <td className="px-4 py-3 font-mono">LKR {Number(staffMember.basic_salary ?? 0).toLocaleString()}</td>
                       <td className="px-4 py-3 font-mono">LKR {Number((staffMember.transport_allow ?? 0) + (staffMember.meal_allow ?? 0)).toLocaleString()}</td>
                       <td className="px-4 py-3">{Number(staffMember.commission_rate ?? 0).toFixed(2)}%</td>
-                      <td className="px-4 py-3 text-base-muted font-mono text-xs">{staffMember.epf_no || 'â€”'}</td>
+                      <td className="px-4 py-3 text-base-muted font-mono text-xs">{staffMember.epf_no || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${staffMember.is_active ? 'bg-green-100 text-green-700' : 'surface-2 text-base-muted'}`}>
                           {staffMember.is_active ? 'Active' : 'Inactive'}
@@ -1007,7 +1007,7 @@ export default function PayrollPage() {
                           </button>
                           <button
                             onClick={() => openStaffModal(staffMember)}
-                            className="text-amber-600 text-xs font-semibold hover:text-amber-800"
+                            className="text-blue-600 text-xs font-semibold hover:text-blue-800"
                           >Edit</button>
                         </div>
                       </td>
@@ -1020,9 +1020,9 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      {/* ─────────────────────────────────────────
           COST SUMMARY TAB
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      ───────────────────────────────────────── */}
       {activeTab === 'costs' && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-base">
@@ -1062,7 +1062,7 @@ export default function PayrollPage() {
                         </td>
                         <td className="px-4 py-3 font-mono">LKR {Number(run.total_gross ?? 0).toLocaleString()}</td>
                         <td className="px-4 py-3 font-mono text-red-500">LKR {Number(run.total_epf_ee ?? 0).toLocaleString()}</td>
-                        <td className="px-4 py-3 font-mono text-amber-600">LKR {Number(run.total_epf_er ?? 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-mono text-sky-600">LKR {Number(run.total_epf_er ?? 0).toLocaleString()}</td>
                         <td className="px-4 py-3 font-mono text-purple-600">LKR {Number(run.total_etf ?? 0).toLocaleString()}</td>
                         <td className="px-4 py-3 font-bold font-mono text-green-700">LKR {Number(run.total_net ?? 0).toLocaleString()}</td>
                         <td className="px-4 py-3 font-bold font-mono text-base-primary">LKR {companyCost.toLocaleString()}</td>
@@ -1075,7 +1075,7 @@ export default function PayrollPage() {
                     <td className="px-4 py-3 font-bold text-base-secondary" colSpan={2}>Totals</td>
                     <td className="px-4 py-3 font-bold font-mono">LKR {runs.reduce((s, r) => s + Number(r.total_gross ?? 0), 0).toLocaleString()}</td>
                     <td className="px-4 py-3 font-bold font-mono text-red-500">LKR {runs.reduce((s, r) => s + Number(r.total_epf_ee ?? 0), 0).toLocaleString()}</td>
-                    <td className="px-4 py-3 font-bold font-mono text-amber-600">LKR {runs.reduce((s, r) => s + Number(r.total_epf_er ?? 0), 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 font-bold font-mono text-blue-600">LKR {runs.reduce((s, r) => s + Number(r.total_epf_er ?? 0), 0).toLocaleString()}</td>
                     <td className="px-4 py-3 font-bold font-mono text-purple-600">LKR {runs.reduce((s, r) => s + Number(r.total_etf ?? 0), 0).toLocaleString()}</td>
                     <td className="px-4 py-3 font-bold font-mono text-green-700">LKR {runs.reduce((s, r) => s + Number(r.total_net ?? 0), 0).toLocaleString()}</td>
                     <td className="px-4 py-3 font-bold font-mono text-base-primary">LKR {runs.reduce((s, r) => s + Number(r.total_gross ?? 0) + Number(r.total_epf_er ?? 0) + Number(r.total_etf ?? 0), 0).toLocaleString()}</td>
@@ -1087,9 +1087,9 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      {/* ─────────────────────────────────────────
           CREATE RUN MODAL
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      ───────────────────────────────────────── */}
       {showCreateModal && (() => {
         const estGross = staff.reduce((s, st) => s + Number(st.basic_salary ?? 0) + Number(st.transport_allow ?? 0) + Number(st.meal_allow ?? 0), 0);
         const estEpfEr = Math.round(estGross * 0.12);
@@ -1114,7 +1114,7 @@ export default function PayrollPage() {
 
                 {/* Info notice */}
                 <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
-                  <span className="mt-0.5 shrink-0 text-blue-500">â„¹</span>
+                  <span className="mt-0.5 shrink-0 text-blue-500">ℹ</span>
                   <span>Creates a salary draft for all <strong>{staff.length}</strong> staff members based on current salary structures. Review and adjust before marking paid.</span>
                 </div>
 
@@ -1125,7 +1125,7 @@ export default function PayrollPage() {
                   </label>
                   <input
                     type="month"
-                    className="w-full border border-base rounded-lg px-4 py-3 text-sm text-base-secondary focus:outline-none focus:ring-2 focus:ring-blue-400 surface-2"
+                    className="w-full border border-base rounded-lg px-4 py-3 text-sm text-base-secondary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 surface-2"
                     value={createForm.run_month}
                     onChange={e => setCreateForm(f => ({ ...f, run_month: e.target.value }))}
                   />
@@ -1158,11 +1158,11 @@ export default function PayrollPage() {
                 <button
                   onClick={() => createRun.mutate(createForm)}
                   disabled={createRun.isPending || !createForm.run_month}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
                 >
                   {createRun.isPending
-                    ? <><Loader2 size={14} className="animate-spin" />Computingâ€¦</>
-                    : <><span className="text-base leading-none">â–¶</span> Create Draft Payroll</>
+                    ? <><Loader2 size={14} className="animate-spin" />Computing…</>
+                    : <><span className="text-base leading-none">▶</span> Create Draft Payroll</>
                   }
                 </button>
               </div>
@@ -1171,9 +1171,9 @@ export default function PayrollPage() {
         );
       })()}
 
-      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+      {/* ─────────────────────────────────────────
           STAFF MODAL (Add / Edit)
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      ───────────────────────────────────────── */}
       {showStaffModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="surface rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -1218,13 +1218,13 @@ export default function PayrollPage() {
                         designation: selectedUser ? selectedUser.role.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : prev.designation,
                       }));
                     }}
-                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full border border-base rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }}
                   >
-                    <option value="">â€” No system account link (standalone staff) â€”</option>
+                    <option value="">— No system account link (standalone staff) —</option>
                     {availableStaffUsers.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.phone_number} {user.email ? `(${user.email})` : ''} â€” {user.role.replace(/_/g, ' ')}
+                        {user.phone_number} {user.email ? `(${user.email})` : ''} — {user.role.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>
@@ -1238,27 +1238,27 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Full Name *</label>
-                    <input value={staffForm.full_name} onChange={e => setStaffForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Full name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.full_name} onChange={e => setStaffForm(p => ({ ...p, full_name: e.target.value }))} placeholder="Full name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>NIC Number</label>
-                    <input value={staffForm.nic_number} onChange={e => setStaffForm(p => ({ ...p, nic_number: e.target.value }))} placeholder="National ID" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.nic_number} onChange={e => setStaffForm(p => ({ ...p, nic_number: e.target.value }))} placeholder="National ID" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Phone Number</label>
-                    <input value={staffForm.phone_number} onChange={e => setStaffForm(p => ({ ...p, phone_number: e.target.value }))} placeholder="+94 71 234 5678" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.phone_number} onChange={e => setStaffForm(p => ({ ...p, phone_number: e.target.value }))} placeholder="+94 71 234 5678" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Email Address</label>
-                    <input type="email" value={staffForm.email} onChange={e => setStaffForm(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="email" value={staffForm.email} onChange={e => setStaffForm(p => ({ ...p, email: e.target.value }))} placeholder="email@example.com" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Date of Birth</label>
-                    <input type="date" value={staffForm.date_of_birth} onChange={e => setStaffForm(p => ({ ...p, date_of_birth: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="date" value={staffForm.date_of_birth} onChange={e => setStaffForm(p => ({ ...p, date_of_birth: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Home Address</label>
-                    <input value={staffForm.address} onChange={e => setStaffForm(p => ({ ...p, address: e.target.value }))} placeholder="Full residential address" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.address} onChange={e => setStaffForm(p => ({ ...p, address: e.target.value }))} placeholder="Full residential address" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
               </div>
@@ -1269,23 +1269,23 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Designation *</label>
-                    <input value={staffForm.designation} onChange={e => setStaffForm(p => ({ ...p, designation: e.target.value }))} placeholder="Job title" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.designation} onChange={e => setStaffForm(p => ({ ...p, designation: e.target.value }))} placeholder="Job title" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Department</label>
-                    <input value={staffForm.department} onChange={e => setStaffForm(p => ({ ...p, department: e.target.value }))} placeholder="Department" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.department} onChange={e => setStaffForm(p => ({ ...p, department: e.target.value }))} placeholder="Department" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Joined Date</label>
-                    <input type="date" value={staffForm.joined_date} onChange={e => setStaffForm(p => ({ ...p, joined_date: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="date" value={staffForm.joined_date} onChange={e => setStaffForm(p => ({ ...p, joined_date: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>EPF No.</label>
-                    <input value={staffForm.epf_no} onChange={e => setStaffForm(p => ({ ...p, epf_no: e.target.value }))} placeholder="EPF number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.epf_no} onChange={e => setStaffForm(p => ({ ...p, epf_no: e.target.value }))} placeholder="EPF number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>ETF No.</label>
-                    <input value={staffForm.etf_no} onChange={e => setStaffForm(p => ({ ...p, etf_no: e.target.value }))} placeholder="ETF number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.etf_no} onChange={e => setStaffForm(p => ({ ...p, etf_no: e.target.value }))} placeholder="ETF number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
               </div>
@@ -1296,35 +1296,35 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Basic Salary (LKR)</label>
-                    <input type="number" min="0" value={staffForm.basic_salary} onChange={e => setStaffForm(p => ({ ...p, basic_salary: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.basic_salary} onChange={e => setStaffForm(p => ({ ...p, basic_salary: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Transport Allowance (LKR)</label>
-                    <input type="number" min="0" value={staffForm.transport_allow} onChange={e => setStaffForm(p => ({ ...p, transport_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.transport_allow} onChange={e => setStaffForm(p => ({ ...p, transport_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Meal Allowance (LKR)</label>
-                    <input type="number" min="0" value={staffForm.meal_allow} onChange={e => setStaffForm(p => ({ ...p, meal_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.meal_allow} onChange={e => setStaffForm(p => ({ ...p, meal_allow: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Attendance Allow. (LKR)</label>
-                    <input type="number" min="0" value={staffForm.attendance_allowance} onChange={e => setStaffForm(p => ({ ...p, attendance_allowance: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.attendance_allowance} onChange={e => setStaffForm(p => ({ ...p, attendance_allowance: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Performance Allow. (LKR)</label>
-                    <input type="number" min="0" value={staffForm.performance_allowance} onChange={e => setStaffForm(p => ({ ...p, performance_allowance: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.performance_allowance} onChange={e => setStaffForm(p => ({ ...p, performance_allowance: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Allowance 01 (LKR)</label>
-                    <input type="number" min="0" value={staffForm.allowance_01} onChange={e => setStaffForm(p => ({ ...p, allowance_01: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.allowance_01} onChange={e => setStaffForm(p => ({ ...p, allowance_01: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Allowance 02 (LKR)</label>
-                    <input type="number" min="0" value={staffForm.allowance_02} onChange={e => setStaffForm(p => ({ ...p, allowance_02: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" value={staffForm.allowance_02} onChange={e => setStaffForm(p => ({ ...p, allowance_02: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Commission Rate (%)</label>
-                    <input type="number" min="0" max="100" value={staffForm.commission_rate} onChange={e => setStaffForm(p => ({ ...p, commission_rate: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input type="number" min="0" max="100" value={staffForm.commission_rate} onChange={e => setStaffForm(p => ({ ...p, commission_rate: e.target.value }))} className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
               </div>
@@ -1335,15 +1335,15 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Bank Name</label>
-                    <input value={staffForm.bank_name} onChange={e => setStaffForm(p => ({ ...p, bank_name: e.target.value }))} placeholder="e.g. Bank of Ceylon" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.bank_name} onChange={e => setStaffForm(p => ({ ...p, bank_name: e.target.value }))} placeholder="e.g. Bank of Ceylon" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Account Number</label>
-                    <input value={staffForm.bank_account_no} onChange={e => setStaffForm(p => ({ ...p, bank_account_no: e.target.value }))} placeholder="Account number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.bank_account_no} onChange={e => setStaffForm(p => ({ ...p, bank_account_no: e.target.value }))} placeholder="Account number" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Branch</label>
-                    <input value={staffForm.bank_branch} onChange={e => setStaffForm(p => ({ ...p, bank_branch: e.target.value }))} placeholder="Branch name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.bank_branch} onChange={e => setStaffForm(p => ({ ...p, bank_branch: e.target.value }))} placeholder="Branch name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
               </div>
@@ -1354,11 +1354,11 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Contact Name</label>
-                    <input value={staffForm.emergency_contact_name} onChange={e => setStaffForm(p => ({ ...p, emergency_contact_name: e.target.value }))} placeholder="Emergency contact name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.emergency_contact_name} onChange={e => setStaffForm(p => ({ ...p, emergency_contact_name: e.target.value }))} placeholder="Emergency contact name" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }}>Contact Phone</label>
-                    <input value={staffForm.emergency_contact_phone} onChange={e => setStaffForm(p => ({ ...p, emergency_contact_phone: e.target.value }))} placeholder="+94 71 234 5678" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
+                    <input value={staffForm.emergency_contact_phone} onChange={e => setStaffForm(p => ({ ...p, emergency_contact_phone: e.target.value }))} placeholder="+94 71 234 5678" className="w-full border border-base rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" style={{ backgroundColor: 'var(--bg-surface-2)', color: 'var(--text-primary)' }} />
                   </div>
                 </div>
               </div>
@@ -1370,7 +1370,7 @@ export default function PayrollPage() {
               <button
                 onClick={saveStaff}
                 disabled={createStaff.isPending || updateStaff.isPending || !staffForm.full_name || !staffForm.designation}
-                className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
               >
                 {(createStaff.isPending || updateStaff.isPending) ? <><Loader2 size={14} className="inline animate-spin mr-1" />Savingâ€¦</> : selectedStaff ? 'Update Staff' : 'Create Staff'}
               </button>

@@ -66,77 +66,11 @@ interface DashboardPreset {
   widgets: Record<string, boolean>;
 }
 
-// ── SAMPLE / MOCK DATA FOR DEMONSTRATION ──
-const SAMPLE_KPIS: KPIResponse = {
-  totalCustomers: 485,
-  activePlans: 342,
-  pendingApps: 14,
-  collectionRatePct: '96.4',
-  expectedTotal: 4825000,
-  actualTotal: 4651300,
-  netProfit: 1840500,
-  failureCount: 4,
-  inventoryValue: 12450000,
-  inStockCount: 18,
-  commPayable: 142500,
-};
-
-const SAMPLE_CHART_DATA: ChartItem[] = [
-  { month: 'Jan', amount: 2100000, priorAmount: 1850000 },
-  { month: 'Feb', amount: 2850000, priorAmount: 2200000 },
-  { month: 'Mar', amount: 3400000, priorAmount: 2900000 },
-  { month: 'Apr', amount: 3200000, priorAmount: 2750000 },
-  { month: 'May', amount: 4100000, priorAmount: 3450000 },
-  { month: 'Jun', amount: 4500000, priorAmount: 3800000 },
-  { month: 'Jul', amount: 4651300, priorAmount: 3950000 },
-  { month: 'Aug', amount: 4800000, priorAmount: 4100000 },
-  { month: 'Sep', amount: 4950000, priorAmount: 4250000 },
-  { month: 'Oct', amount: 5100000, priorAmount: 4400000 },
-  { month: 'Nov', amount: 5300000, priorAmount: 4550000 },
-  { month: 'Dec', amount: 5600000, priorAmount: 4800000 },
-];
-
-const SAMPLE_EXPENSE_BREAKDOWN: ExpenseBreakdownItem[] = [
-  { category: 'Salaries & Allowances', total: 1450000, percentage: 44.6 },
-  { category: 'Device Inventory Restock', total: 950000, percentage: 29.2 },
-  { category: 'Camp Logistics & Transport', total: 420000, percentage: 12.9 },
-  { category: 'Utilities & Telecommunication', total: 260000, percentage: 8.0 },
-  { category: 'System Maintenance & Software', total: 170000, percentage: 5.3 },
-];
-
-const SAMPLE_ALERTS: AlertItem[] = [
-  {
-    sev: 'high',
-    icon: 'AlertTriangle',
-    title: 'High Deduction Failure Alert — SLAF Katunayake',
-    msg: '4 uncollected salary installment deductions detected for July salary sheet. Follow-up required with base pay office.',
-    time: '10 mins ago',
-    action: 'Review Case',
-  },
-  {
-    sev: 'medium',
-    icon: 'Package',
-    title: 'Inventory Stock Warning — Samsung Galaxy A15',
-    msg: 'Stock level critically low (2 units remaining). High demand in Panagoda Air Force Camp.',
-    time: '2 hours ago',
-    action: 'Order Stock',
-  },
-  {
-    sev: 'info',
-    icon: 'Users',
-    title: 'Retirement Warning — 2 Active Personnel',
-    msg: 'WO2 K. A. Perera and Cpl S. Bandara reaching retirement date within 60 days. Guarantors verified.',
-    time: '1 day ago',
-    action: 'Inspect Plans',
-  },
-];
-
 export default function DashboardPage() {
   const { user, hasRole } = useRoleAccess();
   const now = new Date();
 
   // Filters & State
-  const [sampleDataMode, setSampleDataMode] = useState<boolean>(true); // Default ON for demonstration
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [columns, setColumns] = useState<'3' | '2' | '1'>('3');
@@ -266,30 +200,40 @@ export default function DashboardPage() {
         .then((r) => r.data),
   });
 
-  // Choose between Sample Data vs Backend Data based on sampleDataMode toggle
-  const kpis: KPIResponse = sampleDataMode ? SAMPLE_KPIS : (rawKpis || SAMPLE_KPIS);
+  // Live Backend Data mapping
+  const kpis: KPIResponse = rawKpis || {
+    totalCustomers: 0,
+    activePlans: 0,
+    pendingApps: 0,
+    collectionRatePct: '0',
+    expectedTotal: 0,
+    actualTotal: 0,
+    netProfit: 0,
+    failureCount: 0,
+    inventoryValue: 0,
+    inStockCount: 0,
+    commPayable: 0,
+  };
+
   const chartData: ChartItem[] = useMemo(() => {
-    const source = sampleDataMode || rawChartData.length === 0 ? SAMPLE_CHART_DATA : rawChartData;
-    return source.map((item) => ({
+    return rawChartData.map((item) => ({
       ...item,
       priorAmount: item.priorAmount || Math.round(item.amount * 0.82),
     }));
-  }, [sampleDataMode, rawChartData]);
+  }, [rawChartData]);
 
   const expensesChartData: ChartItem[] = useMemo(() => {
-    const source = sampleDataMode || rawExpensesChartData.length === 0 ? SAMPLE_CHART_DATA : rawExpensesChartData;
-    return source.map((item) => ({
+    return rawExpensesChartData.map((item) => ({
       ...item,
       amount: item.amount || 0,
     }));
-  }, [sampleDataMode, rawExpensesChartData]);
+  }, [rawExpensesChartData]);
 
-  const alerts: AlertItem[] = sampleDataMode || rawAlerts.length === 0 ? SAMPLE_ALERTS : rawAlerts;
+  const alerts: AlertItem[] = rawAlerts;
   const rawExpenseBreakdown = expenseBreakdownRes?.data ?? [];
   const expenseBreakdown: ExpenseBreakdownItem[] = useMemo(() => {
-    const source = sampleDataMode || rawExpenseBreakdown.length === 0 ? SAMPLE_EXPENSE_BREAKDOWN : rawExpenseBreakdown;
-    return [...source].sort((a, b) => b.total - a.total);
-  }, [sampleDataMode, rawExpenseBreakdown]);
+    return [...rawExpenseBreakdown].sort((a, b) => b.total - a.total);
+  }, [rawExpenseBreakdown]);
 
   const finSummary = finSummaryRes || { income: kpis.actualTotal, expenses: 3250000, netProfit: kpis.netProfit };
   const expenseGrandTotal = useMemo(() => expenseBreakdown.reduce((s, e) => s + e.total, 0), [expenseBreakdown]);
@@ -377,10 +321,10 @@ export default function DashboardPage() {
 
   const yearOptions = Array.from({ length: 5 }, (_, i) => now.getFullYear() - i);
 
-  if (kpiLoading && !sampleDataMode) {
+  if (kpiLoading) {
     return (
       <div className="p-16 flex flex-col items-center justify-center surface text-base-muted min-h-[600px] space-y-3">
-        <RefreshCw className="animate-spin text-amber-500" size={28} />
+        <RefreshCw className="animate-spin text-blue-600" size={28} />
         <span className="text-sm font-semibold text-base-secondary">Loading AIRVOICE Command Analytics Suite…</span>
       </div>
     );
@@ -400,11 +344,6 @@ export default function DashboardPage() {
               <span className="badge bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[10px] font-extrabold uppercase tracking-wider border border-blue-200 dark:border-blue-800">
                 AIRVOICE Analytics
               </span>
-              {sampleDataMode && (
-                <span className="badge bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px] font-bold border border-amber-300 animate-pulse">
-                  Sample Data Preview Mode
-                </span>
-              )}
             </div>
             <p className="text-xs text-base-muted mt-0.5">
               Build and share interactive operational finance dashboards with intelligent AI widgets.
@@ -452,19 +391,6 @@ export default function DashboardPage() {
             Manage dashboards ({dashboardsList.length}) <ChevronDown size={14} />
           </button>
         </div>
-
-        {/* SAMPLE DATA TOGGLE SWITCH (Xero Style) */}
-        <button
-          onClick={() => setSampleDataMode((prev) => !prev)}
-          className={`mb-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all flex items-center gap-2 shadow-sm ${
-            sampleDataMode
-              ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/20'
-              : 'bg-white dark:bg-slate-900 border-base text-base-muted hover:border-slate-400'
-          }`}
-        >
-          {sampleDataMode ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-          <span>{sampleDataMode ? 'Sample Data Preview: ON' : 'Preview with example data'}</span>
-        </button>
       </div>
 
       {/* ── TAB 1: PERFORMANCE OVERVIEW TAB CONTENT ── */}

@@ -197,7 +197,7 @@ export default function CampManagementPage() {
 
       {/* Add camp form */}
       {addingCamp && (
-        <div className="card p-5 border-2 border-amber-300">
+        <div className="card p-5 border-2 border-blue-200 dark:border-blue-900">
           <h2 className="font-semibold text-base-primary mb-4">New Camp</h2>
           <CampForm districts={districts} onSubmit={d => campMut.mutate({ data: d })} onCancel={() => setAddingCamp(false)} loading={campMut.isPending} />
         </div>
@@ -241,7 +241,7 @@ export default function CampManagementPage() {
 
                 {/* Edit camp form */}
                 {editingCamp?.id === camp.id && (
-                  <div className="surface rounded-xl p-4 border border-amber-200">
+                  <div className="surface rounded-xl p-4 border border-blue-200 dark:border-blue-900">
                     <h3 className="font-semibold text-base-secondary mb-3">Edit Camp</h3>
                     <CampForm
                       initial={camp}
@@ -257,7 +257,7 @@ export default function CampManagementPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-sm text-base-secondary">Regiments / Units</h3>
-                    <button onClick={() => { setAddingRegiment(true); setSelectedCamp(camp); }} className="text-xs text-amber-600 hover:text-amber-800 flex items-center gap-1">
+                    <button onClick={() => { setAddingRegiment(true); setSelectedCamp(camp); }} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 font-semibold">
                       <Plus size={13} />Add Regiment
                     </button>
                   </div>
@@ -335,11 +335,11 @@ export default function CampManagementPage() {
                     <button onClick={searchOfficer} className="btn-secondary text-xs py-1.5"><Search size={14} /></button>
                   </div>
                   {officerSearchResult && (
-                    <div className="mt-2 flex items-center gap-3 px-3 py-2 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="mt-2 flex items-center gap-3 px-3 py-2 bg-blue-50/70 rounded-lg border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50">
                       <span className="flex-1 text-sm">{officerSearchResult.phone_number}</span>
                       <span className="text-xs text-base-muted">{officerSearchResult.role}</span>
                       <button onClick={() => officerMut.mutate({ campId: camp.id, userId: officerSearchResult.id })}
-                        className="flex items-center gap-1 text-xs bg-amber-500 text-white px-2 py-1 rounded hover:bg-amber-600">
+                        className="flex items-center gap-1 text-xs bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 font-semibold transition-colors">
                         <UserPlus size={12} />Assign
                       </button>
                     </div>

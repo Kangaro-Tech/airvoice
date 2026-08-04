@@ -32,7 +32,7 @@ interface ChatMessage { role: 'user' | 'ai'; text: string; ts: string; }
 const fmt = (n: number) => `LKR ${n.toLocaleString('en-LK')}`;
 
 const STATUS_META: Record<string,{bg:string;text:string;dot:string}> = {
-  pending:  { bg:'bg-amber-100',  text:'text-amber-700',  dot:'bg-amber-400'  },
+  pending:  { bg:'bg-sky-100 dark:bg-sky-950/40', text:'text-sky-700 dark:text-sky-300', dot:'bg-sky-500' },
   approved: { bg:'bg-emerald-100',text:'text-emerald-700',dot:'bg-emerald-500' },
   rejected: { bg:'bg-red-100',    text:'text-red-700',    dot:'bg-red-500'     },
   paid:     { bg:'bg-blue-100',   text:'text-blue-700',   dot:'bg-blue-500'    },
@@ -509,7 +509,7 @@ export default function ExpensesPage() {
                         {/* Submitted By */}
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-black text-xs flex-shrink-0">
+                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs flex-shrink-0">
                               {(e.submitter?.full_name ?? e.submitted_by?.phone_number ?? 'U')[0].toUpperCase()}
                             </div>
                             <div>
@@ -545,9 +545,9 @@ export default function ExpensesPage() {
                               <span>{loadingReceiptId === e.id ? 'Loading...' : 'View'}</span>
                             </button>
                           ) : (
-                            <label className="flex items-center gap-1 text-xs text-base-muted cursor-pointer hover:text-amber-500 transition-colors">
+                            <label className="flex items-center gap-1 text-xs text-base-muted cursor-pointer hover:text-blue-600 transition-colors">
                               {uploadingId===e.id ? (
-                                <Loader2 size={13} className="animate-spin text-amber-500"/>
+                                <Loader2 size={13} className="animate-spin text-blue-600"/>
                               ) : (
                                 <>
                                   <Paperclip size={13}/>
@@ -620,7 +620,7 @@ export default function ExpensesPage() {
           <div className="px-6 py-4 border-b border-base flex items-center justify-between"
             style={{background:'linear-gradient(135deg,#0f172a,#1e293b)'}}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
                 <Sparkles size={16} className="text-white"/>
               </div>
               <div>
@@ -643,7 +643,7 @@ export default function ExpensesPage() {
                   <button
                     key={chip}
                     onClick={() => sendChat(chip)}
-                    className="px-3 py-1.5 rounded-full text-xs font-semibold border border-violet-200 text-violet-600 bg-violet-50 hover:bg-violet-100 transition-colors"
+                    className="px-3 py-1.5 rounded-full text-xs font-semibold border border-blue-200 text-blue-600 bg-blue-50/70 hover:bg-blue-100 dark:bg-blue-950/40 dark:border-blue-900/50 dark:text-blue-300 transition-colors"
                   >
                     {chip}
                   </button>
@@ -658,17 +658,17 @@ export default function ExpensesPage() {
               <div key={i} className={`flex items-start gap-2.5 ${msg.role==='user'?'flex-row-reverse':''}`}>
                 <div className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-black ${
                   msg.role==='ai'
-                    ? 'bg-gradient-to-br from-violet-500 to-indigo-600'
-                    : 'bg-gradient-to-br from-amber-500 to-orange-600'
+                    ? 'bg-gradient-to-br from-blue-600 to-indigo-600'
+                    : 'bg-gradient-to-br from-blue-600 to-sky-600'
                 }`}>
                   {msg.role==='ai' ? <Bot size={13}/> : <User size={13}/>}
                 </div>
                 <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                   msg.role==='ai'
-                    ? 'bg-slate-50 text-base-secondary border border-base'
+                    ? 'bg-slate-50 text-base-secondary border border-base dark:bg-slate-800/80'
                     : 'text-white'
                 }`}
-                  style={msg.role==='user' ? {background:'linear-gradient(135deg,#f59e0b,#ea580c)'} : {}}
+                  style={msg.role==='user' ? {background:'linear-gradient(135deg,#2563eb,#1d4ed8)'} : {}}
                 >
                   {msg.text}
                   <div className={`text-xs mt-1 opacity-50 ${msg.role==='user'?'text-right text-white':'text-base-muted'}`}>
@@ -679,13 +679,13 @@ export default function ExpensesPage() {
             ))}
             {chatLoading && (
               <div className="flex items-start gap-2.5">
-                <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-violet-500 to-indigo-600">
+                <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-blue-600 to-indigo-600">
                   <Bot size={13} className="text-white"/>
                 </div>
-                <div className="bg-slate-50 border border-base rounded-2xl px-4 py-2.5 flex items-center gap-2">
+                <div className="bg-slate-50 border border-base rounded-2xl px-4 py-2.5 flex items-center gap-2 dark:bg-slate-800/80">
                   <div className="flex gap-1">
                     {[0,1,2].map(i => (
-                      <div key={i} className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{animationDelay:`${i*0.15}s`}}/>
+                      <div key={i} className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{animationDelay:`${i*0.15}s`}}/>
                     ))}
                   </div>
                   <span className="text-xs text-base-muted">Thinking…</span>
@@ -700,7 +700,7 @@ export default function ExpensesPage() {
             <div className="px-6 pb-2 flex flex-wrap gap-1.5">
               {SUGGESTION_CHIPS.map(chip => (
                 <button key={chip} onClick={() => sendChat(chip)}
-                  className="px-2.5 py-1 rounded-full text-xs border border-base text-base-muted hover:border-violet-300 hover:text-violet-600 transition-colors">
+                  className="px-2.5 py-1 rounded-full text-xs border border-base text-base-muted hover:border-blue-300 hover:text-blue-600 transition-colors">
                   {chip}
                 </button>
               ))}
@@ -729,8 +729,8 @@ export default function ExpensesPage() {
               <button
                 onClick={() => sendChat(chatInput)}
                 disabled={chatLoading || !chatInput.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
-                style={{background:'linear-gradient(135deg,#7c3aed,#4f46e5)'}}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white disabled:opacity-50 transition-all hover:scale-[1.02]"
+                style={{background:'linear-gradient(135deg,#2563eb,#1d4ed8)'}}
               >
                 <Send size={13}/> Ask
               </button>
@@ -746,7 +746,7 @@ export default function ExpensesPage() {
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-base sticky top-0 surface z-10">
               <h3 className="font-black text-base-primary flex items-center gap-2 text-base">
-                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center">
                   <Plus size={14} className="text-white"/>
                 </span>
                 Add Expense
@@ -762,7 +762,7 @@ export default function ExpensesPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-base-muted mb-1.5">Category</label>
                 <div className="relative">
                   <select
-                    className="w-full appearance-none border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 surface pr-8 font-medium"
+                    className="w-full appearance-none border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 surface pr-8 font-medium"
                     value={form.category_id}
                     onChange={e => setForm(f => ({...f, category_id:e.target.value}))}
                   >
@@ -779,7 +779,7 @@ export default function ExpensesPage() {
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base-muted text-sm font-bold">LKR</span>
                   <input
                     type="number" placeholder="0.00"
-                    className="w-full pl-14 pr-4 py-2.5 border border-base rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono"
+                    className="w-full pl-14 pr-4 py-2.5 border border-base rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
                     value={form.amount}
                     onChange={e => setForm(f => ({...f, amount:e.target.value}))}
                   />
@@ -790,7 +790,7 @@ export default function ExpensesPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-base-muted mb-1.5">Description</label>
                 <input
                   type="text" placeholder="What was this expense for?"
-                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={form.description}
                   onChange={e => setForm(f => ({...f, description:e.target.value}))}
                 />
@@ -800,7 +800,7 @@ export default function ExpensesPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-base-muted mb-1.5">Date</label>
                 <input
                   type="date"
-                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={form.expense_date}
                   onChange={e => setForm(f => ({...f, expense_date:e.target.value}))}
                 />
@@ -810,7 +810,7 @@ export default function ExpensesPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-base-muted mb-1.5">Payment Method</label>
                 <div className="relative">
                   <select
-                    className="w-full appearance-none border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 surface pr-8 font-medium"
+                    className="w-full appearance-none border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 surface pr-8 font-medium"
                     value={form.payment_method}
                     onChange={e => setForm(f => ({...f, payment_method:e.target.value}))}
                   >
@@ -824,7 +824,7 @@ export default function ExpensesPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-base-muted mb-1.5">Reference / Receipt #</label>
                 <input
                   type="text" placeholder="Bill or receipt reference"
-                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={form.receipt_reference}
                   onChange={e => setForm(f => ({...f, receipt_reference:e.target.value}))}
                 />
@@ -836,12 +836,12 @@ export default function ExpensesPage() {
                   onClick={() => fileInputRef.current?.click()}
                   className={`relative cursor-pointer rounded-xl border-2 border-dashed p-5 text-center transition-all ${
                     form.receipt_file
-                      ? 'border-emerald-300 bg-emerald-50'
-                      : 'border-base surface-2 hover:border-amber-400 hover:bg-amber-50'
+                      ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30'
+                      : 'border-base surface-2 hover:border-blue-500 hover:bg-blue-50/50'
                   }`}
                 >
                   {form.receipt_file ? (
-                    <div className="flex items-center justify-center gap-2 text-emerald-600">
+                    <div className="flex items-center justify-center gap-2 text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 size={18}/>
                       <span className="text-sm font-semibold truncate max-w-[200px]">{form.receipt_file.name}</span>
                       <button
@@ -869,7 +869,7 @@ export default function ExpensesPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-base-muted mb-1.5">Notes (Optional)</label>
                 <textarea
                   rows={2}
-                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                  className="w-full border border-base rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   placeholder="Additional notes…"
                   value={form.notes}
                   onChange={e => setForm(f => ({...f, notes:e.target.value}))}
@@ -888,8 +888,8 @@ export default function ExpensesPage() {
               <button
                 onClick={handleAddExpense}
                 disabled={submitting || !form.category_id || !form.amount || !form.description}
-                className="px-6 py-2.5 rounded-xl text-sm font-black text-white disabled:opacity-50 transition-all hover:scale-[1.02] flex items-center gap-2"
-                style={{background:'linear-gradient(135deg,#f59e0b,#ea580c)'}}
+                className="px-6 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 transition-all hover:scale-[1.02] flex items-center gap-2"
+                style={{background:'linear-gradient(135deg,#2563eb,#1d4ed8)'}}
               >
                 {submitting ? <><Loader2 size={14} className="animate-spin"/> Saving…</> : <><Upload size={14}/> Save Expense</>}
               </button>

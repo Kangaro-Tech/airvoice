@@ -13,7 +13,7 @@ import {
 const BRANCH_STYLE: Record<string, string> = {
   army: 'bg-green-100 text-green-800 border-green-200',
   navy: 'bg-blue-100  text-blue-800  border-blue-200',
-  air_force: 'bg-purple-100 text-purple-800 border-purple-200',
+  air_force: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:border-sky-800 dark:text-sky-300',
 };
 const BRANCH_LABEL: Record<string, string> = {
   army: 'Army', navy: 'Navy', air_force: 'Air Force',
@@ -36,7 +36,7 @@ function BranchTag({ branch }: { branch: string }) {
 function RiskBadge({ score }: { score: number }) {
   const color =
     score > 60 ? 'text-red-700 bg-red-100 border-red-200' :
-      score > 35 ? 'text-amber-700 bg-amber-100 border-amber-200' :
+      score > 35 ? 'text-sky-700 bg-sky-100 border-sky-200' :
         'text-green-700 bg-green-100 border-green-200';
   return (
     <span className={`inline-block px-2 py-0.5 rounded-md border text-xs font-bold ${color}`}>

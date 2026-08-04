@@ -11,14 +11,14 @@ import {
 const ROLES = ['customer', 'guarantor', 'sales_officer', 'camp_officer', 'finance_officer', 'recovery_officer', 'inventory_manager', 'accountant', 'admin', 'super_admin'];
 const ROLE_BADGE: Record<string, string> = {
   admin: 'bg-red-100 text-red-800',
-  super_admin: 'bg-purple-100 text-purple-800',
+  super_admin: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
   finance_officer: 'bg-blue-100 text-blue-800',
   camp_officer: 'bg-green-100 text-green-800',
-  sales_officer: 'bg-amber-100 text-amber-800',
+  sales_officer: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
 };
 
 const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700 border border-amber-200',
+  pending: 'bg-sky-100 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:border-sky-900/50',
   approved: 'bg-green-100 text-green-700 border border-green-200',
   rejected: 'bg-red-100 text-red-700 border border-red-200',
   dispatched: 'bg-blue-100 text-blue-700 border border-blue-200',
@@ -128,18 +128,18 @@ export default function AdminPage() {
               onClick={() => setTab(t)}
               className={`relative px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === t
-                  ? 'border-purple-500 text-purple-700'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
                   : 'border-transparent text-base-muted hover:text-[var(--text-secondary)]'
               }`}
             >
               {t}
               {t === 'Special Approvals' && pendingSACount > 0 && (
-                <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                <span className="ml-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
                   {pendingSACount}
                 </span>
               )}
               {t === 'Free Phone Rewards' && pendingFPCount > 0 && (
-                <span className="ml-1.5 bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
+                <span className="ml-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full px-1.5 py-0.5 leading-none">
                   {pendingFPCount}
                 </span>
               )}
@@ -214,8 +214,8 @@ export default function AdminPage() {
 
       {tab === 'Special Approvals' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-            <AlertCircle size={18} className="shrink-0 text-amber-600" />
+          <div className="flex items-center gap-3 p-4 bg-blue-50/70 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50 rounded-xl text-sm text-blue-900 dark:text-blue-200">
+            <AlertCircle size={18} className="shrink-0 text-blue-600 dark:text-blue-400" />
             <div>
               <span className="font-bold">Special Approval Review</span> — When a customer already has exactly <strong>2 active phone plans</strong>, a sales officer can submit a special approval request for a 3rd phone. Approve or reject these requests below.
             </div>
@@ -230,7 +230,7 @@ export default function AdminPage() {
                 onClick={() => setSaStatusFilter(s)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg capitalize transition-all ${
                   saStatusFilter === s
-                    ? s === 'pending' ? 'bg-amber-500 text-white shadow-sm'
+                    ? s === 'pending' ? 'bg-blue-600 text-white shadow-sm'
                       : s === 'approved' ? 'bg-green-500 text-white shadow-sm'
                       : s === 'rejected' ? 'bg-red-500 text-white shadow-sm'
                       : 'bg-slate-800 text-white shadow-sm'
@@ -370,8 +370,8 @@ export default function AdminPage() {
       {/* ── FREE PHONE REWARDS TAB ─────────────────── */}
       {tab === 'Free Phone Rewards' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 p-4 bg-purple-50 border border-purple-200 rounded-xl text-sm text-purple-800">
-            <Gift size={18} className="shrink-0 text-purple-500" />
+          <div className="flex items-center gap-3 p-4 bg-blue-50/70 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50 rounded-xl text-sm text-blue-900 dark:text-blue-200">
+            <Gift size={18} className="shrink-0 text-blue-600 dark:text-blue-400" />
             <div>
               <span className="font-bold">Free Phone Reward Requests</span> — Submitted by Sales Officers or Camp Officers to reward outstanding military officers. Review and approve or reject below.
             </div>

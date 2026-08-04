@@ -25,9 +25,9 @@ function calcLeaveEntitlements(joinedDate: string, year: number) {
 
 const LEAVE_TYPES = ['annual', 'casual', 'medical', 'no_pay'];
 const LEAVE_TYPE_COLORS: Record<string, string> = {
-  annual: '#3b82f6',
-  casual: '#8b5cf6',
-  medical: '#f59e0b',
+  annual: '#2563eb',
+  casual: '#1d4ed8',
+  medical: '#0284c7',
   no_pay: '#ef4444',
 };
 
@@ -101,7 +101,7 @@ export default function LeaveManagementPage() {
 
       {/* Leave Request Form */}
       {showRequestForm && (
-        <div className="rounded-xl border p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: '#8b5cf6' }}>
+        <div className="rounded-xl border border-blue-600 p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
           <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Submit Leave Request</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -110,7 +110,7 @@ export default function LeaveManagementPage() {
                 id="leave-staff-select"
                 value={reqForm.staff_id}
                 onChange={e => setReqForm(f => ({ ...f, staff_id: e.target.value }))}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               >
                 <option value="">Select employee...</option>
@@ -123,7 +123,7 @@ export default function LeaveManagementPage() {
                 id="leave-type-select"
                 value={reqForm.leave_type}
                 onChange={e => setReqForm(f => ({ ...f, leave_type: e.target.value }))}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none capitalize"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none capitalize focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               >
                 {LEAVE_TYPES.map(t => <option key={t} value={t} className="capitalize">{t.replace('_', ' ')}</option>)}
@@ -136,7 +136,7 @@ export default function LeaveManagementPage() {
                 type="date"
                 value={reqForm.start_date}
                 onChange={e => setReqForm(f => ({ ...f, start_date: e.target.value }))}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
             </div>
@@ -147,7 +147,7 @@ export default function LeaveManagementPage() {
                 type="date"
                 value={reqForm.end_date}
                 onChange={e => setReqForm(f => ({ ...f, end_date: e.target.value }))}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
             </div>
@@ -158,7 +158,7 @@ export default function LeaveManagementPage() {
                 value={reqForm.reason}
                 onChange={e => setReqForm(f => ({ ...f, reason: e.target.value }))}
                 rows={2}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none resize-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                 placeholder="Reason for leave..."
               />
@@ -188,7 +188,7 @@ export default function LeaveManagementPage() {
             id="balance-staff-filter"
             value={selectedStaff}
             onChange={e => setSelectedStaff(e.target.value)}
-            className="text-sm px-3 py-2 rounded-lg border outline-none"
+            className="text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
           >
             <option value="">All Staff</option>
@@ -201,7 +201,7 @@ export default function LeaveManagementPage() {
             id="balance-year-filter"
             value={selectedYear}
             onChange={e => setSelectedYear(Number(e.target.value))}
-            className="text-sm px-3 py-2 rounded-lg border outline-none"
+            className="text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
           >
             {[currentYear + 1, currentYear, currentYear - 1, currentYear - 2].map(y => (
@@ -213,8 +213,8 @@ export default function LeaveManagementPage() {
 
       {/* Suggested leave entitlements info box */}
       {selectedStaffObj?.joined_date && suggested && (
-        <div className="flex items-start gap-3 p-4 rounded-xl border" style={{ backgroundColor: '#8b5cf620', borderColor: '#8b5cf6' }}>
-          <Info size={16} style={{ color: '#8b5cf6', marginTop: 2 }} />
+        <div className="flex items-start gap-3 p-4 rounded-xl border border-blue-200 bg-blue-50/70 dark:bg-blue-950/40 dark:border-blue-900">
+          <Info size={16} className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
               Suggested Leave Entitlements for {selectedStaffObj.full_name} ({selectedYear})
@@ -229,7 +229,7 @@ export default function LeaveManagementPage() {
 
       {/* Leave Balances Table */}
       {isLoading ? (
-        <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin" style={{ color: '#8b5cf6' }} /></div>
+        <div className="flex justify-center py-16"><Loader2 size={24} className="animate-spin text-blue-600" /></div>
       ) : staffBalances.length === 0 ? (
         <div className="text-center py-16" style={{ color: 'var(--text-muted)' }}>
           <ClipboardList size={40} className="mx-auto mb-3 opacity-30" />

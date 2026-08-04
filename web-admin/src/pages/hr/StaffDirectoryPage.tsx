@@ -79,7 +79,7 @@ export default function StaffDirectoryPage() {
             placeholder="Search by name, designation, department..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:border-blue-500 transition-colors"
+            className="w-full pl-8 pr-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
           />
         </div>
         <label className="flex items-center gap-2 text-sm cursor-pointer select-none text-gray-600 dark:text-gray-300">
@@ -98,7 +98,7 @@ export default function StaffDirectoryPage() {
         {[
           { label: 'Total Staff', value: (data ?? []).length, colorClass: 'text-blue-600' },
           { label: 'Active', value: (data ?? []).filter(s => s.is_active).length, colorClass: 'text-green-500' },
-          { label: 'Inactive', value: (data ?? []).filter(s => !s.is_active).length, colorClass: 'text-amber-500' },
+          { label: 'Inactive', value: (data ?? []).filter(s => !s.is_active).length, colorClass: 'text-slate-500 dark:text-slate-400' },
         ].map(stat => (
           <div key={stat.label} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
             <p className="text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">{stat.label}</p>
@@ -137,7 +137,7 @@ export default function StaffDirectoryPage() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold truncate text-gray-900 dark:text-white">{staff.full_name}</p>
                   {!staff.is_active && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 font-medium">Inactive</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 font-medium">Inactive</span>
                   )}
                 </div>
                 <p className="text-xs truncate text-gray-500 dark:text-gray-400">{staff.designation}{staff.department ? ` · ${staff.department}` : ''}</p>
@@ -183,7 +183,7 @@ export default function StaffDirectoryPage() {
                   title={staff.is_active ? 'Deactivate' : 'Activate'}
                 >
                   {staff.is_active
-                    ? <UserX size={14} className="text-amber-500" />
+                    ? <UserX size={14} className="text-slate-400 hover:text-red-500 transition-colors" />
                     : <UserCheck size={14} className="text-green-500" />
                   }
                 </button>

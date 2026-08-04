@@ -20,15 +20,15 @@ interface ScheduleEvent {
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
   reminder: 'bg-blue-100 text-blue-700 border-blue-200',
-  meeting: 'bg-purple-100 text-purple-700 border-purple-200',
+  meeting: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   payment: 'bg-green-100 text-green-700 border-green-200',
-  visit: 'bg-amber-100 text-amber-700 border-amber-200',
+  visit: 'bg-sky-100 text-sky-700 border-sky-200',
   call: 'bg-cyan-100 text-cyan-700 border-cyan-200',
   other: 'bg-slate-100 text-slate-600 border-slate-200',
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
-  pending: <Clock size={13} className="text-amber-500" />,
+  pending: <Clock size={13} className="text-blue-600" />,
   done: <CheckCircle size={13} className="text-green-500" />,
   cancelled: <XCircle size={13} className="text-slate-400" />,
 };
@@ -140,13 +140,13 @@ export default function SchedulePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Calendar size={24} className="text-purple-500" /> Schedule
+            <Calendar size={24} className="text-blue-600" /> Schedule
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">Manage appointments, payments, visits and reminders</p>
         </div>
         <div className="flex items-center gap-3">
           <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
           <button onClick={openCreate}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
             <Plus size={16} /> New Event
@@ -158,7 +158,7 @@ export default function SchedulePage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Total Events', value: events.length, color: 'text-slate-800' },
-          { label: 'Pending', value: pending, color: 'text-amber-600' },
+          { label: 'Pending', value: pending, color: 'text-blue-600' },
           { label: 'Done', value: done, color: 'text-green-600' },
         ].map(s => (
           <div key={s.label} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm text-center">
@@ -170,7 +170,7 @@ export default function SchedulePage() {
 
       {/* Events List grouped by date */}
       {isLoading ? (
-        <div className="py-16 text-center text-slate-400"><Loader2 className="animate-spin inline" size={24} /></div>
+        <div className="py-16 text-center text-slate-400"><Loader2 className="animate-spin inline text-blue-600" size={24} /></div>
       ) : Object.keys(grouped).length === 0 ? (
         <div className="bg-white border border-slate-100 rounded-xl py-16 text-center text-slate-400 shadow-sm">
           <Calendar size={32} className="mx-auto mb-2 opacity-30" />
@@ -220,7 +220,7 @@ export default function SchedulePage() {
                           <CheckCircle size={15} />
                         </button>
                       )}
-                      <button onClick={() => openEdit(ev)} className="p-1.5 text-slate-400 hover:text-purple-500 hover:bg-purple-50 rounded-lg transition">
+                      <button onClick={() => openEdit(ev)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition">
                         <Clock size={13} />
                       </button>
                     </div>
@@ -250,24 +250,24 @@ export default function SchedulePage() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Title *</label>
                 <input type="text" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                   placeholder="Event title"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Date *</label>
                   <input type="date" value={form.event_date} onChange={e => setForm(f => ({ ...f, event_date: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Time</label>
                   <input type="time" value={form.event_time} onChange={e => setForm(f => ({ ...f, event_time: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Event Type</label>
                 <select value={form.event_type} onChange={e => setForm(f => ({ ...f, event_type: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                   {['reminder', 'meeting', 'payment', 'visit', 'call', 'other'].map(t => (
                     <option key={t} value={t} className="capitalize">{t}</option>
                   ))}
@@ -277,13 +277,13 @@ export default function SchedulePage() {
                 <label className="block text-xs font-semibold text-slate-500 mb-1">Description</label>
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                   rows={2} placeholder="Additional notes..."
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
               {editEvent && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Status</label>
                   <select value={form.event_type} onChange={e => setForm(f => ({ ...f, event_type: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400">
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                     {['pending', 'done', 'cancelled'].map(s => (
                       <option key={s} value={s} className="capitalize">{s}</option>
                     ))}

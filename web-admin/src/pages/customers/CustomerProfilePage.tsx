@@ -16,7 +16,7 @@ import SpecialApprovalRequestModal from '@/components/SpecialApprovalRequestModa
 const BRANCH_GRAD: Record<string, string> = {
   army:      'linear-gradient(135deg,#1a6b3c,#0d4a28)',
   navy:      'linear-gradient(135deg,#1a5ca0,#0d3d78)',
-  air_force: 'linear-gradient(135deg,#6b3fa0,#4a1f80)',
+  air_force: 'linear-gradient(135deg,#1d4ed8,#1e3a8a)',
 };
 
 // ── Status colours ────────────────────────────────────────────────────────────
@@ -25,15 +25,15 @@ const STATUS_BADGE: Record<string, string> = {
   submitted:     'bg-blue-100 text-blue-800',
   rejected:      'bg-red-100 text-red-800',
   completed:     'surface-2 text-base-secondary',
-  camp_review:   'bg-purple-100 text-purple-800',
+  camp_review:   'bg-blue-100 text-blue-800',
   finance_review:'bg-indigo-100 text-indigo-800',
   approved:      'bg-teal-100 text-teal-800',
-  docs_review:   'bg-amber-100 text-amber-800',
-  pending:       'bg-amber-100 text-amber-700',
+  docs_review:   'bg-sky-100 text-sky-800',
+  pending:       'bg-sky-100 text-sky-700',
   not_deducted:  'bg-red-100 text-red-700',
   deducted:      'bg-green-100 text-green-700',
   arrears:       'bg-red-100 text-red-700',
-  partial:       'bg-amber-100 text-amber-700',
+  partial:       'bg-blue-100 text-blue-700',
 };
 
 // ── Document labels ───────────────────────────────────────────────────────────
@@ -567,7 +567,7 @@ export default function CustomerProfilePage() {
                   const firstRejected = apps.find((a: CustomerRec) => a.status === 'rejected');
                   if (firstRejected) setSpecialApprovalApp(firstRejected);
                 }}
-                className="flex items-center gap-1.5 px-4 py-2 bg-amber-50 border border-amber-300 text-amber-800 rounded-xl text-xs font-bold hover:bg-amber-100 transition-colors whitespace-nowrap"
+                className="flex items-center gap-1.5 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-800 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300 rounded-xl text-xs font-bold hover:bg-blue-100 transition-colors whitespace-nowrap"
               >
                 <Gift size={13} /> Request Special Approval
               </button>

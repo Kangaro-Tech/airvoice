@@ -81,7 +81,7 @@ function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCap
           <button
             onClick={capturePhoto}
             disabled={!stream}
-            className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-slate-950 rounded-xl text-xs font-black flex items-center gap-1.5 transition"
+            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
           >
             <Camera size={14} /> Capture Photo
           </button>
@@ -115,7 +115,7 @@ interface FreePhoneReq {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
+  pending: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
   approved: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
   dispatched: 'bg-blue-100 text-blue-700',
@@ -267,7 +267,7 @@ export default function SalesOfficerPage() {
   );
   const pendingCount = (myPendingApprovals as any[]).filter((r: any) => r.status === 'pending').length;
   const requestStatusStyles: Record<string, string> = {
-    pending: 'bg-amber-100 text-amber-700',
+    pending: 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
     approved: 'bg-green-100 text-green-700',
     rejected: 'bg-red-100 text-red-700',
   };
@@ -622,7 +622,7 @@ export default function SalesOfficerPage() {
               onClick={() => setTab(t)}
               className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 tab === t
-                  ? 'border-amber-500 text-amber-700'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
                   : 'border-transparent text-base-muted hover:text-[var(--text-secondary)]'
               }`}
             >
@@ -639,7 +639,7 @@ export default function SalesOfficerPage() {
           <div className="lg:col-span-2 card p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-gray-50 pb-3">
               <h3 className="font-bold text-sm text-base-secondary flex items-center gap-1.5">
-                <Target size={16} className="text-amber-500" /> Sales Commission Targets
+                <Target size={16} className="text-blue-600" /> Sales Commission Targets
               </h3>
             </div>
             {perfLoading ? (
@@ -650,10 +650,10 @@ export default function SalesOfficerPage() {
                   <div key={o.officer_id} className="space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold">
                       <span className="text-base-secondary">{o.officer_phone}</span>
-                      <span className="text-amber-600">{o.phones_sold} / 5 Sold</span>
+                      <span className="text-blue-600">{o.phones_sold} / 5 Sold</span>
                     </div>
                     <div className="w-full surface-2 rounded-full h-2 overflow-hidden">
-                      <div className="bg-amber-500 h-full rounded-full" style={{ width: `${Math.min(100, (o.phones_sold / 5) * 100)}%` }} />
+                      <div className="bg-blue-600 h-full rounded-full" style={{ width: `${Math.min(100, (o.phones_sold / 5) * 100)}%` }} />
                     </div>
                   </div>
                 ))}
@@ -855,7 +855,7 @@ export default function SalesOfficerPage() {
                     !saForm.phone_model_id ||
                     saForm.reason.trim().length < 10
                   }
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:bg-[var(--bg-surface-3)] text-white font-bold rounded-lg text-sm transition-all disabled:text-[var(--text-muted)] disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-[var(--bg-surface-3)] text-white font-bold rounded-lg text-sm transition-all disabled:text-[var(--text-muted)] disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {createSpecialApprovalMutation.isPending && <Loader2 size={15} className="animate-spin" />}
                   Submit Request
@@ -871,7 +871,7 @@ export default function SalesOfficerPage() {
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-sm text-base-secondary">My Special Approval Requests</h3>
                   {pendingCount > 0 && (
-                    <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300 px-2 py-0.5 rounded-full">
                       {pendingCount} pending
                     </span>
                   )}
@@ -884,7 +884,7 @@ export default function SalesOfficerPage() {
                       onClick={() => setSarStatusFilter(s)}
                       className={`px-2.5 py-1 text-[11px] font-bold rounded-lg capitalize transition-all ${
                         sarStatusFilter === s
-                          ? s === 'pending' ? 'bg-amber-500 text-white'
+                          ? s === 'pending' ? 'bg-blue-600 text-white'
                             : s === 'approved' ? 'bg-green-500 text-white'
                             : s === 'rejected' ? 'bg-red-500 text-white'
                             : 'bg-slate-800 text-white'
@@ -1585,7 +1585,7 @@ export default function SalesOfficerPage() {
               <button
                 onClick={() => submitFreePhone.mutate(fpForm)}
                 disabled={submitFreePhone.isPending || !fpForm.officer_name || !fpForm.phone_model || !fpForm.reason}
-                className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {submitFreePhone.isPending ? 'Submitting…' : 'Submit Request'}
               </button>
@@ -1629,18 +1629,18 @@ export default function SalesOfficerPage() {
         isStatusWidgetMinimized ? (
           <button
             onClick={() => setIsStatusWidgetMinimized(false)}
-            className="fixed bottom-6 right-6 surface border-2 border-amber-200 rounded-full shadow-lg p-3 z-40 hover:bg-amber-50 transition-all flex items-center gap-2 font-bold text-xs text-amber-800"
+            className="fixed bottom-6 right-6 surface border-2 border-blue-200 dark:border-blue-900 rounded-full shadow-lg p-3 z-40 hover:bg-blue-50/70 transition-all flex items-center gap-2 font-bold text-xs text-blue-900 dark:text-blue-200"
           >
-            <Clock size={16} className="text-amber-600 animate-pulse" />
+            <Clock size={16} className="text-blue-600 animate-pulse" />
             <span>Approval Status ({pendingCount} pending)</span>
           </button>
         ) : (
-          <div className="fixed bottom-6 right-6 surface border-2 border-amber-200 rounded-xl shadow-lg p-4 max-w-sm w-80 z-40 transition-all text-left">
+          <div className="fixed bottom-6 right-6 surface border-2 border-blue-200 dark:border-blue-900 rounded-xl shadow-lg p-4 max-w-sm w-80 z-40 transition-all text-left">
             <div className="flex items-start gap-3">
-              <Clock size={20} className="text-amber-600 mt-0.5 flex-shrink-0" />
+              <Clock size={20} className="text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-slate-900 flex items-center gap-1.5">⏳ Approval Status</h3>
+                  <h3 className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">⏳ Approval Status</h3>
                   <button
                     onClick={() => setIsStatusWidgetMinimized(true)}
                     className="text-slate-400 hover:text-slate-600 text-xs font-semibold px-1.5 py-0.5 bg-slate-100 hover:bg-slate-200 rounded"
@@ -1648,8 +1648,8 @@ export default function SalesOfficerPage() {
                     Minimize
                   </button>
                 </div>
-                <p className="text-sm text-slate-600 mt-1">
-                  You have <span className="font-bold text-amber-600">{pendingCount}</span> pending special approval request(s).
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                  You have <span className="font-bold text-blue-600 dark:text-blue-400">{pendingCount}</span> pending special approval request(s).
                 </p>
                 <div className="mt-2 space-y-1.5 text-xs text-slate-600 max-h-48 overflow-y-auto pr-1">
                   {(myPendingApprovals as any[]).map((r: any) => (

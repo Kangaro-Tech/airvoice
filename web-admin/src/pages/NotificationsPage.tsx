@@ -152,20 +152,20 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-slate-50/50">
       {/* ── Hero header ──────────────────────────────────────────────────── */}
-      <div style={{ background: 'linear-gradient(135deg, #0f1c2e 0%, #1a3a5c 100%)' }} className="px-6 py-8">
+      <div style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)' }} className="px-6 py-8 shadow-md">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <Bell size={28} className="text-[#2563ea]" />
+                <Bell size={28} className="text-white drop-shadow" />
                 <h1 className="text-2xl font-black text-white tracking-tight">Notifications</h1>
                 {isFetching && !isLoading && (
-                  <Loader2 size={14} className="text-blue-300 animate-spin" />
+                  <Loader2 size={14} className="text-blue-200 animate-spin" />
                 )}
               </div>
-              <p className="text-blue-300 text-sm">
+              <p className="text-blue-200 text-sm">
                 {all.length} total &nbsp;·&nbsp;
-                <span className="text-amber-400 font-semibold">{unread} unread</span>
+                <span className="text-blue-100 font-semibold">{unread} unread</span>
                 &nbsp;·&nbsp; auto-refreshes every 15s
               </p>
             </div>
@@ -209,7 +209,7 @@ export default function NotificationsPage() {
                 onClick={() => setTypeFilter(opt.key)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                   typeFilter === opt.key
-                    ? 'bg-[#0f1c2e] text-white shadow-sm'
+                    ? 'bg-blue-600 text-white shadow-sm'
                     : 'surface-2 text-gray-600 hover:bg-[var(--bg-surface-3)]'
                 }`}
               >
@@ -231,7 +231,7 @@ export default function NotificationsPage() {
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-24 text-base-muted">
-            <Loader2 size={32} className="animate-spin mb-4 text-amber-400" />
+            <Loader2 size={32} className="animate-spin mb-4 text-blue-600" />
             <p className="text-sm font-medium">Loading notifications…</p>
           </div>
         ) : filtered.length === 0 ? (
@@ -275,13 +275,13 @@ export default function NotificationsPage() {
                       }}
                       className={`group relative flex gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${
                         isUnread
-                          ? 'surface border-amber-100 shadow-sm hover:border-amber-200 hover:shadow-md'
+                          ? 'surface border-blue-200 dark:border-blue-800 shadow-sm hover:border-blue-300 hover:shadow-md'
                           : 'bg-white/70 border-base hover:bg-[var(--bg-surface)] hover:border-[var(--border-color)]'
                       } ${isDeleting ? 'opacity-40 scale-95' : ''}`}
                     >
                       {/* Unread left accent */}
                       {isUnread && (
-                        <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-amber-400" />
+                        <div className="absolute left-0 top-4 bottom-4 w-1 rounded-r-full bg-blue-600" />
                       )}
 
                       {/* Icon */}
@@ -300,7 +300,7 @@ export default function NotificationsPage() {
                               {n.title}
                             </span>
                             {isUnread && (
-                              <span className="shrink-0 w-2 h-2 bg-amber-500 rounded-full" />
+                              <span className="shrink-0 w-2 h-2 bg-blue-600 rounded-full" />
                             )}
                           </div>
                           <span className="text-[11px] text-base-muted shrink-0">{relTime(n.created_at)}</span>
@@ -321,7 +321,7 @@ export default function NotificationsPage() {
                           {n.fcm_sent && <span className="text-[10px] text-base-muted">📱 FCM</span>}
                           {n.sms_sent && <span className="text-[10px] text-base-muted">💬 SMS</span>}
                           {n.action_url && (
-                            <span className="text-[11px] text-amber-600 font-semibold hover:text-amber-800 transition-colors">
+                            <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-800 transition-colors">
                               View →
                             </span>
                           )}

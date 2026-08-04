@@ -28,11 +28,11 @@ interface PhoneModel {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:   'bg-amber-100 text-amber-700',
-  approved:  'bg-blue-100 text-blue-700',
-  ordered:   'bg-purple-100 text-purple-700',
-  received:  'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
+  pending:   'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300',
+  approved:  'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300',
+  ordered:   'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300',
+  received:  'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300',
+  cancelled: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
 };
 
 const STATUS_ICONS: Record<string, React.ReactNode> = {
@@ -146,9 +146,9 @@ export default function StockOrdersPage() {
       {/* Stats */}
      <div className="grid grid-cols-5 gap-4">
         {[
-          { label: 'Pending Approval', value: stats.pending,  color: 'text-amber-700 dark:text-amber-400',  bg: 'bg-amber-50 dark:bg-amber-500/10',  border: 'border-amber-200 dark:border-amber-500/30' },
+          { label: 'Pending Approval', value: stats.pending,  color: 'text-sky-700 dark:text-sky-400',  bg: 'bg-sky-50 dark:bg-sky-500/10',  border: 'border-sky-200 dark:border-sky-500/30' },
           { label: 'Approved',         value: stats.approved, color: 'text-blue-700 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-500/10',   border: 'border-blue-200 dark:border-blue-500/30'  },
-          { label: 'Ordered',          value: stats.ordered,  color: 'text-purple-700 dark:text-purple-400', bg: 'bg-purple-50 dark:bg-purple-500/10', border: 'border-purple-200 dark:border-purple-500/30' },
+          { label: 'Ordered',          value: stats.ordered,  color: 'text-indigo-700 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-500/10', border: 'border-indigo-200 dark:border-indigo-500/30' },
           { label: 'Received',         value: stats.received, color: 'text-green-700 dark:text-green-400',  bg: 'bg-green-50 dark:bg-green-500/10',  border: 'border-green-200 dark:border-green-500/30'  },
           { label: 'Total Order Value', value: `LKR ${(stats.totalValue / 1000).toFixed(0)}K`, color: 'text-base-secondary', bg: 'surface-2', border: 'border-base' },
         ].map(s => (
@@ -164,7 +164,7 @@ export default function StockOrdersPage() {
         <div className="relative flex-1 max-w-xs">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-muted" />
           <input
-            className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Search model or supplier…"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -269,7 +269,7 @@ export default function StockOrdersPage() {
                         <button
                           onClick={() => updateStatus.mutate({ id: o.id, status: 'ordered' })}
                           disabled={updateStatus.isPending}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
                           <Truck size={11} /> Mark Ordered
                         </button>
@@ -278,7 +278,7 @@ export default function StockOrdersPage() {
                         <button
                           onClick={() => updateStatus.mutate({ id: o.id, status: 'received' })}
                           disabled={updateStatus.isPending}
-                          className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                         >
                           <Package size={11} /> Mark Received
                         </button>
@@ -310,7 +310,7 @@ export default function StockOrdersPage() {
                 <label className="block text-[11px] font-bold text-slate-500 mb-2 uppercase tracking-wider">Phone Model</label>
                 <select
                   id="so-model"
-                  className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-200"
+                  className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   value={form.model_id}
                   onChange={e => setForm(f => ({ ...f, model_id: e.target.value }))}
                 >
@@ -330,7 +330,7 @@ export default function StockOrdersPage() {
                     id="so-qty"
                     type="number"
                     min="1"
-                    className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-200"
+                    className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="0"
                     value={form.quantity}
                     onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))}
@@ -341,7 +341,7 @@ export default function StockOrdersPage() {
                   <input
                     id="so-cost"
                     type="number"
-                    className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-200"
+                    className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="0"
                     value={form.unit_price}
                     onChange={e => setForm(f => ({ ...f, unit_price: e.target.value }))}
@@ -354,7 +354,7 @@ export default function StockOrdersPage() {
                 <textarea
                   id="so-notes"
                   rows={3}
-                  className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-slate-200 resize-none"
+                  className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                   placeholder="Reason for stock request..."
                   value={form.notes}
                   onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
@@ -362,7 +362,7 @@ export default function StockOrdersPage() {
               </div>
 
               {!form.model_id && (
-                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-2xl p-3">
+                <div className="flex items-center gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900 dark:text-blue-300 rounded-2xl p-3">
                   <AlertTriangle size={14} /> Please select a phone model to continue.
                 </div>
               )}
@@ -383,7 +383,7 @@ export default function StockOrdersPage() {
                   ...(form.notes ? { notes: form.notes } : {}),
                 })}
                 disabled={createOrder.isPending || !form.model_id}
-                className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50 transition flex items-center gap-2"
+                className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition flex items-center gap-2"
               >
                 {createOrder.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 {createOrder.isPending ? 'Submitting…' : 'Submit Request'}

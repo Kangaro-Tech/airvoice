@@ -251,13 +251,13 @@ export default function RecoveryPage() {
 
       {/* Admin Pending Transfer Approvals */}
       {isAdmin && pendingTransfers.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden shadow-sm">
-          <div className="px-5 py-3.5 border-b border-amber-200 bg-amber-100 flex items-center justify-between">
+        <div className="bg-blue-50/70 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50 rounded-xl overflow-hidden shadow-sm">
+          <div className="px-5 py-3.5 border-b border-blue-200 dark:border-blue-900/50 bg-blue-100/60 dark:bg-blue-900/40 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Shield size={16} className="text-amber-700" />
-              <span className="font-bold text-amber-800 text-sm">Pending Guarantor Transfer Approvals ({pendingTransfers.length})</span>
+              <Shield size={16} className="text-blue-700 dark:text-blue-300" />
+              <span className="font-bold text-blue-900 dark:text-blue-200 text-sm">Pending Guarantor Transfer Approvals ({pendingTransfers.length})</span>
             </div>
-            <span className="text-xs text-amber-600">Action required by Admin</span>
+            <span className="text-xs text-blue-600 dark:text-blue-400">Action required by Admin</span>
           </div>
           <div className="divide-y divide-amber-100">
             {pendingTransfers.map((t: any) => (
@@ -402,7 +402,7 @@ export default function RecoveryPage() {
                 <div className="flex gap-2">
                   <button 
                     onClick={() => { setSelectedCustomer(c); setShowTransferModal(true); }}
-                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors"
                   >
                     <Users size={13} /> Guarantor Transfer
                   </button>
@@ -493,7 +493,7 @@ export default function RecoveryPage() {
             </div>
             <div className="p-4 surface-2 border-t border-base flex justify-end gap-2">
               <button onClick={() => setShowLogModal(false)} className="btn btn-secondary py-1.5 text-xs">Cancel</button>
-              <button onClick={handleSubmitLog} className="px-4 py-1.5 bg-amber-500 text-slate-900 rounded-lg text-xs font-semibold hover:bg-amber-600">Save Log</button>
+              <button onClick={handleSubmitLog} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold transition-colors">Save Log</button>
             </div>
           </div>
         </div>
@@ -562,8 +562,8 @@ export default function RecoveryPage() {
                 <p className="text-sm text-base-muted">
                   You are requesting to transfer payment deduction responsibility from <strong>{selectedCustomer.full_name}</strong> to their guarantor <strong>{selectedCustomer.guarantor?.name || 'N/A'}</strong>.
                 </p>
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-                  ⚠ This request will be sent to an Admin for approval before the transfer is executed.
+                <p className="text-xs text-blue-900 bg-blue-50/70 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900/50 dark:text-blue-200 rounded-lg px-3 py-2">
+                  ℹ️ This request will be sent to an Admin for approval before the transfer is executed.
                 </p>
                 <div>
                   <label className="form-label">Reason / Justification</label>
@@ -607,7 +607,7 @@ export default function RecoveryPage() {
                 <button
                   onClick={() => selectedCustomer && transferGuarantorMutation.mutate({ customer_id: selectedCustomer.id, reason: transferReason })}
                   disabled={transferGuarantorMutation.isPending || !transferReason || transferReason.length < 10}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg disabled:opacity-50 transition-colors"
                 >
                   {transferGuarantorMutation.isPending ? <Loader2 size={14} className="animate-spin inline" /> : null} {transferGuarantorMutation.isPending ? 'Submitting...' : 'Submit for Approval'}
                 </button>

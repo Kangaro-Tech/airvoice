@@ -28,7 +28,7 @@ const STATUS_BADGES: Record<string, string> = {
   deducted: 'bg-green-500/20 text-green-400 border-green-500/30',
   pending: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
   not_deducted: 'bg-red-500/20 text-red-400 border-red-500/30',
-  partial: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  partial: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   arrears: 'bg-red-500/20 text-red-400 border-red-500/30',
 };
 
@@ -42,7 +42,7 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
   deducted: <CheckCircle size={11} className="text-green-400" />,
   pending: <Clock size={11} className="text-slate-400" />,
   not_deducted: <AlertTriangle size={11} className="text-red-400" />,
-  partial: <RefreshCw size={11} className="text-amber-400" />,
+  partial: <RefreshCw size={11} className="text-blue-400" />,
   arrears: <AlertTriangle size={11} className="text-red-400" />,
 };
 
