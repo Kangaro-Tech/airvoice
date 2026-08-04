@@ -163,7 +163,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── PUT /payroll/staff/:id ─── Update staff member (full profile)
-  app.put('/staff/:id', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
+  app.put('/staff/:id', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator', 'finance_officer')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const body = z.object({
       full_name: z.string().min(2).optional(),

@@ -114,7 +114,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   });
 
   // PUT /hr/leaves/requests/:id/status
-  app.put('/leaves/requests/:id/status', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  app.put<{ Params: { id: string } }>('/leaves/requests/:id/status', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req, reply) => {
     const { id } = req.params;
     const body = z.object({
       status: z.enum(['pending', 'approved', 'rejected'])
@@ -214,7 +214,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   });
 
   // PUT /hr/leaves/balances/:id
-  app.put('/leaves/balances/:id', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  app.put<{ Params: { id: string } }>('/leaves/balances/:id', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req, reply) => {
     const { id } = req.params;
     const body = z.object({
       allotted_days: z.number().min(0),
@@ -276,7 +276,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   });
 
   // PUT /hr/payroll/advances/:id/status
-  app.put('/payroll/advances/:id/status', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req: FastifyRequest<{ Params: { id: string } }>, reply) => {
+  app.put<{ Params: { id: string } }>('/payroll/advances/:id/status', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req, reply) => {
     const { id } = req.params;
     const body = z.object({
       status: z.enum(['pending', 'approved', 'rejected'])
