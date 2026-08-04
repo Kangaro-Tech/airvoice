@@ -22,11 +22,18 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
 };
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  // Use Sri Lanka timezone (UTC+5:30) to get today's date
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
 }
 function toLocalTime(iso?: string) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  // Always display in Sri Lanka time regardless of VPS/browser timezone
+  return new Date(iso).toLocaleTimeString('en-LK', {
+    timeZone: 'Asia/Colombo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 export default function AttendanceManagementPage() {
@@ -168,8 +175,8 @@ export default function AttendanceManagementPage() {
             <button
               id="confirm-attendance"
               onClick={() => {
-                const inTime = markForm.in_time ? `${selectedDate}T${markForm.in_time}:00` : undefined;
-                const outTime = markForm.out_time ? `${selectedDate}T${markForm.out_time}:00` : undefined;
+                const inTime  = markForm.in_time  ? `${selectedDate}T${markForm.in_time}:00+05:30`  : undefined;
+                const outTime = markForm.out_time ? `${selectedDate}T${markForm.out_time}:00+05:30` : undefined;
                 markMutation.mutate({ staff_id: markForm.staff_id, date: selectedDate, in_time: inTime, out_time: outTime, status: markForm.status });
               }}
               disabled={markMutation.isPending}
