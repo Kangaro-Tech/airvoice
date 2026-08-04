@@ -12,7 +12,7 @@ export default function ProtectedRoute({ roles }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (loginTimestamp) {
-      const isExpired = Date.now() - loginTimestamp > 30 * 60 * 1000; // 30 minutes
+      const isExpired = Date.now() - loginTimestamp > 60 * 60 * 1000; // 1 hour
       if (isExpired) {
         logout();
       }

@@ -134,7 +134,6 @@ export const payrollApi = {
   },
 };
 
-
 export const documentsApi = {
   list: (customerId: string) =>
     api.get(`/customers/${customerId}/documents`),
@@ -185,10 +184,18 @@ export const hrApi = {
   listAttendance: (params?: Record<string, unknown>) => api.get('/hr/attendance/list', { params }),
   // Leaves
   requestLeave: (data: unknown) => api.post('/hr/leaves/request', data),
+  createLeaveBalance: (data: unknown) => api.post('/hr/leaves/balances', data),
   listLeaveBalances: (params?: Record<string, unknown>) => api.get('/hr/leaves/balances', { params }),
+  updateLeaveBalance: (id: string, data: unknown) => api.put(`/hr/leaves/balances/${id}`, data),
+  listLeaveRequests: (params?: Record<string, unknown>) => api.get('/hr/leaves/requests', { params }),
+  updateLeaveRequestStatus: (id: string, data: { status: string }) => api.put(`/hr/leaves/requests/${id}/status`, data),
   // Advances
   createAdvance: (data: unknown) => api.post('/hr/payroll/advance', data),
+  listSalaryAdvances: (params?: Record<string, unknown>) => api.get('/hr/payroll/advances', { params }),
+  updateSalaryAdvanceStatus: (id: string, data: { status: string }) => api.put(`/hr/payroll/advances/${id}/status`, data),
   // Deductions
+  listSalaryDeductions: () => api.get('/hr/payroll/deductions'),
+  updateDeductionStatus: (id: string, data: { status: string }) => api.put(`/hr/payroll/deductions/${id}/status`, data),
   createDeduction: (data: unknown) => api.post('/hr/payroll/deduction', data),
   // Audit logs
   listAuditLogs: (params?: Record<string, unknown>) => api.get('/hr/audit-logs', { params }),

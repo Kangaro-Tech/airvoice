@@ -595,7 +595,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
     
     if (missingUnits.length > 0) {
       // Fetch AI details for all missing units in a single batch to avoid timeouts
-      const batchAiDetails = await extractMultipleMilitaryUnitDetails(missingUnits);
+      // Disabled for legacy import to avoid timeouts
+      // const batchAiDetails = await extractMultipleMilitaryUnitDetails(missingUnits);
 
       for (const u of missingUnits) {
         // Explicitly double check if camp exists (case-insensitive) to prevent duplication in DB
@@ -608,7 +609,6 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           continue;
         }
 
-        const aiDetails = batchAiDetails[u];
         const { data: newCamp, error: campErr } = await sb.from('camps')
           .insert({ name: u, branch: 'army', is_active: true } as any)
           .select('id, name').single();
@@ -618,15 +618,6 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         } else if (newCamp) {
           campMap.set(newCamp.name.toLowerCase(), newCamp.id);
           campMap.set(normalizeCampName(newCamp.name), newCamp.id);
-          
-          if (aiDetails && aiDetails.regiment) {
-            await sb.from('regiments').insert({
-              camp_id: newCamp.id,
-              name: aiDetails.regiment,
-              branch: 'army',
-              is_active: true
-            } as any);
-          }
         }
       }
     }
@@ -809,8 +800,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       const updateProms = Array.from(customersToUpdateCamp.entries()).map(([custId, cmpId]) => 
         sb.from('customers').update({ camp_id: cmpId } as any).eq('id', custId)
       );
-      for (let i = 0; i < updateProms.length; i += 50) {
-        await Promise.all(updateProms.slice(i, i + 50));
+      for (let i = 0; i < updateProms.length; i += 200) {
+        await Promise.all(updateProms.slice(i, i + 200));
       }
     }
 
@@ -1001,12 +992,11 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         }
       }
 
-      // Insert applications
       if (applicationsToInsert.length > 0) {
         const allInsertedApps: { id: string; customer_id: string; monthly_amount: number; term_months: number; sale_date: string | null; _insertIndex: number }[] = [];
         let globalInsertIndex = 0;
-        for (let i = 0; i < applicationsToInsert.length; i += 50) {
-          const chunk = applicationsToInsert.slice(i, i + 50);
+        for (let i = 0; i < applicationsToInsert.length; i += 500) {
+          const chunk = applicationsToInsert.slice(i, i + 500);
           const { data: insertedApps, error: appErr } = await sb.from('applications')
             .insert(chunk).select('id, customer_id, monthly_amount, term_months, sale_date');
           if (appErr) app.log.error(`Application insert error: ${appErr.message}`);
@@ -1037,8 +1027,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
               }).eq('id', phoneId))());
           }
           // Run in batches to avoid DB overload
-          for (let pi = 0; pi < phoneUpdates.length; pi += 50) {
-            await Promise.all(phoneUpdates.slice(pi, pi + 50));
+          for (let pi = 0; pi < phoneUpdates.length; pi += 200) {
+            await Promise.all(phoneUpdates.slice(pi, pi + 200));
           }
           app.log.info(`[LegacyImport] Marked ${phoneUpdates.length} phone(s) as sold from inventory.`);
         }
@@ -1356,8 +1346,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
 
       // 4. Bulk insert new guarantors
       if (guarantorsToInsert.length > 0) {
-        for (let i = 0; i < guarantorsToInsert.length; i += 500) {
-          const chunk = guarantorsToInsert.slice(i, i + 500);
+        for (let i = 0; i < guarantorsToInsert.length; i += 1000) {
+          const chunk = guarantorsToInsert.slice(i, i + 1000);
           const { data: insertedGus } = await sb.from('guarantors').insert(chunk).select('id, nic_number, service_number, full_name');
           if (insertedGus) {
             addedGuarantorsCount += insertedGus.length;
@@ -1387,8 +1377,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         const linkPromises = Array.from(appsToLinkGuarantor.entries()).map(([appId, guId]) =>
           sb.from('applications').update({ guarantor_id: guId } as any).eq('id', appId)
         );
-        for (let i = 0; i < linkPromises.length; i += 50) {
-          await Promise.all(linkPromises.slice(i, i + 50));
+        for (let i = 0; i < linkPromises.length; i += 200) {
+          await Promise.all(linkPromises.slice(i, i + 200));
         }
       }
 
@@ -1405,8 +1395,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           }
           return null;
         }).filter(Boolean);
-        for (let i = 0; i < updatePromises.length; i += 50) {
-          await Promise.all(updatePromises.slice(i, i + 50));
+        for (let i = 0; i < updatePromises.length; i += 200) {
+          await Promise.all(updatePromises.slice(i, i + 200));
         }
       }
 

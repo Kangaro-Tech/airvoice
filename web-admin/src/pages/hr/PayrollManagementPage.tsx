@@ -8,7 +8,7 @@ import {
 
 interface StaffMember { id: string; full_name: string; designation: string; }
 interface SalaryAdvance { id: string; staff_id: string; amount: number; request_date: string; deduction_month: string; status: string; }
-interface SalaryDeduction { id: string; staff_id: string; deduction_type: string; amount: number; effective_date: string; is_active: boolean; notes?: string; }
+interface SalaryDeduction { id: string; staff_id: string; deduction_type: string; amount: number; effective_date: string; is_active: boolean | null; notes?: string; }
 
 const DEDUCTION_COLORS: Record<string, string> = { loan: '#2563eb', epf: '#1d4ed8', etf: '#0284c7', other: '#6b7280' };
 const ADV_STATUS: Record<string, { bg: string; text: string }> = {
@@ -41,38 +41,70 @@ export default function PayrollManagementPage() {
     queryFn: () => payrollApi.listStaff().then(r => r.data.data as StaffMember[]),
   });
 
-  // For demo, we display recently submitted ones from the API
-  // The real data would come from backend queries, but we use optimistic local state for now
-  const [localAdvances, setLocalAdvances] = useState<SalaryAdvance[]>([]);
-  const [localDeductions, setLocalDeductions] = useState<SalaryDeduction[]>([]);
+  // The real data comes from backend query
+  const { data: advances, isLoading: loadingAdvances } = useQuery({
+    queryKey: ['salary-advances'],
+    queryFn: () => hrApi.listSalaryAdvances().then(r => r.data.data as SalaryAdvance[]),
+  });
+
+  const { data: deductions, isLoading: loadingDeductions } = useQuery({
+    queryKey: ['salary-deductions'],
+    queryFn: () => hrApi.listSalaryDeductions().then(r => r.data.data as SalaryDeduction[]),
+  });
 
   const advMutation = useMutation({
     mutationFn: (data: unknown) => hrApi.createAdvance(data),
-    onSuccess: (res) => {
-      const d = res.data.data;
-      setLocalAdvances(prev => [d, ...prev]);
+    onSuccess: () => {
       setSuccess('Salary advance recorded!');
       setShowAdvForm(false);
       setAdvForm({ staff_id: '', amount: '', request_date: todayStr(), deduction_month: currentMonth() });
+      queryClient.invalidateQueries({ queryKey: ['salary-advances'] });
       setTimeout(() => setSuccess(''), 3000);
     },
     onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to create advance'),
   });
 
+  const updateAdvStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: string }) => hrApi.updateSalaryAdvanceStatus(id, { status }),
+    onSuccess: () => {
+      setSuccess('Advance status updated!');
+      queryClient.invalidateQueries({ queryKey: ['salary-advances'] });
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to update status'),
+  });
+
   const dedMutation = useMutation({
     mutationFn: (data: unknown) => hrApi.createDeduction(data),
-    onSuccess: (res) => {
-      const d = res.data.data;
-      setLocalDeductions(prev => [d, ...prev]);
-      setSuccess('Deduction entry added!');
+    onSuccess: () => {
+      setSuccess('Deduction entry added! Awaiting Finance Officer approval.');
       setShowDedForm(false);
       setDedForm({ staff_id: '', deduction_type: 'loan', amount: '', effective_date: todayStr(), notes: '' });
-      setTimeout(() => setSuccess(''), 3000);
+      queryClient.invalidateQueries({ queryKey: ['salary-deductions'] });
+      setTimeout(() => setSuccess(''), 4000);
     },
     onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to add deduction'),
   });
 
+  const updateDedStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string, status: string }) => hrApi.updateDeductionStatus(id, { status }),
+    onSuccess: () => {
+      setSuccess('Deduction status updated!');
+      queryClient.invalidateQueries({ queryKey: ['salary-deductions'] });
+      setTimeout(() => setSuccess(''), 3000);
+    },
+    onError: (err: any) => setError(err?.response?.data?.error ?? 'Failed to update deduction status'),
+  });
+
+  // Helper: derive a display status from is_active (null=pending, true=approved, false=rejected)
+  const dedStatus = (ded: SalaryDeduction) => {
+    if (ded.is_active === null || ded.is_active === undefined) return 'pending';
+    return ded.is_active ? 'approved' : 'rejected';
+  };
+
   const staffName = (id: string) => (staffList ?? []).find(s => s.id === id)?.full_name ?? '—';
+  const pendingAdvancesCount = (advances ?? []).filter(a => a.status === 'pending').length;
+  const pendingDeductionsCount = (deductions ?? []).filter(d => d.is_active === null || d.is_active === undefined).length;
 
   return (
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
@@ -92,23 +124,38 @@ export default function PayrollManagementPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 p-1 rounded-xl w-fit" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-color)' }}>
-        {[
-          { key: 'advances', label: 'Salary Advances', icon: <BadgeDollarSign size={14} /> },
-          { key: 'deductions', label: 'Deductions', icon: <Scissors size={14} /> },
-        ].map(t => (
-          <button
-            key={t.key}
-            id={`tab-${t.key}`}
-            onClick={() => { setTab(t.key as Tab); setError(''); }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
-            style={{
-              backgroundColor: tab === t.key ? 'var(--accent-primary)' : 'transparent',
-              color: tab === t.key ? '#fff' : 'var(--text-muted)',
-            }}
-          >
-            {t.icon}{t.label}
-          </button>
-        ))}
+        <button
+          id="tab-advances"
+          onClick={() => { setTab('advances'); setError(''); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          style={{
+            backgroundColor: tab === 'advances' ? 'var(--accent-primary)' : 'transparent',
+            color: tab === 'advances' ? '#fff' : 'var(--text-muted)',
+          }}
+        >
+          <BadgeDollarSign size={14} /> Salary Advances
+          {pendingAdvancesCount > 0 && (
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+              tab === 'advances' ? 'bg-white text-blue-600' : 'bg-orange-500 text-white'
+            }`}>{pendingAdvancesCount}</span>
+          )}
+        </button>
+        <button
+          id="tab-deductions"
+          onClick={() => { setTab('deductions'); setError(''); }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+          style={{
+            backgroundColor: tab === 'deductions' ? 'var(--accent-primary)' : 'transparent',
+            color: tab === 'deductions' ? '#fff' : 'var(--text-muted)',
+          }}
+        >
+          <Scissors size={14} /> Deductions
+          {pendingDeductionsCount > 0 && (
+            <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold ${
+              tab === 'deductions' ? 'bg-white text-blue-600' : 'bg-orange-500 text-white'
+            }`}>{pendingDeductionsCount}</span>
+          )}
+        </button>
       </div>
 
       {/* ADVANCES TAB */}
@@ -181,7 +228,9 @@ export default function PayrollManagementPage() {
             </div>
           )}
 
-          {localAdvances.length === 0 ? (
+          {loadingAdvances ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="animate-spin" size={24} style={{ color: 'var(--text-muted)' }} /></div>
+          ) : !advances || advances.length === 0 ? (
             <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
               <BadgeDollarSign size={36} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">No advances recorded yet. Use "New Advance" to add one.</p>
@@ -191,15 +240,15 @@ export default function PayrollManagementPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border-color)' }}>
-                    {['Employee', 'Amount', 'Request Date', 'Deduction Month', 'Status'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    {['Employee', 'Amount', 'Request Date', 'Deduction Month', 'Status', 'Actions'].map(h => (
+                      <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider ${h === 'Actions' ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
-                  {localAdvances.map(adv => (
-                    <tr key={adv.id} className="hover:bg-white/5">
-                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{staffName(adv.staff_id)}</td>
+                  {(advances || []).map(adv => (
+                    <tr key={adv.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{adv.staff_id ? staffName(adv.staff_id) : (adv as any).staff?.full_name ?? '—'}</td>
                       <td className="px-4 py-3 font-semibold" style={{ color: '#f59e0b' }}>LKR {Number(adv.amount).toLocaleString()}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{adv.request_date}</td>
                       <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{adv.deduction_month}</td>
@@ -207,6 +256,18 @@ export default function PayrollManagementPage() {
                         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${ADV_STATUS[adv.status]?.bg ?? ''} ${ADV_STATUS[adv.status]?.text ?? ''}`}>
                           {adv.status}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {adv.status === 'pending' && (
+                          <div className="flex items-center justify-end gap-2">
+                            <button onClick={() => updateAdvStatusMutation.mutate({ id: adv.id, status: 'approved' })} disabled={updateAdvStatusMutation.isPending} className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-950/50" title="Approve">
+                              <CheckCircle2 size={16} />
+                            </button>
+                            <button onClick={() => updateAdvStatusMutation.mutate({ id: adv.id, status: 'rejected' })} disabled={updateAdvStatusMutation.isPending} className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50" title="Reject">
+                              <XCircle size={16} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -314,7 +375,9 @@ export default function PayrollManagementPage() {
             </div>
           )}
 
-          {localDeductions.length === 0 ? (
+          {loadingDeductions ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="animate-spin" size={24} style={{ color: 'var(--text-muted)' }} /></div>
+          ) : !deductions || deductions.length === 0 ? (
             <div className="text-center py-12" style={{ color: 'var(--text-muted)' }}>
               <Scissors size={36} className="mx-auto mb-3 opacity-30" />
               <p className="text-sm">No deductions recorded yet. Use "New Deduction" to add one.</p>
@@ -324,17 +387,18 @@ export default function PayrollManagementPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border-color)' }}>
-                    {['Employee', 'Type', 'Amount', 'Effective Date', 'Notes'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                    {['Employee', 'Type', 'Amount', 'Effective Date', 'Notes', 'Status', 'Actions'].map(h => (
+                      <th key={h} className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-wider ${h === 'Actions' ? 'text-right' : 'text-left'}`} style={{ color: 'var(--text-muted)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
-                  {localDeductions.map(ded => {
+                  {deductions.map(ded => {
                     const color = DEDUCTION_COLORS[ded.deduction_type] ?? '#6b7280';
+                    const status = dedStatus(ded);
                     return (
                       <tr key={ded.id} className="hover:bg-white/5">
-                        <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{staffName(ded.staff_id)}</td>
+                        <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{ded.staff_id ? staffName(ded.staff_id) : (ded as any).staff?.full_name ?? '—'}</td>
                         <td className="px-4 py-3">
                           <span className="text-[11px] font-bold uppercase px-2 py-0.5 rounded-full" style={{ backgroundColor: `${color}20`, color }}>
                             {ded.deduction_type}
@@ -343,6 +407,37 @@ export default function PayrollManagementPage() {
                         <td className="px-4 py-3 font-semibold" style={{ color }}>LKR {Number(ded.amount).toLocaleString()}</td>
                         <td className="px-4 py-3" style={{ color: 'var(--text-muted)' }}>{ded.effective_date}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{ded.notes ?? '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
+                            status === 'pending' ? 'bg-sky-100 dark:bg-sky-950/50 text-sky-700 dark:text-sky-300' :
+                            status === 'approved' ? 'bg-green-500/15 text-green-500' :
+                            'bg-red-500/15 text-red-500'
+                          }`}>
+                            {status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {status === 'pending' && (
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => updateDedStatusMutation.mutate({ id: ded.id, status: 'approved' })}
+                                disabled={updateDedStatusMutation.isPending}
+                                className="p-1 rounded text-green-600 hover:bg-green-50 dark:hover:bg-green-950/50"
+                                title="Approve"
+                              >
+                                <CheckCircle2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => updateDedStatusMutation.mutate({ id: ded.id, status: 'rejected' })}
+                                disabled={updateDedStatusMutation.isPending}
+                                className="p-1 rounded text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                title="Reject"
+                              >
+                                <XCircle size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

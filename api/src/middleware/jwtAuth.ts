@@ -17,7 +17,7 @@ export interface EmailAuthPayload {
  */
 export function signEmailToken(payload: EmailAuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: (process.env.JWT_EXPIRES_IN ?? '7d') as jwt.SignOptions['expiresIn'],
+    expiresIn: (process.env.JWT_EXPIRES_IN ?? '1h') as jwt.SignOptions['expiresIn'],
     issuer: 'airvoice-api',
   });
 }

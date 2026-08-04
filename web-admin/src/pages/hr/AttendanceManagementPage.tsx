@@ -33,7 +33,8 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }>
 };
 
 function todayStr() {
-  return new Date().toISOString().split('T')[0];
+  // Use Sri Lanka timezone (UTC+5:30) to get today's date
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
 }
 
 // Guaranteed 24-hour HH:MM format for <input type="time" />
@@ -90,6 +91,13 @@ function getToday458PmDeadline(): number {
   const d = new Date();
   d.setHours(16, 58, 0, 0);
   return d.getTime();
+  // Always display in Sri Lanka time regardless of VPS/browser timezone
+  return new Date(iso).toLocaleTimeString('en-LK', {
+    timeZone: 'Asia/Colombo',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 export default function AttendanceManagementPage() {
@@ -148,6 +156,28 @@ export default function AttendanceManagementPage() {
       existing_in_time: formattedIn,
       out_time: nowHHMM,
       status: record.status === 'clocked_in' ? 'present' : record.status,
+  const today = attendanceData ?? [];
+  const markedIds = new Set(today.map(r => r.staff_id));
+
+  const handleMark = (staff: StaffMember) => {
+    const existing = today.find(r => r.staff_id === staff.id);
+    let in_time = '';
+    let out_time = '';
+    
+    if (existing) {
+      if (existing.in_time) {
+        in_time = new Date(existing.in_time).toLocaleTimeString('en-GB', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' });
+      }
+      if (existing.out_time) {
+        out_time = new Date(existing.out_time).toLocaleTimeString('en-GB', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' });
+      }
+    }
+    
+    setMarkForm({ 
+      staff_id: staff.id, 
+      in_time, 
+      out_time, 
+      status: existing?.status ?? 'present' 
     });
     setError('');
   };
@@ -406,6 +436,11 @@ export default function AttendanceManagementPage() {
             <button
               id="confirm-attendance"
               onClick={handleSaveForm}
+              onClick={() => {
+                const inTime  = markForm.in_time  ? `${selectedDate}T${markForm.in_time}:00+05:30`  : undefined;
+                const outTime = markForm.out_time ? `${selectedDate}T${markForm.out_time}:00+05:30` : undefined;
+                markMutation.mutate({ staff_id: markForm.staff_id, date: selectedDate, in_time: inTime, out_time: outTime, status: markForm.status });
+              }}
               disabled={markMutation.isPending}
               className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-bold text-white transition-colors disabled:opacity-50"
             >
@@ -489,6 +524,36 @@ export default function AttendanceManagementPage() {
                           Mark In
                         </button>
                       )}
+                    </div>
+                  <div key={staff.id} className="flex items-center justify-between px-4 py-2.5 gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{staff.full_name}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{staff.designation}</p>
+                      {marked && rec && (
+                        <div className="flex gap-3 mt-0.5">
+                          <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            <Clock size={9} />In: {toLocalTime(rec.in_time)}
+                          </span>
+                          <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            <Clock size={9} />Out: {toLocalTime(rec.out_time)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {marked && rec && (
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[rec.status]?.bg ?? ''} ${STATUS_STYLES[rec.status]?.text ?? ''}`}>
+                          {STATUS_STYLES[rec.status]?.label ?? rec.status}
+                        </span>
+                      )}
+                      <button
+                        id={`mark-att-${staff.id}`}
+                        onClick={() => handleMark(staff)}
+                        className="text-xs px-3 py-1 rounded-lg font-semibold transition-colors"
+                        style={marked ? { backgroundColor: 'var(--bg-base)', color: 'var(--text-muted)' } : { backgroundColor: '#dbeafe', color: '#2563eb' }}
+                      >
+                        {marked ? 'Edit' : 'Mark'}
+                      </button>
                     </div>
                   </div>
                 );
