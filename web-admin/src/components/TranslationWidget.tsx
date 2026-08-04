@@ -94,8 +94,8 @@ export function LanguageSelector({
 }) {
   const languageOptions = [
     { code: 'en', name: 'EN', fullName: 'English' },
-    { code: 'si', name: 'SI', fullName: 'Sinhala' },
-    { code: 'ta', name: 'TA', fullName: 'Tamil' },
+    { code: 'si', name: 'සිං', fullName: 'Sinhala (සිංහල)' },
+    { code: 'ta', name: 'த', fullName: 'Tamil (தமிழ்)' },
   ];
 
   const sizeClasses = {
