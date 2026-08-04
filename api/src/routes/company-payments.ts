@@ -213,4 +213,97 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
       })),
     });
   });
+
+  // ── POST /company-payments/check-arrears ── Auto-flag 3-month defaults
+  app.post('/check-arrears', {
+    preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
+  }, async (req: FastifyRequest, reply) => {
+    const sb = getSupabase();
+
+    // 1. Find customers with >= 3 'not_deducted' or 'partial' installments
+    // where they have not been added to company payments for that application yet.
+    
+    // We group by application_id because arrears apply per application
+    const { data: arrearsData, error: arrearsErr } = await sb
+      .from('installments')
+      .select('customer_id, application_id, status')
+      .in('status', ['not_deducted', 'partial']);
+
+    if (arrearsErr) return reply.status(500).send({ error: arrearsErr.message });
+
+    const appArrearsMap = new Map<string, { customer_id: string; missed_count: number }>();
+    
+    for (const inst of (arrearsData || [])) {
+      if (!appArrearsMap.has(inst.application_id)) {
+        appArrearsMap.set(inst.application_id, { customer_id: inst.customer_id, missed_count: 0 });
+      }
+      appArrearsMap.get(inst.application_id)!.missed_count++;
+    }
+
+    const defaulterAppIds = Array.from(appArrearsMap.entries())
+      .filter(([_, data]) => data.missed_count >= 3)
+      .map(([app_id]) => app_id);
+
+    if (defaulterAppIds.length === 0) {
+      return reply.send({ success: true, processed: 0, message: 'No new defaulters found.' });
+    }
+
+    // 2. Filter out those who already have a company payment for this application
+    const { data: existingCPs } = await sb
+      .from('company_payments')
+      .select('application_id')
+      .in('application_id', defaulterAppIds);
+
+    const existingAppIds = new Set((existingCPs || []).map((cp: any) => cp.application_id));
+    const newDefaulterAppIds = defaulterAppIds.filter(id => !existingAppIds.has(id));
+
+    if (newDefaulterAppIds.length === 0) {
+       return reply.send({ success: true, processed: 0, message: 'Defaulters already processed.' });
+    }
+
+    // 3. For new defaulters, calculate the total arrears amount (sum of expected_amount - deducted_amount)
+    //    and create a company payment record.
+    const { data: newDefaulterInsts } = await sb
+      .from('installments')
+      .select('application_id, arrears_amount')
+      .in('application_id', newDefaulterAppIds);
+
+    const appArrearsAmountMap = new Map<string, number>();
+    for (const inst of (newDefaulterInsts || [])) {
+       const amount = Number(inst.arrears_amount) || 0;
+       appArrearsAmountMap.set(inst.application_id, (appArrearsAmountMap.get(inst.application_id) || 0) + amount);
+    }
+
+    const companyPaymentsToInsert = newDefaulterAppIds.map(appId => {
+      const data = appArrearsMap.get(appId)!;
+      const amount = appArrearsAmountMap.get(appId) || 0;
+      
+      return {
+        customer_id: data.customer_id,
+        application_id: appId,
+        amount: amount,
+        notes: `Auto-flagged: Customer missed ${data.missed_count} installments.`,
+        status: 'outstanding',
+        recovered_amount: 0,
+        processed_by: req.user!.id,
+      };
+    });
+
+    const { data: insertedCPs, error: insertErr } = await sb
+      .from('company_payments')
+      .insert(companyPaymentsToInsert)
+      .select();
+
+    if (insertErr) return reply.status(500).send({ error: insertErr.message });
+
+    await writeAuditLog({
+      user_id: req.user!.id,
+      action: 'COMPANY_PAYMENT_AUTO_CREATED',
+      entity_type: 'company_payments',
+      entity_id: 'batch',
+      new_values: { count: companyPaymentsToInsert.length, apps: newDefaulterAppIds },
+    });
+
+    return reply.send({ success: true, processed: companyPaymentsToInsert.length, data: insertedCPs });
+  });
 }

@@ -4,7 +4,7 @@ import { api } from '@/services/api';
 import * as XLSX from 'xlsx';
 import {
   Building2, Plus, Loader2, AlertCircle, X, Check,
-  RefreshCw, User, ChevronDown, Download
+  RefreshCw, User, ChevronDown, Download, Search
 } from 'lucide-react';
 
 interface CompanyPayment {
@@ -46,6 +46,7 @@ export default function CompanyPaymentsPage() {
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [recoverAmt, setRecoverAmt] = useState('');
+  const [scanMessage, setScanMessage] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['company-payments', statusFilter],
@@ -88,6 +89,20 @@ export default function CompanyPaymentsPage() {
       setRecoverModal(null);
       setRecoverAmt('');
     },
+  });
+
+  const scanMutation = useMutation({
+    mutationFn: () => api.post('/company-payments/check-arrears'),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['company-payments'] });
+      qc.invalidateQueries({ queryKey: ['company-payments-summary'] });
+      setScanMessage(res.data.message || `Found ${res.data.processed} new defaulters.`);
+      setTimeout(() => setScanMessage(''), 5000);
+    },
+    onError: () => {
+      setScanMessage('Failed to scan for arrears.');
+      setTimeout(() => setScanMessage(''), 5000);
+    }
   });
 
   function closeModal() {
@@ -133,8 +148,19 @@ export default function CompanyPaymentsPage() {
           <p className="text-sm text-slate-500 mt-0.5">
             Track payments made by AirVoice on behalf of customers — recovered when customer pays
           </p>
+          {scanMessage && (
+            <p className="text-sm font-medium text-amber-600 mt-1">{scanMessage}</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => scanMutation.mutate()}
+            disabled={scanMutation.isPending}
+            className="flex items-center gap-1.5 px-4 py-2 border border-amber-200 bg-amber-50 rounded-lg text-sm font-semibold text-amber-700 hover:bg-amber-100 transition"
+          >
+            {scanMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 
+            Scan 3-Month Arrears
+          </button>
           <button
             onClick={exportExcel}
             className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"

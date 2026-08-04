@@ -56,6 +56,7 @@ import SalesOfficerPage from '@/pages/sales/SalesOfficerPage';
 // Pages — Legacy
 import LegacyImportPage from '@/pages/legacy/LegacyImportPage';
 import LegacyUploadPage from '@/pages/legacy/LegacyUploadPage';
+import UnitWiseUploadPage from '@/pages/legacy/UnitWiseUploadPage';
 import LegacyMappingPage from '@/pages/legacy/LegacyMappingPage';
 import LegacyPreviewPage from '@/pages/legacy/LegacyPreviewPage';
 
@@ -148,8 +149,9 @@ function App() {
                 <Route path="/expenses" element={<ExpensesPage />} />
                 <Route path="/payroll" element={<PayrollPage />} />
                 <Route path="/payroll/staff/:id" element={<StaffProfilePage />} />
-                <Route path="/legacy-import" element={<LegacyImportPage />} />
                 <Route path="/legacy-import/upload" element={<LegacyUploadPage />} />
+                <Route path="/legacy-import/upload-unit" element={<UnitWiseUploadPage />} />
+                <Route path="/legacy-import" element={<LegacyImportPage />} />
                 <Route path="/legacy-import/:id/mapping" element={<LegacyMappingPage />} />
                 <Route path="/legacy-import/:id/preview" element={<LegacyPreviewPage />} />
                 <Route path="/petty-cash" element={<PettyCashPage />} />
