@@ -127,7 +127,7 @@ export default function PettyCashPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Wallet size={24} className="text-amber-500" /> Petty Cash
+            <Wallet size={24} className="text-blue-600" /> Petty Cash
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">Office petty cash income &amp; expense tracking</p>
         </div>
@@ -136,7 +136,7 @@ export default function PettyCashPage() {
             type="month"
             value={month}
             onChange={e => setMonth(e.target.value)}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
             onClick={exportExcel}
@@ -169,7 +169,7 @@ export default function PettyCashPage() {
         </div>
         <div className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">
-            <DollarSign size={14} className="text-amber-500" /> Running Balance
+            <DollarSign size={14} className="text-blue-600" /> Running Balance
           </div>
           <div className={`text-2xl font-bold ${balance >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
             LKR {balance.toLocaleString()}

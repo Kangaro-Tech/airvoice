@@ -390,7 +390,7 @@ export default function AdminUsersPage() {
                               {isSystemOperator && (
                                 <button
                                   onClick={() => setSelectedUserForModules(user)}
-                                  className="p-2 text-purple-600 hover:bg-purple-50 rounded"
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                                   title="Configure Custom Modules"
                                 >
                                   <Settings size={16} />

@@ -17,7 +17,7 @@ interface AttendanceRecord {
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   present: { bg: 'bg-green-500/15', text: 'text-green-500', label: 'Present' },
   absent:  { bg: 'bg-red-500/15',   text: 'text-red-500',   label: 'Absent'  },
-  late:    { bg: 'bg-amber-500/15', text: 'text-amber-500', label: 'Late'    },
+  late:    { bg: 'bg-sky-100 dark:bg-sky-950/50', text: 'text-sky-700 dark:text-sky-300', label: 'Late' },
   half_day:{ bg: 'bg-blue-500/15',  text: 'text-blue-500',  label: 'Half Day'},
 };
 
@@ -71,7 +71,7 @@ export default function AttendanceManagementPage() {
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#3b82f6', opacity: 0.9 }}>
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600">
           <CalendarCheck size={20} className="text-white" />
         </div>
         <div>
@@ -100,7 +100,7 @@ export default function AttendanceManagementPage() {
             type="date"
             value={selectedDate}
             onChange={e => setSelectedDate(e.target.value)}
-            className="text-sm px-3 py-2 rounded-lg border outline-none"
+            className="text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
           />
         </div>
@@ -110,7 +110,7 @@ export default function AttendanceManagementPage() {
             id="attendance-staff-filter"
             value={selectedStaff}
             onChange={e => setSelectedStaff(e.target.value)}
-            className="text-sm px-3 py-2 rounded-lg border outline-none"
+            className="text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
           >
             <option value="">All Staff</option>
@@ -121,7 +121,7 @@ export default function AttendanceManagementPage() {
 
       {/* Mark Attendance Form */}
       {markForm && (
-        <div className="rounded-xl border p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--accent-primary)' }}>
+        <div className="rounded-xl border p-5 space-y-4 border-blue-600" style={{ backgroundColor: 'var(--bg-surface)' }}>
           <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             Mark Attendance — {(staffList ?? []).find(s => s.id === markForm.staff_id)?.full_name}
           </h3>
@@ -132,7 +132,7 @@ export default function AttendanceManagementPage() {
                 id="mark-status"
                 value={markForm.status}
                 onChange={e => setMarkForm(f => f ? { ...f, status: e.target.value } : f)}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               >
                 <option value="present">Present</option>
@@ -148,7 +148,7 @@ export default function AttendanceManagementPage() {
                 type="time"
                 value={markForm.in_time}
                 onChange={e => setMarkForm(f => f ? { ...f, in_time: e.target.value } : f)}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
             </div>
@@ -159,7 +159,7 @@ export default function AttendanceManagementPage() {
                 type="time"
                 value={markForm.out_time}
                 onChange={e => setMarkForm(f => f ? { ...f, out_time: e.target.value } : f)}
-                className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
               />
             </div>
@@ -173,8 +173,7 @@ export default function AttendanceManagementPage() {
                 markMutation.mutate({ staff_id: markForm.staff_id, date: selectedDate, in_time: inTime, out_time: outTime, status: markForm.status });
               }}
               disabled={markMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-              style={{ backgroundColor: 'var(--accent-primary)' }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors"
             >
               {markMutation.isPending && <Loader2 size={14} className="animate-spin" />}
               Save
@@ -192,7 +191,7 @@ export default function AttendanceManagementPage() {
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Staff — {selectedDate}</h3>
           </div>
           {staffLoading ? (
-            <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent-primary)' }} /></div>
+            <div className="flex justify-center py-10"><Loader2 size={20} className="animate-spin text-blue-600" /></div>
           ) : (
             <div className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
               {(staffList ?? []).map(staff => {
@@ -212,8 +211,7 @@ export default function AttendanceManagementPage() {
                       <button
                         id={`mark-att-${staff.id}`}
                         onClick={() => handleMark(staff)}
-                        className="text-xs px-3 py-1 rounded-lg font-medium transition-colors"
-                        style={{ backgroundColor: 'var(--accent-muted)', color: 'var(--accent-primary)' }}
+                        className="text-xs px-3 py-1 rounded-lg font-semibold transition-colors bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-300 hover:bg-blue-600 hover:text-white"
                       >
                         Mark
                       </button>

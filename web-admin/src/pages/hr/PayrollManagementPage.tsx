@@ -10,9 +10,9 @@ interface StaffMember { id: string; full_name: string; designation: string; }
 interface SalaryAdvance { id: string; staff_id: string; amount: number; request_date: string; deduction_month: string; status: string; }
 interface SalaryDeduction { id: string; staff_id: string; deduction_type: string; amount: number; effective_date: string; is_active: boolean; notes?: string; }
 
-const DEDUCTION_COLORS: Record<string, string> = { loan: '#f59e0b', epf: '#3b82f6', etf: '#8b5cf6', other: '#6b7280' };
+const DEDUCTION_COLORS: Record<string, string> = { loan: '#2563eb', epf: '#1d4ed8', etf: '#0284c7', other: '#6b7280' };
 const ADV_STATUS: Record<string, { bg: string; text: string }> = {
-  pending:  { bg: 'bg-amber-500/15',  text: 'text-amber-500'  },
+  pending:  { bg: 'bg-sky-100 dark:bg-sky-950/50', text: 'text-sky-700 dark:text-sky-300' },
   approved: { bg: 'bg-green-500/15',  text: 'text-green-500'  },
   rejected: { bg: 'bg-red-500/15',    text: 'text-red-500'    },
   deducted: { bg: 'bg-blue-500/15',   text: 'text-blue-500'   },
@@ -125,7 +125,7 @@ export default function PayrollManagementPage() {
           </div>
 
           {showAdvForm && (
-            <div className="rounded-xl border p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: '#f59e0b' }}>
+            <div className="rounded-xl border border-blue-600 p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>New Salary Advance</h3>
               <div className="grid grid-cols-2 gap-4">
                 {[
@@ -141,7 +141,7 @@ export default function PayrollManagementPage() {
                         id={field.id}
                         value={advForm.staff_id}
                         onChange={e => setAdvForm(f => ({ ...f, staff_id: e.target.value }))}
-                        className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                        className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                       >
                         <option value="">Select employee...</option>
@@ -158,7 +158,7 @@ export default function PayrollManagementPage() {
                           else if (field.id === 'adv-req-date') setAdvForm(f => ({ ...f, request_date: val }));
                           else setAdvForm(f => ({ ...f, deduction_month: val }));
                         }}
-                        className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                        className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                       />
                     )}
@@ -170,8 +170,8 @@ export default function PayrollManagementPage() {
                   id="submit-advance-btn"
                   onClick={() => advMutation.mutate({ ...advForm, amount: Number(advForm.amount) })}
                   disabled={!advForm.staff_id || !advForm.amount || advMutation.isPending}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ backgroundColor: '#f59e0b', opacity: (!advForm.staff_id || !advForm.amount) ? 0.5 : 1 }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold text-white transition-colors"
+                  style={{ opacity: (!advForm.staff_id || !advForm.amount) ? 0.5 : 1 }}
                 >
                   {advMutation.isPending && <Loader2 size={14} className="animate-spin" />}
                   Save
@@ -224,15 +224,14 @@ export default function PayrollManagementPage() {
             <button
               id="add-deduction-btn"
               onClick={() => { setShowDedForm(true); setError(''); }}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-              style={{ backgroundColor: '#8b5cf6' }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors"
             >
               <Plus size={14} /> New Deduction
             </button>
           </div>
 
           {showDedForm && (
-            <div className="rounded-xl border p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', borderColor: '#8b5cf6' }}>
+            <div className="rounded-xl border border-blue-600 p-5 space-y-4" style={{ backgroundColor: 'var(--bg-surface)' }}>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>New Salary Deduction</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -241,7 +240,7 @@ export default function PayrollManagementPage() {
                     id="ded-staff-select"
                     value={dedForm.staff_id}
                     onChange={e => setDedForm(f => ({ ...f, staff_id: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   >
                     <option value="">Select employee...</option>
@@ -254,7 +253,7 @@ export default function PayrollManagementPage() {
                     id="ded-type-select"
                     value={dedForm.deduction_type}
                     onChange={e => setDedForm(f => ({ ...f, deduction_type: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none uppercase"
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none uppercase focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   >
                     <option value="loan">Loan</option>
@@ -270,7 +269,7 @@ export default function PayrollManagementPage() {
                     type="number"
                     value={dedForm.amount}
                     onChange={e => setDedForm(f => ({ ...f, amount: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     placeholder="0.00"
                   />
@@ -282,7 +281,7 @@ export default function PayrollManagementPage() {
                     type="date"
                     value={dedForm.effective_date}
                     onChange={e => setDedForm(f => ({ ...f, effective_date: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                   />
                 </div>
@@ -293,7 +292,7 @@ export default function PayrollManagementPage() {
                     type="text"
                     value={dedForm.notes}
                     onChange={e => setDedForm(f => ({ ...f, notes: e.target.value }))}
-                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none"
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
                     placeholder="e.g. Bank loan EMI"
                   />
@@ -304,8 +303,8 @@ export default function PayrollManagementPage() {
                   id="submit-deduction-btn"
                   onClick={() => dedMutation.mutate({ ...dedForm, amount: Number(dedForm.amount) })}
                   disabled={!dedForm.staff_id || !dedForm.amount || dedMutation.isPending}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ backgroundColor: '#8b5cf6', opacity: (!dedForm.staff_id || !dedForm.amount) ? 0.5 : 1 }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-semibold text-white transition-colors"
+                  style={{ opacity: (!dedForm.staff_id || !dedForm.amount) ? 0.5 : 1 }}
                 >
                   {dedMutation.isPending && <Loader2 size={14} className="animate-spin" />}
                   Save

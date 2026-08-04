@@ -27,7 +27,7 @@ function fmtDate(s?: string) {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
-    payable: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400',
+    payable: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400',
     paid:    'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400',
   };
   return (
@@ -57,8 +57,8 @@ function PayModal({ officerName, payableCount, totalAmount, onConfirm, onClose, 
           <X size={18} />
         </button>
         <div className="flex items-center gap-3 mb-5">
-          <div className="p-2.5 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
-            <BadgeCheck className="text-amber-600 dark:text-amber-400" size={22} />
+          <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
+            <BadgeCheck className="text-blue-600 dark:text-blue-400" size={22} />
           </div>
           <div>
             <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Release Commission</h2>
@@ -68,7 +68,7 @@ function PayModal({ officerName, payableCount, totalAmount, onConfirm, onClose, 
 
         <div className="grid grid-cols-2 gap-4 mb-5">
           <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{payableCount}</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{payableCount}</div>
             <div className="text-xs text-base-muted mt-1">Payable Commissions</div>
           </div>
           <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 text-center">
@@ -85,7 +85,7 @@ function PayModal({ officerName, payableCount, totalAmount, onConfirm, onClose, 
           placeholder="e.g. BANK-TXN-20250714"
           value={ref}
           onChange={e => setRef(e.target.value)}
-          className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm surface dark:bg-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-amber-400 mb-5"
+          className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-4 py-2.5 text-sm surface dark:bg-slate-700 text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-5"
         />
 
         <div className="flex gap-3">
@@ -98,7 +98,7 @@ function PayModal({ officerName, payableCount, totalAmount, onConfirm, onClose, 
           <button
             onClick={() => onConfirm(ref)}
             disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-900 text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+            className="flex-1 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
           >
             {loading ? <Loader2 size={15} className="animate-spin" /> : <BadgeCheck size={15} />}
             Confirm Release
@@ -299,7 +299,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
             onClick={() => setTab(t.id as any)}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-all ${
               tab === t.id
-                ? 'border-amber-500 text-amber-500 dark:text-amber-400'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400 font-bold'
                 : 'border-transparent text-base-muted hover:text-[var(--text-secondary)] hover:border-[var(--border-color)]'
             }`}
           >
@@ -349,7 +349,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                   return (
                     <div key={i} className="flex-1 flex flex-col items-center">
                       <div className="w-full flex justify-center items-end h-44 gap-1">
-                        <div style={{ height: `${hColl}%` }} className="bg-green-700 dark:bg-green-600 w-3 rounded-t" title={`Collections: ${formatLKR(m.collections)}`} />
+                        <div style={{ height: `${hColl}%` }} className="bg-blue-600 dark:bg-blue-500 w-3 rounded-t" title={`Collections: ${formatLKR(m.collections)}`} />
                         <div style={{ height: `${hExp}%`  }} className="bg-red-400 dark:bg-red-500 w-3 rounded-t"   title={`Expenses: ${formatLKR(m.expenses)}`} />
                       </div>
                       <div className="text-xs text-base-muted mt-2">{m.label ?? `${i + 1}`}</div>
@@ -358,7 +358,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                 })}
               </div>
               <div className="mt-4 flex justify-center gap-6 text-sm text-base-muted">
-                <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-green-700 dark:bg-green-600 rounded" /> Collections</span>
+                <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-blue-600 dark:bg-blue-500 rounded" /> Collections</span>
                 <span className="flex items-center gap-2"><span className="w-3.5 h-3.5 bg-red-400 dark:bg-red-500 rounded" /> Expenses</span>
               </div>
             </div>
@@ -374,7 +374,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                         {c.tag && <div className="text-[10px] font-bold text-white bg-slate-400 dark:bg-slate-600 rounded-full px-2 py-0.5">{c.tag}</div>}
                       </div>
                       <div className="w-full surface-2 h-2.5 rounded-full mt-2 overflow-hidden">
-                        <div style={{ width: `${Math.min(100, c.deduction_rate ?? 0)}%` }} className="h-full bg-amber-500" />
+                        <div style={{ width: `${Math.min(100, c.deduction_rate ?? 0)}%` }} className="h-full bg-blue-600" />
                       </div>
                       <div className="text-xs text-base-muted mt-1">{Number(c.deduction_rate ?? 0).toFixed(1)}% rate · {c.customers_count} customers</div>
                     </div>
@@ -398,7 +398,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
             <div className="h-32 flex items-end gap-16 border-b border-base pb-2 justify-center">
               {(() => {
                 const qLabels = ['Q1', 'Q2', 'Q3', 'Q4'];
-                const qColors = ['bg-slate-800 dark:bg-slate-600', 'bg-teal-700 dark:bg-teal-600', 'bg-green-700 dark:bg-green-600', 'bg-amber-600 dark:bg-amber-500'];
+                const qColors = ['bg-slate-800 dark:bg-slate-600', 'bg-sky-600 dark:bg-sky-500', 'bg-blue-600 dark:bg-blue-500', 'bg-indigo-600 dark:bg-indigo-500'];
                 const ms = (summary?.monthly_series || []) as { collections?: number }[];
                 const quarters = [0, 1, 2, 3].map(qi => ({
                   label: `${qLabels[qi]} ${currentYear}`,
@@ -515,8 +515,8 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: 'Pending', value: commSummary?.pending ?? '—', color: 'text-base-secondary', bg: 'surface-2', icon: <Clock size={20} className="text-[#2563ea]" /> },
-              { label: 'Payable (Ready)', value: commSummary?.payable ?? '—', color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/20', icon: <BadgeCheck size={20} className="text-[#2563ea]" /> },
-              { label: 'Paid', value: commSummary?.paid ?? '—', color: 'text-green-700 dark:text-green-400', bg: 'bg-green-50 dark:bg-green-950/20', icon: <CheckCircle size={20} className="text-[#2563ea]" /> },
+              { label: 'Payable (Ready)', value: commSummary?.payable ?? '—', color: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/20', icon: <BadgeCheck size={20} className="text-[#2563ea]" /> },
+              { label: 'Paid', value: commSummary?.paid ?? '—', color: 'text-green-700 dark:text-[#2563ea]', bg: 'bg-green-50 dark:bg-green-950/20', icon: <CheckCircle size={20} className="text-[#2563ea]" /> },
             ].map((s, i) => (
               <div key={i} className={`${s.bg} rounded-xl p-5 flex items-center gap-4 border border-base`}>
                 <div>{s.icon}</div>
@@ -528,10 +528,10 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
             ))}
           </div>
 
-          <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl text-sm text-base-secondary flex items-start gap-3">
-            <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
+          <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 rounded-xl text-sm text-base-secondary flex items-start gap-3">
+            <AlertCircle className="text-blue-600 shrink-0 mt-0.5" size={18} />
             <div>
-              <span className="font-bold text-amber-700 dark:text-amber-400">Commission Release Rule:</span> LKR {commSummary?.per_phone ?? 250} per sale is paid to sales officers. Release occurs only after the first monthly salary deduction is successfully confirmed by the camp officer. Pending commissions are locked until then.
+              <span className="font-bold text-blue-900 dark:text-blue-300">Commission Release Rule:</span> LKR {commSummary?.per_phone ?? 250} per sale is paid to sales officers. Release occurs only after the first monthly salary deduction is successfully confirmed by the camp officer. Pending commissions are locked until then.
             </div>
           </div>
 
@@ -562,8 +562,8 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                       <tr key={i} className="hover:bg-[var(--bg-surface-2)]">
                         <td className="py-3 px-5">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-                              <User size={14} className="text-amber-600 dark:text-amber-400" />
+                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                              <User size={14} className="text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
                               <div className="font-semibold text-base-primary">{g.officerName}</div>
@@ -571,7 +571,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-5 text-right font-mono font-semibold text-amber-600 dark:text-amber-400">
+                        <td className="py-3 px-5 text-right font-mono font-semibold text-blue-600 dark:text-blue-400">
                           {g.payable.length > 0 ? formatLKR(g.payableTotal) : <span className="text-base-muted text-xs">Nothing due</span>}
                         </td>
                         <td className="py-3 px-5 text-right font-mono text-base-muted">
@@ -586,7 +586,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                                 totalAmount: g.payableTotal,
                               })}
                               disabled={markPaidMutation.isPending}
-                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-900 rounded-lg font-semibold text-xs flex items-center gap-1.5 mx-auto disabled:opacity-50"
+                              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-xs flex items-center gap-1.5 mx-auto disabled:opacity-50 transition-colors"
                             >
                               <BadgeCheck size={13} /> Release All
                             </button>
@@ -627,7 +627,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                         <td className="py-3 px-5 text-base-secondary text-xs font-mono">{c.officer?.phone_number ?? c.sales_officer_id?.slice(0, 8)}</td>
                         <td className="py-3 px-5 font-semibold text-base-primary">{c.customer?.full_name ?? '—'}</td>
                         <td className="py-3 px-5 font-mono text-xs text-base-muted">{c.application?.ref_number ?? '—'}</td>
-                        <td className="py-3 px-5 text-right font-mono text-xs font-semibold text-amber-600 dark:text-amber-400">{formatLKR(c.amount ?? 250)}</td>
+                        <td className="py-3 px-5 text-right font-mono text-xs font-semibold text-blue-600 dark:text-blue-400">{formatLKR(c.amount ?? 250)}</td>
                         <td className="py-3 px-5"><StatusBadge status={c.status} /></td>
                         <td className="py-3 px-5 text-xs text-base-muted">{c.paid_at ? fmtDate(c.paid_at) : '—'}</td>
                       </tr>
@@ -643,10 +643,10 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
       {/* FORECAST TAB */}
       {tab === 'forecast' && (
         <div className="space-y-6">
-          <div className="p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-900/50 rounded-xl text-sm text-base-secondary flex items-start gap-3">
-            <RefreshCw className="text-purple-500 shrink-0 mt-0.5 animate-spin" size={18} />
+          <div className="p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 rounded-xl text-sm text-base-secondary flex items-start gap-3">
+            <RefreshCw className="text-blue-600 shrink-0 mt-0.5 animate-spin" size={18} />
             <div>
-              <span className="font-bold text-purple-700 dark:text-purple-400">AI-Generated Forecast Model:</span> Projections are computed based on active plans, client aging arrears, and historical camp deduction rates. Confidence levels scale according to proximity to retirement.
+              <span className="font-bold text-blue-900 dark:text-blue-300">AI-Generated Forecast Model:</span> Projections are computed based on active plans, client aging arrears, and historical camp deduction rates. Confidence levels scale according to proximity to retirement.
             </div>
           </div>
 
@@ -662,7 +662,7 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
                 <div className="text-sm font-semibold text-base-secondary mb-1">{f.month}</div>
                 <div className="text-2xl font-bold text-base-primary mb-3">{formatLKR(f.expected)}</div>
                 <div className="w-full surface-2 h-2 rounded-full overflow-hidden mb-1">
-                  <div style={{ width: `${f.confidence}%` }} className="h-full bg-purple-600" />
+                  <div style={{ width: `${f.confidence}%` }} className="h-full bg-blue-600" />
                 </div>
                 <div className="flex justify-between text-xs text-base-muted mb-3">
                   <span>Confidence</span>

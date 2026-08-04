@@ -66,8 +66,8 @@ export default function LegacyUploadPage() {
       </p>
 
       {/* PDF warning banner */}
-      <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex gap-2">
-        <Info size={16} className="shrink-0 mt-0.5" />
+      <div className="mb-5 p-3 bg-blue-50/70 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-900 rounded-xl text-sm text-blue-900 dark:text-blue-200 flex gap-2">
+        <Info size={16} className="shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
         <div>
           <span className="font-semibold">PDF files cannot be used for structured import.</span>{' '}
           Only Excel (.xlsx) and CSV files are parsed for import data.
@@ -82,7 +82,7 @@ export default function LegacyUploadPage() {
         onDrop={onDrop}
         onClick={() => xlsxRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
-          dragOver ? 'border-amber-500 bg-amber-50' : 'border-base hover:border-amber-400 hover:bg-[var(--bg-surface-2)]'
+          dragOver ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/40' : 'border-base hover:border-blue-400 hover:bg-[var(--bg-surface-2)]'
         }`}
       >
         <input

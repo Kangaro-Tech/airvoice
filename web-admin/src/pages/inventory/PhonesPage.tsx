@@ -54,7 +54,7 @@ function ImageCarousel({ images, brand, model }: { images: string[]; brand: stri
               <span
                 key={i}
                 onClick={() => setIdx(i)}
-                className={`w-1.5 h-1.5 rounded-full cursor-pointer transition ${i === idx ? 'bg-amber-500' : 'bg-white/60'}`}
+                className={`w-1.5 h-1.5 rounded-full cursor-pointer transition ${i === idx ? 'bg-blue-600' : 'bg-white/60'}`}
               />
             ))}
           </div>
@@ -182,7 +182,7 @@ function PhoneDetailsModal({
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-base shrink-0">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-amber-500">{model.brand}</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-400">{model.brand}</p>
               <h2 className="text-xl font-bold text-base-primary">{model.model}</h2>
             </div>
             <button onClick={onClose} className="text-base-muted hover:text-[var(--text-secondary)] p-1"><X size={20} /></button>
@@ -191,7 +191,7 @@ function PhoneDetailsModal({
           <div className="flex flex-1 overflow-hidden">
             {/* Left – image gallery */}
             <div
-              className={`w-64 shrink-0 flex flex-col p-4 gap-3 border-r border-base overflow-y-auto transition ${dragging ? 'bg-amber-50 border-amber-300' : ''}`}
+              className={`w-64 shrink-0 flex flex-col p-4 gap-3 border-r border-base overflow-y-auto transition ${dragging ? 'bg-blue-50/70 border-blue-400 dark:bg-blue-950/60' : ''}`}
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={e => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files); }}
@@ -220,7 +220,7 @@ function PhoneDetailsModal({
                     <div key={i} className="relative group/thumb">
                       <button
                         onClick={() => setActiveImg(i)}
-                        className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition ${i === activeImg ? 'border-amber-500' : 'border-transparent hover:border-[var(--border-color)]'}`}
+                        className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition ${i === activeImg ? 'border-blue-600' : 'border-transparent hover:border-[var(--border-color)]'}`}
                       >
                         <img src={url} alt="" className="w-full h-full object-contain" />
                       </button>
@@ -240,13 +240,13 @@ function PhoneDetailsModal({
 
               {/* Drag-and-drop upload zone */}
               <div
-                className={`flex flex-col items-center justify-center gap-1.5 py-4 px-3 border-2 border-dashed rounded-xl text-xs font-semibold transition cursor-pointer ${dragging ? 'border-amber-500 bg-amber-50 text-amber-700' : 'border-amber-300 text-amber-600 hover:bg-amber-50'}`}
+                className={`flex flex-col items-center justify-center gap-1.5 py-4 px-3 border-2 border-dashed rounded-xl text-xs font-semibold transition cursor-pointer ${dragging ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60' : 'border-blue-300 text-blue-600 hover:bg-blue-50/50 dark:border-blue-800 dark:text-blue-400'}`}
                 onClick={() => fileRef.current?.click()}
               >
                 {uploading ? (
                   <><Loader2 size={18} className="animate-spin" /><span>Uploading…</span></>
                 ) : (
-                  <><Upload size={18} /><span>{dragging ? 'Drop photos here' : 'Upload Photos'}</span><span className="text-amber-400 font-normal text-[10px]">Drag & drop or click · Multiple allowed</span></>
+                  <><Upload size={18} /><span>{dragging ? 'Drop photos here' : 'Upload Photos'}</span><span className="text-blue-500 font-normal text-[10px]">Drag & drop or click · Multiple allowed</span></>
                 )}
               </div>
 
@@ -286,9 +286,9 @@ function PhoneDetailsModal({
 
               {/* Pricing summary */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-amber-50 rounded-xl p-4">
-                  <p className="text-xs text-amber-600 font-semibold mb-1">Cash Price</p>
-                  <p className="text-xl font-bold text-amber-700 font-mono">LKR {model.sale_price.toLocaleString()}</p>
+                <div className="bg-blue-50 dark:bg-blue-950/40 rounded-xl p-4">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold mb-1">Cash Price</p>
+                  <p className="text-xl font-bold text-blue-700 dark:text-blue-300 font-mono">LKR {model.sale_price.toLocaleString()}</p>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 font-semibold mb-1">From (12 months)</p>
@@ -371,7 +371,7 @@ export default function PhonesPage() {
         {compareList.length > 0 && (
           <button
             onClick={() => setShowCompareModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
             <Scale size={16} /> Compare ({compareList.length})
           </button>
@@ -382,7 +382,7 @@ export default function PhonesPage() {
       <div className="relative max-w-lg">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-muted" />
         <input
-  className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm bg-[var(--input-bg)] text-base-primary focus:outline-none focus:ring-2 focus:ring-amber-400"
+  className="w-full pl-9 pr-4 py-2.5 border border-base rounded-lg text-sm bg-[var(--input-bg)] text-base-primary focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
   placeholder="Search phones by model name or specs…"
   value={search}
   onChange={e => setSearch(e.target.value)}
@@ -407,7 +407,7 @@ export default function PhonesPage() {
             return (
               <div
                 key={m.id}
-                className={`card p-4 flex flex-col gap-3 hover:shadow-lg transition-shadow ${isCompared ? 'ring-2 ring-amber-500' : ''}`}
+                className={`card p-4 flex flex-col gap-3 hover:shadow-lg transition-shadow ${isCompared ? 'ring-2 ring-blue-600' : ''}`}
               >
                 {/* Image */}
                 <ImageCarousel images={images} brand={m.brand} model={m.model} />
@@ -417,7 +417,7 @@ export default function PhonesPage() {
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-400">{m.brand}</span>
                   <h3 className="font-bold text-base text-base-primary mt-0.5 leading-tight">{m.model}</h3>
                   {m.storage && (
-                    <span className="inline-block mt-1 bg-amber-50 text-amber-700 text-xs px-2 py-0.5 rounded-full font-semibold">{m.storage}</span>
+                    <span className="inline-block mt-1 bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 text-xs px-2 py-0.5 rounded-full font-semibold">{m.storage}</span>
                   )}
                   {m.color && (
                     <span className="inline-block mt-1 ml-1 bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">{m.color}</span>
@@ -436,7 +436,7 @@ export default function PhonesPage() {
                     <p className="text-xs text-slate-400">From</p>
                     <p className="font-bold text-base-primary font-mono text-sm">LKR {Math.round(m.sale_price / 12).toLocaleString()}<span className="text-xs font-normal text-base-muted">/mo</span></p>
                   </div>
-                  <p className="text-xs font-bold text-amber-600 font-mono">LKR {m.sale_price.toLocaleString()}</p>
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400 font-mono">LKR {m.sale_price.toLocaleString()}</p>
                 </div>
 
                 {/* Actions */}
@@ -450,7 +450,7 @@ export default function PhonesPage() {
                   <button
                     onClick={() => toggleCompare(m)}
                     title="Compare"
-                    className={`p-2 rounded-lg border transition ${isCompared ? 'bg-amber-50 border-amber-300 text-amber-600' : 'border-base text-base-muted hover:bg-[var(--bg-surface-2)]'}`}
+                    className={`p-2 rounded-lg border transition ${isCompared ? 'bg-blue-50 border-blue-300 text-blue-600 dark:bg-blue-950/50 dark:border-blue-800 dark:text-blue-300' : 'border-base text-base-muted hover:bg-[var(--bg-surface-2)]'}`}
                   >
                     <Scale size={14} />
                   </button>
