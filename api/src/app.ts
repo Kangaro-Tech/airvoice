@@ -41,7 +41,7 @@ import pettyCashRoutes from './routes/petty-cash';
 import companyPaymentsRoutes from './routes/company-payments';
 import scheduleRoutes from './routes/schedule';
 import hrRoutes from './routes/hr';
-
+import chatRoutes from './routes/chat';
 
 export async function buildApp() {
 
@@ -282,18 +282,10 @@ export async function buildApp() {
   });
 
 
-  await app.register(companyPaymentsRoutes, {
-    prefix: "/company-payments"
-  });
-
-
-  await app.register(scheduleRoutes, {
-    prefix: "/schedule"
-  });
-
-  await app.register(hrRoutes, {
-    prefix: "/hr"
-  });
+  await  app.register(companyPaymentsRoutes, { prefix: '/company-payments' });
+  app.register(scheduleRoutes, { prefix: '/schedule' });
+  app.register(hrRoutes, { prefix: '/hr' });
+  app.register(chatRoutes, { prefix: '/chat' });
 
   const donationsRoutes = require('./routes/donations').default;
   await app.register(donationsRoutes, {
