@@ -1653,4 +1653,449 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       ...results,
     });
   });
+
+  // ══════════════════════════════════════════════════════════════════
+  // POST /upload-unit  — Unit Wise Summary direct import
+  // ══════════════════════════════════════════════════════════════════
+  // Parses the "10 ESR - HAMBANTHOTA" style Excel where every row is
+  // a complete customer sale (no deduction history — just term/amount).
+  // Creates: Camp → Customer → Application → Installments → Guarantor
+  // in a single shot. No mapping/preview step needed.
+  // ─────────────────────────────────────────────────────────────────
+  app.post('/upload-unit', { preHandler: [authenticate, requireFinance] },
+  async (req: FastifyRequest, reply: FastifyReply) => {
+    const fileData = await req.file();
+    if (!fileData) return reply.status(400).send({ error: 'No file uploaded' });
+
+    const filename  = fileData.filename;
+    const fileType  = filename.toLowerCase().endsWith('.csv') ? 'csv' : 'xlsx';
+    const buffer    = await fileData.toBuffer();
+    if (buffer.length === 0) return reply.status(400).send({ error: 'Uploaded file is empty' });
+
+    const sb = getSupabase();
+
+    // ── Parse the Excel ──────────────────────────────────────────────
+    let rows2d: unknown[][];
+    try {
+      const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+      rows2d = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }) as unknown[][];
+    } catch (e) {
+      return reply.status(422).send({ error: `Cannot parse file: ${e instanceof Error ? e.message : String(e)}` });
+    }
+
+    // Find header row (first row with SERVICE NO / NAME / TERM etc.)
+    let headerIdx = -1;
+    for (let i = 0; i < Math.min(10, rows2d.length); i++) {
+      const row = rows2d[i] as string[];
+      const joined = row.map(c => String(c ?? '').toUpperCase()).join(' ');
+      if (joined.includes('SERVICE') || joined.includes('NAME')) { headerIdx = i; break; }
+    }
+    if (headerIdx === -1) return reply.status(422).send({ error: 'Could not find header row. Expected a header with SERVICE NO and NAME.' });
+
+    const headers = (rows2d[headerIdx] as unknown[]).map(h => String(h ?? '').trim().toUpperCase());
+
+    const col = (name: string | string[]): number => {
+      const names = Array.isArray(name) ? name : [name];
+      for (const n of names) {
+        const idx = headers.findIndex(h => h.includes(n));
+        if (idx >= 0) return idx;
+      }
+      return -1;
+    };
+
+    const colNo          = col('SERVICE NO');
+    const colName        = col('NAME');
+    const colMobile      = col(['MOBILE', 'PHONE']);
+    const colNic         = col('NIC');
+    const colAddress     = col('ADDRESS');
+    const colUnit        = col('UNIT');
+    const colItemCount   = col(['VIVO', 'SAMSUNG', 'APPLE', 'QTY', 'ITEM']);
+    const colMonthly     = col('INT');
+    const colTerm        = col('TERM');
+    const colTotalAmount = col('AMOUNT');
+    const colSaleDate    = col(['SALE DATE', 'DATE']);
+    const colSalesMember = col(['SALES MEMBER', 'SALES']);
+    // Guarantor columns
+    const colGu1No   = col(['1 ST GU/ SERVICE NO', 'GU/ SERVICE', '1ST GU']);
+    const colGu1Name = col(['1 ST GU/ NAME', 'GU/ NAME']);
+    const colGu1Mob  = col(['1 ST GU/MOBILE', 'GU/MOBILE']);
+    const colGu1Nic  = col(['1 ST GU/NIC']);
+    const colGu1Addr = col(['1 ST GU/ ADDRESS', 'GU/ ADDRESS']);
+    const colGu1Unit = col(['1 ST GU/ UNIT', 'GU/ UNIT']);
+
+    interface UnitWiseRow {
+      rowNum: number;
+      serviceNo: string;
+      name: string;
+      mobile: string;
+      nic: string;
+      address: string;
+      unit: string;
+      itemCount: number;
+      monthly: number;
+      term: number;
+      totalAmount: number;
+      saleDate: string | null;
+      salesMember: string;
+      gu1ServiceNo: string;
+      gu1Name: string;
+      gu1Mobile: string;
+      gu1Nic: string;
+      gu1Address: string;
+      gu1Unit: string;
+    }
+
+    const g = (row: unknown[], idx: number) => idx >= 0 ? String(row[idx] ?? '').trim() : '';
+    const gn = (row: unknown[], idx: number) => {
+      const v = parseFloat(g(row, idx).replace(/,/g, ''));
+      return isNaN(v) ? 0 : v;
+    };
+
+    const dataRows: UnitWiseRow[] = [];
+    for (let ri = headerIdx + 1; ri < rows2d.length; ri++) {
+      const row = rows2d[ri] as unknown[];
+      const svcNo = g(row, colNo);
+      const name  = g(row, colName);
+      if (!svcNo && !name) continue; // skip empty rows
+      if (!svcNo || !name) continue; // skip incomplete rows
+
+      let saleDate: string | null = null;
+      const sdRaw = g(row, colSaleDate);
+      if (sdRaw) {
+        // XLSX may return a JS Date or an Excel serial number
+        const rawVal = colSaleDate >= 0 ? row[colSaleDate] : null;
+        if (rawVal instanceof Date) {
+          saleDate = rawVal.toISOString().split('T')[0];
+        } else {
+          const d = new Date(sdRaw);
+          saleDate = isNaN(d.getTime()) ? null : d.toISOString().split('T')[0];
+        }
+      }
+
+      dataRows.push({
+        rowNum:       ri + 1,
+        serviceNo:    svcNo,
+        name:         name,
+        mobile:       g(row, colMobile),
+        nic:          String(row[colNic] ?? '').trim(),
+        address:      g(row, colAddress),
+        unit:         g(row, colUnit),
+        itemCount:    Math.max(1, gn(row, colItemCount)) || 1,
+        monthly:      gn(row, colMonthly),
+        term:         gn(row, colTerm) || 24,
+        totalAmount:  gn(row, colTotalAmount),
+        saleDate,
+        salesMember:  g(row, colSalesMember),
+        gu1ServiceNo: g(row, colGu1No),
+        gu1Name:      g(row, colGu1Name),
+        gu1Mobile:    g(row, colGu1Mob),
+        gu1Nic:       g(row, colGu1Nic),
+        gu1Address:   g(row, colGu1Addr),
+        gu1Unit:      g(row, colGu1Unit),
+      });
+    }
+
+    if (dataRows.length === 0) {
+      return reply.status(422).send({ error: 'No valid data rows found in the file.' });
+    }
+
+    // ── Create a batch record ────────────────────────────────────────
+    const storedPath = `/tmp/av_unit_${Date.now()}_${filename}`;
+    try { require('fs').writeFileSync(storedPath, buffer); } catch { /* ignore */ }
+
+    const { data: batch, error: batchErr } = await sb
+      .from('legacy_import_batches')
+      .insert({
+        file_name:       filename,
+        file_path:       storedPath,
+        file_type:       fileType,
+        file_size_bytes: buffer.length,
+        uploaded_by:     req.user!.id,
+        status:          'importing',
+        sheet_regiment:  filename.replace(/\.xlsx?$/i, '').replace(/\.csv$/i, ''),
+      } as any)
+      .select().single();
+    if (batchErr) return reply.status(500).send({ error: batchErr.message });
+
+    // ── Respond immediately, run background job ──────────────────────
+    reply.status(202).send({ success: true, batch_id: batch.id, total_rows: dataRows.length, message: 'Unit Wise import started in background.' });
+
+    setImmediate(async () => {
+      try {
+        // 1. Resolve / create Camps
+        const unitNames = [...new Set([
+          ...dataRows.map(r => r.unit),
+          ...dataRows.map(r => r.gu1Unit),
+        ].filter(Boolean))];
+
+        const { data: existingCamps } = await sb.from('camps').select('id, name');
+        const normName = (n: string) => n.toLowerCase().trim();
+        const campMap = new Map<string, string>();
+        for (const c of (existingCamps || [])) {
+          campMap.set(normName(c.name), c.id);
+        }
+
+        for (const u of unitNames) {
+          if (!campMap.has(normName(u))) {
+            const { data: newCamp } = await sb.from('camps')
+              .insert({ name: u, branch: 'army', is_active: true } as any)
+              .select('id, name').single();
+            if (newCamp) campMap.set(normName(newCamp.name), newCamp.id);
+          }
+        }
+        const getCampId = (unit: string) => unit ? (campMap.get(normName(unit)) ?? null) : null;
+
+        // 2. Bulk lookup existing customers
+        const allSvcNos = [...new Set(dataRows.flatMap(r => [r.serviceNo, r.gu1ServiceNo]).filter(Boolean))];
+        const allNics   = [...new Set(dataRows.flatMap(r => [r.nic, r.gu1Nic]).filter(Boolean))];
+
+        const custBySvc = new Map<string, { id: string; camp_id: string | null }>();
+        const custByNic = new Map<string, { id: string; camp_id: string | null }>();
+
+        if (allSvcNos.length > 0) {
+          for (let i = 0; i < allSvcNos.length; i += 500) {
+            const { data } = await sb.from('customers').select('id, service_number, nic_number, camp_id')
+              .in('service_number', allSvcNos.slice(i, i + 500)).is('deleted_at', null);
+            if (data) data.forEach((c: any) => {
+              if (c.service_number) custBySvc.set(c.service_number, { id: c.id, camp_id: c.camp_id });
+              if (c.nic_number)     custByNic.set(c.nic_number, { id: c.id, camp_id: c.camp_id });
+            });
+          }
+        }
+        if (allNics.length > 0) {
+          for (let i = 0; i < allNics.length; i += 500) {
+            const { data } = await sb.from('customers').select('id, service_number, nic_number, camp_id')
+              .in('nic_number', allNics.slice(i, i + 500)).is('deleted_at', null);
+            if (data) data.forEach((c: any) => {
+              if (c.service_number) custBySvc.set(c.service_number, { id: c.id, camp_id: c.camp_id });
+              if (c.nic_number)     custByNic.set(c.nic_number, { id: c.id, camp_id: c.camp_id });
+            });
+          }
+        }
+
+        const lookupCust = (svc: string, nic: string) =>
+          (svc && custBySvc.get(svc)) || (nic && custByNic.get(nic)) || null;
+
+        // 3. Ensure legacy phone model exists
+        let legacyModelId: string | null = null;
+        const { data: lm } = await sb.from('phone_models').select('id').eq('brand', 'LEGACY').eq('model', 'Legacy Plan').limit(1).single();
+        if (lm) {
+          legacyModelId = lm.id;
+        } else {
+          const { data: nm } = await sb.from('phone_models').insert({ brand: 'LEGACY', model: 'Legacy Plan', purchase_cost: 0, sale_price: 0, is_active: false } as any).select('id').single();
+          legacyModelId = nm?.id ?? null;
+        }
+
+        // 4. Process each row: Create customer + application + installments
+        const nicInsertSet   = new Set<string>();
+        const custInsertMap  = new Map<string, any>();
+        const newRowsForDB: any[] = [];
+        let imported = 0, skipped = 0;
+
+        for (const row of dataRows) {
+          let existing = lookupCust(row.serviceNo, row.nic);
+          let campId = getCampId(row.unit);
+
+          if (!existing && row.serviceNo && row.name) {
+            const nicToInsert = (row.nic && !nicInsertSet.has(row.nic)) ? row.nic : null;
+            if (nicToInsert) nicInsertSet.add(nicToInsert);
+            if (!custInsertMap.has(row.serviceNo)) {
+              custInsertMap.set(row.serviceNo, {
+                full_name:      row.name,
+                service_number: row.serviceNo,
+                nic_number:     nicToInsert,
+                phone_number:   row.mobile || null,
+                address:        row.address || null,
+                camp_id:        campId,
+                branch:         'army',
+                rank:           'Unknown',
+                is_active:      true,
+              });
+            }
+          }
+          newRowsForDB.push({ row, existing });
+        }
+
+        // Bulk insert new customers
+        if (custInsertMap.size > 0) {
+          const custsArr = Array.from(custInsertMap.values());
+          for (let i = 0; i < custsArr.length; i += 500) {
+            const { data: inserted } = await sb.from('customers').insert(custsArr.slice(i, i + 500)).select('id, service_number, nic_number');
+            if (inserted) inserted.forEach((c: any) => {
+              if (c.service_number) custBySvc.set(c.service_number, { id: c.id, camp_id: null });
+              if (c.nic_number)     custByNic.set(c.nic_number, { id: c.id, camp_id: null });
+            });
+          }
+        }
+
+        // 5. Create applications + installments
+        const applicationsToInsert: any[] = [];
+        const appRowMap: { row: UnitWiseRow; appIdx: number }[] = [];
+
+        for (const { row, existing } of newRowsForDB) {
+          const custData = existing || lookupCust(row.serviceNo, row.nic);
+          if (!custData) { skipped++; continue; }
+
+          const campId = getCampId(row.unit);
+          const perItemMonthly = row.monthly / row.itemCount;
+          const termMonths = row.term;
+
+          for (let i = 0; i < row.itemCount; i++) {
+            const appIdx = applicationsToInsert.length;
+            appRowMap.push({ row, appIdx });
+            applicationsToInsert.push({
+              customer_id:     custData.id,
+              phone_model_id:  legacyModelId,
+              sales_officer_id: req.user!.id,
+              sale_price:      row.totalAmount || (row.monthly * termMonths),
+              down_payment:    0,
+              financed_amount: row.totalAmount || (row.monthly * termMonths),
+              monthly_amount:  perItemMonthly,
+              term_months:     termMonths,
+              status:          'active',
+              sale_date:       row.saleDate,
+              plan_end_date:   row.saleDate
+                ? new Date(new Date(row.saleDate).setMonth(new Date(row.saleDate).getMonth() + termMonths)).toISOString().split('T')[0]
+                : null,
+              ref_number:      `UWS-${row.serviceNo}${row.itemCount > 1 ? `-${i + 1}` : ''}`,
+              notes:           `Unit Wise Summary import${row.salesMember ? `. Sales: ${row.salesMember}` : ''}`,
+            });
+          }
+          imported++;
+        }
+
+        const insertedApps: any[] = [];
+        for (let i = 0; i < applicationsToInsert.length; i += 500) {
+          const { data: apps } = await sb.from('applications').insert(applicationsToInsert.slice(i, i + 500)).select('id, customer_id, monthly_amount, term_months, sale_date');
+          if (apps) insertedApps.push(...apps);
+        }
+
+        // 6. Generate installments for each application
+        const installmentsToInsert: any[] = [];
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1;
+
+        for (const insertedApp of insertedApps) {
+          const termMonths = insertedApp.term_months ?? 24;
+          const startDate = insertedApp.sale_date ? new Date(insertedApp.sale_date) : new Date();
+          for (let m = 1; m <= termMonths; m++) {
+            const dueDate = new Date(startDate.getFullYear(), startDate.getMonth() + m, 1);
+            const dueYear = dueDate.getFullYear();
+            const dueMonth = dueDate.getMonth() + 1;
+            
+            // If the due date is strictly in the past (before current month/year), it's in arrears
+            const isPastDue = (dueYear < currentYear) || (dueYear === currentYear && dueMonth < currentMonth);
+
+            installmentsToInsert.push({
+              application_id:  insertedApp.id,
+              customer_id:     insertedApp.customer_id,
+              due_date:        dueDate.toISOString().split('T')[0],
+              due_year:        dueYear,
+              due_month:       dueMonth,
+              month_number:    m,
+              expected_amount: insertedApp.monthly_amount,
+              deducted_amount: 0,
+              arrears_amount:  isPastDue ? insertedApp.monthly_amount : 0,
+              status:          isPastDue ? 'not_deducted' : 'pending',
+            });
+          }
+        }
+
+        for (let i = 0; i < installmentsToInsert.length; i += 500) {
+          await sb.from('installments').insert(installmentsToInsert.slice(i, i + 500));
+        }
+
+        // 7. Create Guarantors
+        const guarantorsToProcess: { row: UnitWiseRow; custId: string }[] = [];
+        for (const insertedApp of insertedApps) {
+          const rowData = newRowsForDB.find((x: any) => {
+            const c = x.existing || lookupCust(x.row.serviceNo, x.row.nic);
+            return c?.id === insertedApp.customer_id;
+          });
+          if (rowData?.row.gu1Name) {
+            guarantorsToProcess.push({ row: rowData.row, custId: insertedApp.customer_id });
+          }
+        }
+
+        for (const { row } of guarantorsToProcess) {
+          const gu1CustExisting = lookupCust(row.gu1ServiceNo, row.gu1Nic);
+          let gu1CustId: string | null = gu1CustExisting?.id ?? null;
+
+          if (!gu1CustId && row.gu1Name) {
+            // Create a customer record for the guarantor if they don't exist
+            const gu1Svc = row.gu1ServiceNo || `GU-${crypto.randomUUID().substring(0, 8)}`;
+            const gu1Nic = row.gu1Nic && !nicInsertSet.has(row.gu1Nic) ? row.gu1Nic : null;
+            if (gu1Nic) nicInsertSet.add(gu1Nic);
+            const { data: newGu1Cust } = await sb.from('customers').insert({
+              full_name:      row.gu1Name,
+              service_number: gu1Svc,
+              nic_number:     gu1Nic,
+              phone_number:   row.gu1Mobile || null,
+              address:        row.gu1Address || null,
+              camp_id:        getCampId(row.gu1Unit),
+              branch:         'army',
+              rank:           'Unknown',
+              is_active:      true,
+            } as any).select('id').single();
+            gu1CustId = newGu1Cust?.id ?? null;
+            if (gu1CustId) {
+              if (row.gu1ServiceNo) custBySvc.set(row.gu1ServiceNo, { id: gu1CustId, camp_id: null });
+              if (gu1Nic)          custByNic.set(gu1Nic, { id: gu1CustId, camp_id: null });
+            }
+          }
+
+          if (gu1CustId && row.gu1Name) {
+            // Check if guarantor already exists
+            let guId: string | null = null;
+            const { data: existGu } = await sb.from('guarantors').select('id')
+              .or(`service_number.eq.${row.gu1ServiceNo || '__none__'},nic_number.eq.${row.gu1Nic || '__none__'}`)
+              .limit(1).single();
+            if (existGu) {
+              guId = existGu.id;
+            } else {
+              const { data: newGu } = await sb.from('guarantors').insert({
+                customer_id:           gu1CustId,
+                full_name:             row.gu1Name,
+                service_number:        row.gu1ServiceNo || null,
+                nic_number:            row.gu1Nic || null,
+                phone_number:          row.gu1Mobile || null,
+                address:               row.gu1Address || null,
+                camp_id:               getCampId(row.gu1Unit),
+                branch:                'army',
+                monthly_salary:        0,
+                total_liability:       0,
+                affordability_checked: true,
+                affordability_ok:      true,
+                is_active:             true,
+              } as any).select('id').single();
+              guId = newGu?.id ?? null;
+            }
+
+            // Link guarantor to all apps for this customer
+            if (guId) {
+              const appsForCust = insertedApps.filter(a => a.customer_id === (lookupCust(row.serviceNo, row.nic)?.id ?? ''));
+              for (const appForCust of appsForCust) {
+                await sb.from('applications').update({ guarantor_id: guId } as any).eq('id', appForCust.id);
+              }
+            }
+          }
+        }
+
+        // 8. Mark batch complete
+        await sb.from('legacy_import_batches').update({
+          status:        'completed',
+          total_rows:    dataRows.length,
+          imported_rows: imported,
+          invalid_rows:  skipped,
+        } as any).eq('id', batch.id);
+
+        app.log.info(`[UnitWiseImport] Done: ${imported} imported, ${skipped} skipped. Apps: ${insertedApps.length}, Installments: ${installmentsToInsert.length}`);
+
+      } catch (e) {
+        await sb.from('legacy_import_batches').update({ status: 'failed' } as any).eq('id', batch.id);
+        app.log.error(`[UnitWiseImport] Background job failed: ${e instanceof Error ? e.stack : String(e)}`);
+      }
+    }); // end setImmediate
+  }); // end upload-unit
 }

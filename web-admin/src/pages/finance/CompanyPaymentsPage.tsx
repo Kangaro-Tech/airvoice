@@ -4,7 +4,7 @@ import { api } from '@/services/api';
 import * as XLSX from 'xlsx';
 import {
   Building2, Plus, Loader2, AlertCircle, X, Check,
-  RefreshCw, User, ChevronDown, Download
+  RefreshCw, User, ChevronDown, Download, Search
 } from 'lucide-react';
 
 interface CompanyPayment {
@@ -35,6 +35,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function CompanyPaymentsPage() {
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [recoverModal, setRecoverModal] = useState<CompanyPayment | null>(null);
   const [formErr, setFormErr] = useState('');
@@ -46,10 +47,11 @@ export default function CompanyPaymentsPage() {
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [recoverAmt, setRecoverAmt] = useState('');
+  const [scanMessage, setScanMessage] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['company-payments', statusFilter],
-    queryFn: () => api.get('/company-payments', { params: statusFilter ? { status: statusFilter } : {} }).then(r => r.data),
+    queryKey: ['company-payments', statusFilter, page],
+    queryFn: () => api.get('/company-payments', { params: { status: statusFilter || undefined, page } }).then(r => r.data),
   });
 
   const { data: summaryData } = useQuery({
@@ -90,6 +92,20 @@ export default function CompanyPaymentsPage() {
     },
   });
 
+  const scanMutation = useMutation({
+    mutationFn: () => api.post('/company-payments/check-arrears'),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['company-payments'] });
+      qc.invalidateQueries({ queryKey: ['company-payments-summary'] });
+      setScanMessage(res.data.message || `Found ${res.data.processed} new defaulters.`);
+      setTimeout(() => setScanMessage(''), 5000);
+    },
+    onError: () => {
+      setScanMessage('Failed to scan for arrears.');
+      setTimeout(() => setScanMessage(''), 5000);
+    }
+  });
+
   function closeModal() {
     setShowModal(false);
     setFormErr('');
@@ -101,6 +117,9 @@ export default function CompanyPaymentsPage() {
   }
 
   const payments: CompanyPayment[] = data?.data ?? [];
+  const meta = data?.meta ?? { total: 0, page: 1, limit: 30 };
+  const totalPages = Math.ceil(meta.total / meta.limit);
+
   const summary = summaryData?.data ?? [];
   const totalOutstanding = summary.reduce((s: number, c: any) => s + c.outstanding, 0);
 
@@ -133,8 +152,19 @@ export default function CompanyPaymentsPage() {
           <p className="text-sm text-slate-500 mt-0.5">
             Track payments made by AirVoice on behalf of customers — recovered when customer pays
           </p>
+          {scanMessage && (
+            <p className="text-sm font-medium text-amber-600 mt-1">{scanMessage}</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => scanMutation.mutate()}
+            disabled={scanMutation.isPending}
+            className="flex items-center gap-1.5 px-4 py-2 border border-amber-200 bg-amber-50 rounded-lg text-sm font-semibold text-amber-700 hover:bg-amber-100 transition"
+          >
+            {scanMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />} 
+            Scan 3-Month Arrears
+          </button>
           <button
             onClick={exportExcel}
             className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
@@ -162,7 +192,7 @@ export default function CompanyPaymentsPage() {
         <div className="px-5 py-3.5 border-b border-slate-100 flex items-center gap-3">
           <select
             value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
+            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
             className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           >
             <option value="">All Statuses</option>
@@ -170,7 +200,7 @@ export default function CompanyPaymentsPage() {
             <option value="partially_recovered">Partially Recovered</option>
             <option value="fully_recovered">Fully Recovered</option>
           </select>
-          <span className="text-sm text-slate-400">{payments.length} records</span>
+          <span className="text-sm text-slate-400">{meta.total} records</span>
         </div>
         {isLoading ? (
           <div className="py-16 text-center text-slate-400"><Loader2 className="animate-spin inline" size={24} /></div>
@@ -222,6 +252,31 @@ export default function CompanyPaymentsPage() {
               })}
             </tbody>
           </table>
+        )}
+
+        {/* Pagination Controls */}
+        {!isLoading && totalPages > 1 && (
+          <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+            <div className="text-xs text-slate-500">
+              Showing <span className="font-semibold text-slate-700">{(meta.page - 1) * meta.limit + 1}</span> to <span className="font-semibold text-slate-700">{Math.min(meta.page * meta.limit, meta.total)}</span> of <span className="font-semibold text-slate-700">{meta.total}</span> records
+            </div>
+            <div className="flex gap-2">
+              <button
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-50 transition"
+              >
+                Previous
+              </button>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 disabled:opacity-50 transition"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

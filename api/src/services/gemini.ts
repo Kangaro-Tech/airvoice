@@ -1,142 +1,55 @@
-
+import OpenAI from 'openai';
 
 /**
- * Call Gemini 1.5 Flash Vision API to extract NIC number from image base64 data.
- * @param imageBase64 Base64-encoded image content (without data:image/... prefix)
- * @param mimeType Image MIME type (e.g. image/jpeg, image/png)
+ * Get a configured OpenAI client using OPENAI_API_KEY from environment.
  */
-export async function extractNicFromImage(imageBase64: string, mimeType: string): Promise<string> {
-  const rawClaudeKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
-  // Only treat as valid Claude key if it starts with 'sk-' and does not contain curl/command text
-  const claudeApiKey = (rawClaudeKey && rawClaudeKey.trim().startsWith('sk-')) ? rawClaudeKey.trim() : null;
-
-  // Resolve best Google/Gemini key: try GEMINI_API_KEY first, fallback to GOOGLE_TRANSLATE_API_KEY if invalid or empty
-  let geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey || !geminiApiKey.trim().startsWith('AIzaSy')) {
-    const translateKey = process.env.GOOGLE_TRANSLATE_API_KEY;
-    if (translateKey && translateKey.trim().startsWith('AIzaSy')) {
-      console.log('[AI] GEMINI_API_KEY invalid or missing. Reusing GOOGLE_TRANSLATE_API_KEY for Gemini extraction.');
-      geminiApiKey = translateKey;
-    }
-  }
-
-  if (claudeApiKey) {
-    console.log('[AI] Using Anthropic Claude API for NIC extraction');
-    const url = 'https://api.anthropic.com/v1/messages';
-    
-    // Normalize mimeType (e.g. image/jpg -> image/jpeg)
-    let mediaType = mimeType;
-    if (mimeType === 'image/jpg') mediaType = 'image/jpeg';
-
-    const payload = {
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1000,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: mediaType,
-                data: imageBase64,
-              },
-            },
-            {
-              type: 'text',
-              text: "Extract the National Identity Card (NIC) number from this Sri Lankan National Identity Card image. Sri Lankan NIC format is either 9 digits followed by 'V' or 'X' (case-insensitive) or 12 digits. Return ONLY the extracted NIC number as a single word, with no extra text, labels, or spaces. If you cannot find a valid NIC, return 'NONE'.",
-            },
-          ],
-        },
-      ],
-    };
-
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeApiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error('[AI] Claude API Error:', errText);
-        // Fallback to Gemini if available
-        if (geminiApiKey) {
-          return extractNicWithGemini(imageBase64, mimeType, geminiApiKey);
-        }
-        return 'NONE';
-      }
-
-      const data = await res.json() as any;
-      const text = data.content?.[0]?.text?.trim() ?? 'NONE';
-      return text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    } catch (err) {
-      console.error('[AI] Claude exception:', err);
-      if (geminiApiKey) {
-        return extractNicWithGemini(imageBase64, mimeType, geminiApiKey);
-      }
-      return 'NONE';
-    }
-  }
-
-  if (geminiApiKey) {
-    return extractNicWithGemini(imageBase64, mimeType, geminiApiKey);
-  }
-
-  console.warn('[AI] Neither a valid Claude API key nor Google API key is configured. Skipping AI verification.');
-  return 'NONE';
+function getOpenAIClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey || !apiKey.startsWith('sk-')) return null;
+  return new OpenAI({ apiKey });
 }
 
-async function extractNicWithGemini(imageBase64: string, mimeType: string, apiKey: string): Promise<string> {
-  console.log('[AI] Using Google Gemini API for NIC extraction');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+/**
+ * Call OpenAI Vision API to extract NIC number from image base64 data.
+ * Falls back to pattern-based extraction if API unavailable.
+ */
+export async function extractNicFromImage(imageBase64: string, mimeType: string): Promise<string> {
+  const client = getOpenAIClient();
 
-  const payload = {
-    contents: [
-      {
-        parts: [
+  if (client) {
+    console.log('[AI] Using OpenAI GPT-4o for NIC extraction');
+    try {
+      const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+      const response = await client.chat.completions.create({
+        model: 'gpt-4o',
+        max_tokens: 100,
+        messages: [
           {
-            inlineData: {
-              mimeType,
-              data: imageBase64,
-            },
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: { url: dataUrl, detail: 'high' },
+              },
+              {
+                type: 'text',
+                text: "Extract the National Identity Card (NIC) number from this Sri Lankan National Identity Card image. Sri Lankan NIC format is either 9 digits followed by 'V' or 'X' (case-insensitive) or 12 digits. Return ONLY the extracted NIC number as a single word, with no extra text, labels, or spaces. If you cannot find a valid NIC, return 'NONE'.",
+              },
+            ],
           },
-          {
-            text: "Extract the National Identity Card (NIC) number from this Sri Lankan National Identity Card image. Sri Lankan NIC format is either 9 digits followed by 'V' or 'X' (case-insensitive) or 12 digits. Return ONLY the extracted NIC number as a single word, with no extra text, labels, or spaces. If you cannot find a valid NIC, return 'NONE'."
-          }
-        ]
-      }
-    ]
-  };
+        ],
+      });
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[GEMINI] API Error:', errText);
+      const text = response.choices[0]?.message?.content?.trim() ?? 'NONE';
+      return text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    } catch (err) {
+      console.error('[AI] OpenAI NIC extraction error:', err);
       return 'NONE';
     }
-
-    const data = await res.json() as any;
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? 'NONE';
-    return text.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-  } catch (err) {
-    console.error('[GEMINI] Exception occurred during extraction:', err);
-    return 'NONE';
   }
+
+  console.warn('[AI] OPENAI_API_KEY not configured. Skipping AI NIC verification.');
+  return 'NONE';
 }
 
 export interface MilitaryUnitDetails {
@@ -149,16 +62,7 @@ export interface MilitaryUnitDetails {
 }
 
 export async function extractMilitaryUnitDetails(unitString: string): Promise<MilitaryUnitDetails | null> {
-  const rawClaudeKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
-  const claudeApiKey = (rawClaudeKey && rawClaudeKey.trim().startsWith('sk-')) ? rawClaudeKey.trim() : null;
-
-  let geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey || !geminiApiKey.trim().startsWith('AIzaSy')) {
-    const translateKey = process.env.GOOGLE_TRANSLATE_API_KEY;
-    if (translateKey && translateKey.trim().startsWith('AIzaSy')) {
-      geminiApiKey = translateKey;
-    }
-  }
+  const client = getOpenAIClient();
 
   const promptText = `Analyze the following Sri Lankan military unit string and extract details in JSON format:
 { "battalion": "", "regiment": "", "regiment_short_name": "", "full_unit_name": "", "short_unit_name": "", "camp_location": "" }
@@ -167,52 +71,20 @@ If you cannot determine a field, leave it empty or omit it. Only output valid JS
 
 Unit String: "${unitString}"`;
 
-  if (claudeApiKey) {
+  if (client) {
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeApiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 500,
-          messages: [{ role: 'user', content: [{ type: 'text', text: promptText }] }],
-        }),
+      const response = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 500,
+        messages: [{ role: 'user', content: promptText }],
       });
-      if (res.ok) {
-        const data = await res.json() as any;
-        let text = data.content?.[0]?.text?.trim();
-        if (text) {
-          text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-          return JSON.parse(text) as MilitaryUnitDetails;
-        }
+      let text = response.choices[0]?.message?.content?.trim();
+      if (text) {
+        text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        return JSON.parse(text) as MilitaryUnitDetails;
       }
     } catch (err) {
-      console.error('[AI] Claude exception during military extraction:', err);
-    }
-  }
-
-  if (geminiApiKey) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }),
-      });
-      if (res.ok) {
-        const data = await res.json() as any;
-        let text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-        if (text) {
-          text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-          return JSON.parse(text) as MilitaryUnitDetails;
-        }
-      }
-    } catch (err) {
-      console.error('[GEMINI] Exception during military extraction:', err);
+      console.error('[AI] OpenAI military extraction error:', err);
     }
   }
 
@@ -221,17 +93,8 @@ Unit String: "${unitString}"`;
 
 export async function extractMultipleMilitaryUnitDetails(unitStrings: string[]): Promise<Record<string, MilitaryUnitDetails>> {
   if (unitStrings.length === 0) return {};
-  
-  const rawClaudeKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
-  const claudeApiKey = (rawClaudeKey && rawClaudeKey.trim().startsWith('sk-')) ? rawClaudeKey.trim() : null;
 
-  let geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey || !geminiApiKey.trim().startsWith('AIzaSy')) {
-    const translateKey = process.env.GOOGLE_TRANSLATE_API_KEY;
-    if (translateKey && translateKey.trim().startsWith('AIzaSy')) {
-      geminiApiKey = translateKey;
-    }
-  }
+  const client = getOpenAIClient();
 
   const promptText = `Analyze the following Sri Lankan military unit strings and extract details for EACH one.
 Return ONLY a JSON object where the keys are the exact original strings, and the values are objects with these fields:
@@ -252,44 +115,44 @@ ${JSON.stringify(unitStrings)}`;
     }
   };
 
-  if (claudeApiKey) {
+  if (client) {
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': claudeApiKey, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: 'claude-3-5-sonnet-20241022',
-          max_tokens: 1500,
-          messages: [{ role: 'user', content: [{ type: 'text', text: promptText }] }],
-        }),
+      const response = await client.chat.completions.create({
+        model: 'gpt-4o-mini',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: promptText }],
       });
-      if (res.ok) {
-        const data = await res.json() as any;
-        return parseResponse(data.content?.[0]?.text);
-      }
+      return parseResponse(response.choices[0]?.message?.content ?? undefined);
     } catch (err) {
-      console.error('[AI] Claude exception during batch military extraction:', err);
-    }
-  }
-
-  if (geminiApiKey) {
-    try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: promptText }] }] }),
-      });
-      if (res.ok) {
-        const data = await res.json() as any;
-        return parseResponse(data.candidates?.[0]?.content?.parts?.[0]?.text);
-      }
-    } catch (err) {
-      console.error('[GEMINI] Exception during batch military extraction:', err);
+      console.error('[AI] OpenAI batch military extraction error:', err);
     }
   }
 
   return {};
 }
 
+/**
+ * Generate an AI text summary/insight using OpenAI GPT-4o-mini.
+ */
+export async function generateAiSummary(prompt: string, maxTokens = 300): Promise<string | null> {
+  const client = getOpenAIClient();
+  if (!client) return null;
 
+  try {
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: maxTokens,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional financial AI assistant for AIRVOICE Defence Finance Management, a Sri Lankan military phone financing company. Provide concise, professional insights without markdown formatting.',
+        },
+        { role: 'user', content: prompt },
+      ],
+    });
+    return response.choices[0]?.message?.content?.trim() ?? null;
+  } catch (err) {
+    console.error('[AI] OpenAI summary generation error:', err);
+    return null;
+  }
+}

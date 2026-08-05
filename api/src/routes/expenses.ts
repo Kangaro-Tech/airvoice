@@ -15,94 +15,51 @@ function ext(mime: string): string {
   return map[mime] ?? 'bin';
 }
 
-/** Call Gemini or Claude API for expense AI assistant */
+/** Call OpenAI GPT-4o-mini for expense AI assistant */
 async function callGeminiChat(userMessage: string, context: string): Promise<string> {
-  const rawClaudeKey = process.env.CLAUDE_API_KEY || process.env.ANTHROPIC_API_KEY;
-  // Only treat as valid Claude key if it starts with 'sk-' and does not contain curl/command text
-  const claudeApiKey = (rawClaudeKey && rawClaudeKey.trim().startsWith('sk-')) ? rawClaudeKey.trim() : null;
-
-  // Resolve best Google/Gemini key: try GEMINI_API_KEY first, fallback to GOOGLE_TRANSLATE_API_KEY if invalid or empty
-  let geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey || !geminiApiKey.trim().startsWith('AIzaSy')) {
-    const translateKey = process.env.GOOGLE_TRANSLATE_API_KEY;
-    if (translateKey && translateKey.trim().startsWith('AIzaSy')) {
-      console.log('[AI] GEMINI_API_KEY invalid or missing. Reusing GOOGLE_TRANSLATE_API_KEY for Gemini.');
-      geminiApiKey = translateKey;
-    }
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey || !apiKey.startsWith('sk-')) {
+    return generateLocalFallbackResponse(userMessage, context);
   }
+
+  console.log('[AI] Using OpenAI GPT-4o-mini for Expense AI Assistant');
 
   const systemPrompt = `You are AIRVOICE AI, an intelligent expense management assistant for AIRVOICE mobile phone financing company in Sri Lanka. You help finance officers analyze expenses, spot anomalies, and manage budgets. You only answer questions related to AIRVOICE's expenses, budgets, and financial data. Keep answers concise and professional. Use LKR (Sri Lankan Rupees) for all amounts.
 
 Current expense data context:
 ${context}`;
 
-  if (claudeApiKey) {
-    console.log('[AI] Using Anthropic Claude API for AI Assistant');
-    const url = 'https://api.anthropic.com/v1/messages';
-    const payload = {
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages: [
-        { role: 'user', content: userMessage }
-      ]
-    };
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 512,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+      }),
+    });
 
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': claudeApiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify(payload),
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        console.error('[AI] Claude chat error:', errText);
-        if (geminiApiKey) return callGeminiWithKey(userMessage, systemPrompt, geminiApiKey, context);
-        return generateLocalFallbackResponse(userMessage, context);
-      }
-      const data = await res.json() as any;
-      return data.content?.[0]?.text?.trim() ?? generateLocalFallbackResponse(userMessage, context);
-    } catch (err) {
-      console.error('[AI] Claude chat exception:', err);
-      if (geminiApiKey) return callGeminiWithKey(userMessage, systemPrompt, geminiApiKey, context);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error('[AI] OpenAI chat error:', errText);
       return generateLocalFallbackResponse(userMessage, context);
     }
-  }
 
-  if (geminiApiKey) {
-    return callGeminiWithKey(userMessage, systemPrompt, geminiApiKey, context);
-  }
-
-  return generateLocalFallbackResponse(userMessage, context);
-}
-
-async function callGeminiWithKey(userMessage: string, systemPrompt: string, apiKey: string, context: string): Promise<string> {
-  console.log('[AI] Using Google Gemini API for AI Assistant');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  const payload = {
-    contents: [
-      { role: 'user', parts: [{ text: `${systemPrompt}\n\nUser question: ${userMessage}` }] }
-    ],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 512 },
-  };
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return generateLocalFallbackResponse(userMessage, context);
     const data = await res.json() as any;
-    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? generateLocalFallbackResponse(userMessage, context);
-  } catch {
+    return data.choices?.[0]?.message?.content?.trim() ?? generateLocalFallbackResponse(userMessage, context);
+  } catch (err) {
+    console.error('[AI] OpenAI chat exception:', err);
     return generateLocalFallbackResponse(userMessage, context);
   }
 }
+
 
 function generateLocalFallbackResponse(userMessage: string, context: string): string {
   const msg = userMessage.toLowerCase();

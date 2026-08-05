@@ -15,7 +15,7 @@ interface AttendanceRecord {
 }
 
 interface MarkFormState {
-  mode: 'in' | 'out';
+  mode: 'in' | 'out' | 'edit';
   staff_id: string;
   staff_name: string;
   in_time: string;
@@ -26,33 +26,28 @@ interface MarkFormState {
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
   clocked_in: { bg: 'bg-amber-100 dark:bg-amber-950/50', text: 'text-amber-700 dark:text-amber-300', label: 'Clocked In (Pending Out)' },
-  present:    { bg: 'bg-green-500/15', text: 'text-green-500', label: 'Present' },
-  absent:     { bg: 'bg-red-500/15',   text: 'text-red-500',   label: 'Absent'  },
-  late:       { bg: 'bg-sky-100 dark:bg-sky-950/50', text: 'text-sky-700 dark:text-sky-300', label: 'Late' },
-  half_day:   { bg: 'bg-blue-500/15',  text: 'text-blue-500',  label: 'Half Day'},
+  present: { bg: 'bg-green-500/15', text: 'text-green-500', label: 'Present' },
+  absent: { bg: 'bg-red-500/15', text: 'text-red-500', label: 'Absent' },
+  late: { bg: 'bg-sky-100 dark:bg-sky-950/50', text: 'text-sky-700 dark:text-sky-300', label: 'Late' },
+  half_day: { bg: 'bg-blue-500/15', text: 'text-blue-500', label: 'Half Day' },
 };
 
 function todayStr() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Colombo' });
 }
 
-// Guaranteed 24-hour HH:MM format for <input type="time" />
 function getHHMM(isoOrDate?: string | Date): string {
   let d: Date;
   if (!isoOrDate) {
     d = new Date();
-  } else if (typeof isoOrDate === 'string') {
-    if (isoOrDate.includes('T')) {
-      const timePart = isoOrDate.split('T')[1];
-      if (timePart) return timePart.substring(0, 5);
-    }
-    d = new Date(isoOrDate);
   } else {
-    d = isoOrDate;
+    d = new Date(isoOrDate);
   }
+  
   if (isNaN(d.getTime())) {
     d = new Date();
   }
+  
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
@@ -60,32 +55,37 @@ function getHHMM(isoOrDate?: string | Date): string {
 
 function toLocalTime(iso?: string): string {
   if (!iso) return '—';
-  let timeStr = iso;
-  if (iso.includes('T')) {
-    timeStr = iso.split('T')[1]?.substring(0, 5) || '';
-  } else if (iso.includes(' ')) {
-    timeStr = iso.split(' ')[1]?.substring(0, 5) || '';
-  }
   
-  if (!timeStr || !timeStr.includes(':')) {
-    return iso;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) {
+    // Fallback if parsing fails for some reason
+    let timeStr = iso;
+    if (iso.includes('T')) timeStr = iso.split('T')[1]?.substring(0, 5) || '';
+    else if (iso.includes(' ')) timeStr = iso.split(' ')[1]?.substring(0, 5) || '';
+    
+    if (!timeStr || !timeStr.includes(':')) return iso;
+    const [hStr, mStr] = timeStr.split(':');
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return iso;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
   }
 
-  const [hStr, mStr] = timeStr.split(':');
-  let hours = parseInt(hStr, 10);
-  const minutes = parseInt(mStr, 10);
-  if (isNaN(hours) || isNaN(minutes)) return iso;
-
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   if (hours === 0) hours = 12;
-
+  
   const padMin = String(minutes).padStart(2, '0');
   const padHr = String(hours).padStart(2, '0');
   return `${padHr}:${padMin} ${ampm}`;
 }
 
-// 4:58 PM Timestamp calculation for today
 function getToday458PmDeadline(): number {
   const d = new Date();
   d.setHours(16, 58, 0, 0);
@@ -152,11 +152,36 @@ export default function AttendanceManagementPage() {
     setError('');
   };
 
+  const handleMarkEdit = (staff: StaffMember) => {
+    const existing = (attendanceData ?? []).find(r => r.staff_id === staff.id);
+    let in_time = '';
+    let out_time = '';
+    
+    if (existing) {
+      if (existing.in_time) {
+        in_time = getHHMM(existing.in_time);
+      }
+      if (existing.out_time) {
+        out_time = getHHMM(existing.out_time);
+      }
+    }
+    
+    setMarkForm({ 
+      mode: 'edit',
+      staff_id: staff.id, 
+      staff_name: staff.full_name,
+      in_time, 
+      out_time, 
+      status: existing?.status ?? 'present' 
+    });
+    setError('');
+  };
+
   const handleSaveForm = () => {
     if (!markForm) return;
 
     if (markForm.mode === 'in') {
-      const inTime = markForm.in_time ? `${selectedDate}T${markForm.in_time}:00` : undefined;
+      const inTime = markForm.in_time ? `${selectedDate}T${markForm.in_time}:00+05:30` : undefined;
       const finalStatus = markForm.status === 'absent' ? 'absent' : 'clocked_in';
       markMutation.mutate({
         staff_id: markForm.staff_id,
@@ -165,9 +190,9 @@ export default function AttendanceManagementPage() {
         status: finalStatus,
       });
     } else {
-      const inTime = markForm.in_time ? `${selectedDate}T${markForm.in_time}:00` : undefined;
-      const outTime = markForm.out_time ? `${selectedDate}T${markForm.out_time}:00` : undefined;
-      const finalStatus = markForm.status === 'clocked_in' ? 'present' : markForm.status;
+      const inTime = markForm.in_time ? `${selectedDate}T${markForm.in_time}:00+05:30` : undefined;
+      const outTime = markForm.out_time ? `${selectedDate}T${markForm.out_time}:00+05:30` : undefined;
+      const finalStatus = markForm.mode === 'out' && markForm.status === 'clocked_in' ? 'present' : markForm.status;
       markMutation.mutate({
         staff_id: markForm.staff_id,
         date: selectedDate,
@@ -178,7 +203,6 @@ export default function AttendanceManagementPage() {
     }
   };
 
-  // Unclocked-out calculation for 4:58 PM reminder
   const unclockedStaffList = (attendanceData ?? []).filter(r => r.in_time && !r.out_time && r.status !== 'absent');
   const unclockedCount = unclockedStaffList.length;
 
@@ -188,8 +212,7 @@ export default function AttendanceManagementPage() {
       const unclocked = (attendanceData ?? []).filter(r => r.in_time && !r.out_time && r.status !== 'absent');
       const names = unclocked.map(u => u.staff?.full_name).filter(Boolean).join(', ');
       const text = `⏰ Daily Attendance Alert (4:58 PM): ${unclocked.length} staff member(s) checked IN but haven't marked OUT yet!${names ? ` (${names})` : ''}`;
-      
-      // Set deadline precisely to 4:58 PM today
+
       const deadline = getToday458PmDeadline();
 
       await tasksApi.create({
@@ -211,7 +234,6 @@ export default function AttendanceManagementPage() {
     }
   };
 
-  // Automated 4:58 PM check loop — ONLY triggers when clock hits 4:58 PM (16:58)
   useEffect(() => {
     const checkDailyTime = () => {
       const now = new Date();
@@ -228,15 +250,15 @@ export default function AttendanceManagementPage() {
     };
 
     checkDailyTime();
-    const interval = setInterval(checkDailyTime, 30000); // Poll every 30s
+    const interval = setInterval(checkDailyTime, 30000);
     return () => clearInterval(interval);
   }, [attendanceData]);
 
   const today = attendanceData ?? [];
+  const markedIds = new Set(today.map(r => r.staff_id));
 
   return (
     <div className="p-6 space-y-6" style={{ color: 'var(--text-primary)' }}>
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600">
@@ -248,7 +270,6 @@ export default function AttendanceManagementPage() {
           </div>
         </div>
 
-        {/* 4:58 PM Daily Reminder Button */}
         <button
           onClick={() => triggerTaskReminder(true)}
           disabled={sendingReminder}
@@ -271,7 +292,6 @@ export default function AttendanceManagementPage() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Date</label>
@@ -299,7 +319,6 @@ export default function AttendanceManagementPage() {
         </div>
       </div>
 
-      {/* Step-by-Step Mark Attendance Form Modal/Card */}
       {markForm && (
         <div className="rounded-xl border p-5 space-y-4 border-blue-600 shadow-md transition-all" style={{ backgroundColor: 'var(--bg-surface)' }}>
           <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-color)' }}>
@@ -309,15 +328,20 @@ export default function AttendanceManagementPage() {
                   <LogIn size={16} className="text-blue-600" />
                   <span>Step 1: Mark In (Check In) — {markForm.staff_name}</span>
                 </>
-              ) : (
+              ) : markForm.mode === 'out' ? (
                 <>
                   <LogOut size={16} className="text-amber-500" />
                   <span>Step 2: Mark Out (Check Out) — {markForm.staff_name}</span>
                 </>
+              ) : (
+                <>
+                  <Edit2 size={16} className="text-blue-600" />
+                  <span>Edit Attendance — {markForm.staff_name}</span>
+                </>
               )}
             </h3>
             <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 uppercase">
-              {markForm.mode === 'in' ? 'Check In Phase' : 'Check Out Phase'}
+              {markForm.mode === 'in' ? 'Check In Phase' : markForm.mode === 'out' ? 'Check Out Phase' : 'Edit Phase'}
             </span>
           </div>
 
@@ -358,7 +382,7 @@ export default function AttendanceManagementPage() {
                   </p>
                 </div>
               </>
-            ) : (
+            ) : markForm.mode === 'out' ? (
               <>
                 <div>
                   <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: 'var(--text-muted)' }}>
@@ -399,6 +423,47 @@ export default function AttendanceManagementPage() {
                   </select>
                 </div>
               </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: 'var(--text-muted)' }}>Status</label>
+                  <select
+                    id="mark-status"
+                    value={markForm.status}
+                    onChange={e => setMarkForm(f => f ? { ...f, status: e.target.value } : f)}
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="present">Present</option>
+                    <option value="absent">Absent</option>
+                    <option value="late">Late</option>
+                    <option value="half_day">Half Day</option>
+                    <option value="clocked_in">Clocked In</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: 'var(--text-muted)' }}>In Time</label>
+                  <input
+                    id="mark-in-time"
+                    type="time"
+                    value={markForm.in_time}
+                    onChange={e => setMarkForm(f => f ? { ...f, in_time: e.target.value } : f)}
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider block mb-1" style={{ color: 'var(--text-muted)' }}>Out Time</label>
+                  <input
+                    id="mark-out-time"
+                    type="time"
+                    value={markForm.out_time}
+                    onChange={e => setMarkForm(f => f ? { ...f, out_time: e.target.value } : f)}
+                    className="w-full text-sm px-3 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    style={{ backgroundColor: 'var(--bg-base)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
+                  />
+                </div>
+              </>
             )}
           </div>
 
@@ -409,8 +474,8 @@ export default function AttendanceManagementPage() {
               disabled={markMutation.isPending}
               className="flex items-center gap-2 px-5 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-bold text-white transition-colors disabled:opacity-50"
             >
-              {markMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : markForm.mode === 'in' ? <LogIn size={14} /> : <LogOut size={14} />}
-              {markForm.mode === 'in' ? 'Save In Time (Check In)' : 'Save Out Time (Check Out & Mark Present)'}
+              {markMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : markForm.mode === 'in' ? <LogIn size={14} /> : markForm.mode === 'out' ? <LogOut size={14} /> : <Edit2 size={14} />}
+              {markForm.mode === 'in' ? 'Save In Time (Check In)' : markForm.mode === 'out' ? 'Save Out Time (Check Out)' : 'Save Changes'}
             </button>
             <button
               onClick={() => setMarkForm(null)}
@@ -423,9 +488,7 @@ export default function AttendanceManagementPage() {
         </div>
       )}
 
-      {/* Two-panel layout: Staff quick-mark panel + Attendance records */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Staff quick-mark panel */}
         <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
           <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
             <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Staff Directory — {selectedDate}</h3>
@@ -437,12 +500,13 @@ export default function AttendanceManagementPage() {
             <div className="divide-y" style={{ borderColor: 'var(--border-color)' }}>
               {(staffList ?? []).map(staff => {
                 const rec = today.find(r => r.staff_id === staff.id);
+                const marked = markedIds.has(staff.id);
                 const isClockedInOnly = rec && rec.in_time && !rec.out_time && rec.status !== 'absent';
                 const isCompleted = rec && rec.in_time && rec.out_time;
 
                 return (
-                  <div key={staff.id} className="flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-surface-2)] transition-colors">
-                    <div>
+                  <div key={staff.id} className="flex flex-col md:flex-row items-start md:items-center justify-between px-4 py-3 gap-3 hover:bg-[var(--bg-surface-2)] transition-colors">
+                    <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{staff.full_name}</p>
                       <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{staff.designation}</p>
                       {rec && rec.in_time && (
@@ -452,33 +516,39 @@ export default function AttendanceManagementPage() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       {isClockedInOnly ? (
-                        <button
-                          id={`mark-out-${staff.id}`}
-                          onClick={() => handleMarkOut(staff, rec)}
-                          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
-                        >
-                          <LogOut size={13} />
-                          Mark Out
-                        </button>
+                        <>
+                          <button
+                            id={`mark-out-${staff.id}`}
+                            onClick={() => handleMarkOut(staff, rec)}
+                            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-bold transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
+                          >
+                            <LogOut size={13} />
+                            Mark Out
+                          </button>
+                          <button onClick={() => handleMarkEdit(staff)} className="p-1 text-slate-400 hover:text-blue-600 rounded" title="Edit">
+                            <Edit2 size={13} />
+                          </button>
+                        </>
                       ) : isCompleted ? (
                         <div className="flex items-center gap-1.5">
                           <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${STATUS_STYLES[rec.status]?.bg ?? ''} ${STATUS_STYLES[rec.status]?.text ?? ''}`}>
                             ✓ {STATUS_STYLES[rec.status]?.label ?? rec.status}
                           </span>
-                          <button
-                            onClick={() => handleMarkOut(staff, rec)}
-                            className="p-1 text-slate-400 hover:text-blue-600 rounded"
-                            title="Edit Out Time"
-                          >
+                          <button onClick={() => handleMarkEdit(staff)} className="p-1 text-slate-400 hover:text-blue-600 rounded" title="Edit">
                             <Edit2 size={13} />
                           </button>
                         </div>
                       ) : rec?.status === 'absent' ? (
-                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-950/40">
-                          Absent
-                        </span>
+                        <>
+                          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-950/40">
+                            Absent
+                          </span>
+                          <button onClick={() => handleMarkEdit(staff)} className="p-1 text-slate-400 hover:text-blue-600 rounded" title="Edit">
+                            <Edit2 size={13} />
+                          </button>
+                        </>
                       ) : (
                         <button
                           id={`mark-in-${staff.id}`}
@@ -497,7 +567,6 @@ export default function AttendanceManagementPage() {
           )}
         </div>
 
-        {/* Today's attendance records */}
         <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border-color)' }}>
           <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--border-color)' }}>
             <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Today's Attendance Records ({today.length})</h3>
@@ -544,11 +613,10 @@ export default function AttendanceManagementPage() {
                           + Add Out Time
                         </button>
                       )}
-                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                        isPendingOut
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${isPendingOut
                           ? `${STATUS_STYLES.clocked_in.bg} ${STATUS_STYLES.clocked_in.text}`
                           : `${statusStyle.bg} ${statusStyle.text}`
-                      }`}>
+                        }`}>
                         {isPendingOut ? 'Clocked In (Pending Out)' : statusStyle.label}
                       </span>
                     </div>

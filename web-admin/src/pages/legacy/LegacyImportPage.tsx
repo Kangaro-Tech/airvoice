@@ -150,6 +150,9 @@ export default function LegacyImportPage() {
               <GitMerge size={15} className="text-amber-500" /> Merge Duplicate Camps
             </button>
           )}
+          <Link to="/legacy-import/upload-unit" className="flex items-center gap-1.5 text-sm px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition shadow-sm">
+            <Upload size={16} />Upload Unit Wise Summary
+          </Link>
           <Link to="/legacy-import/upload" className="btn-primary">
             <Upload size={16} />Upload Deduction Sheet
           </Link>
