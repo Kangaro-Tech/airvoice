@@ -40,18 +40,14 @@ function getHHMM(isoOrDate?: string | Date): string {
   let d: Date;
   if (!isoOrDate) {
     d = new Date();
-  } else if (typeof isoOrDate === 'string') {
-    if (isoOrDate.includes('T')) {
-      const timePart = isoOrDate.split('T')[1];
-      if (timePart) return timePart.substring(0, 5);
-    }
-    d = new Date(isoOrDate);
   } else {
-    d = isoOrDate;
+    d = new Date(isoOrDate);
   }
+  
   if (isNaN(d.getTime())) {
     d = new Date();
   }
+  
   const hours = String(d.getHours()).padStart(2, '0');
   const minutes = String(d.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
@@ -59,26 +55,32 @@ function getHHMM(isoOrDate?: string | Date): string {
 
 function toLocalTime(iso?: string): string {
   if (!iso) return '—';
-  let timeStr = iso;
-  if (iso.includes('T')) {
-    timeStr = iso.split('T')[1]?.substring(0, 5) || '';
-  } else if (iso.includes(' ')) {
-    timeStr = iso.split(' ')[1]?.substring(0, 5) || '';
+  
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) {
+    // Fallback if parsing fails for some reason
+    let timeStr = iso;
+    if (iso.includes('T')) timeStr = iso.split('T')[1]?.substring(0, 5) || '';
+    else if (iso.includes(' ')) timeStr = iso.split(' ')[1]?.substring(0, 5) || '';
+    
+    if (!timeStr || !timeStr.includes(':')) return iso;
+    const [hStr, mStr] = timeStr.split(':');
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h) || isNaN(m)) return iso;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
   }
 
-  if (!timeStr || !timeStr.includes(':')) {
-    return iso;
-  }
-
-  const [hStr, mStr] = timeStr.split(':');
-  let hours = parseInt(hStr, 10);
-  const minutes = parseInt(mStr, 10);
-  if (isNaN(hours) || isNaN(minutes)) return iso;
-
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  
   const ampm = hours >= 12 ? 'PM' : 'AM';
   hours = hours % 12;
   if (hours === 0) hours = 12;
-
+  
   const padMin = String(minutes).padStart(2, '0');
   const padHr = String(hours).padStart(2, '0');
   return `${padHr}:${padMin} ${ampm}`;

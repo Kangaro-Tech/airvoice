@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { authenticate } from '../middleware/auth';
 import { getSupabase } from '../config/supabase';
+import { generateAiSummary } from '../services/gemini';
 
 export default async function dashboardRoutes(app: FastifyInstance) {
   app.get('/kpis', { preHandler: [authenticate] }, async (_req, reply) => {
@@ -53,7 +54,6 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     const collectionRatePct = expectedTotal > 0 ? ((actualTotal / expectedTotal) * 100).toFixed(1) : '100.0';
 
     // 5. Net profit (Income - Approved Expenses)
-    // Filter out categories that are income/revenue (e.g. Sales Revenue)
     const { data: expenses } = await sb.from('expenses')
       .select('amount, category:expense_categories(name, type)')
       .eq('status', 'approved')
@@ -333,37 +333,149 @@ export default async function dashboardRoutes(app: FastifyInstance) {
   });
 
 
+  /**
+   * GET /dashboard/ai-alerts
+   * Returns AI-flagged customers who have 2 or more active phone applications.
+   * These customers represent a higher credit/risk concentration.
+   */
   app.get('/ai-alerts', { preHandler: [authenticate] }, async (_req, reply) => {
     const sb = getSupabase();
-    // Return typical critical alerts dynamically compiled from data anomalies
-    const { data: highRisk } = await sb.from('customers')
-      .select('full_name, risk_score, camp_id')
-      .gt('risk_score', 60)
-      .limit(3);
 
-    const campIds = [...new Set((highRisk || []).map(c => c.camp_id).filter(Boolean))];
+    // Fetch all active applications with customer info
+    const { data: applications } = await sb.from('applications')
+      .select('customer_id, status, customers(id, full_name, rank, branch, camp_id)')
+      .in('status', ['active', 'approved', 'completed']);
+
+    // Count phone applications per customer
+    const customerPhoneCount: Record<string, { count: number; name: string; rank: string; branch: string; campId: string }> = {};
+    
+    (applications ?? []).forEach((app: any) => {
+      const cId = app.customer_id;
+      if (!cId) return;
+      if (!customerPhoneCount[cId]) {
+        customerPhoneCount[cId] = {
+          count: 0,
+          name: app.customers?.full_name || 'Unknown',
+          rank: app.customers?.rank || '',
+          branch: app.customers?.branch || '',
+          campId: app.customers?.camp_id || '',
+        };
+      }
+      customerPhoneCount[cId].count++;
+    });
+
+    // Flag customers with 2 or more phones
+    const flagged = Object.entries(customerPhoneCount)
+      .filter(([_, v]) => v.count >= 2)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 10);
+
+    // Get camp names for flagged customers
+    const campIds = [...new Set(flagged.map(([_, v]) => v.campId).filter(Boolean))];
     const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
     const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
 
-    const alerts = (highRisk ?? []).map(c => ({
-      sev: 'red',
+    const alerts = flagged.map(([customerId, info]) => ({
+      sev: info.count >= 3 ? 'critical' : 'red',
       icon: 'ti-alert-triangle',
-      title: `High Risk — ${campMap[c.camp_id] ?? 'Camp'}`,
-      msg: `${c.full_name} has a risk score of ${c.risk_score}. Extra verification recommended.`,
-      time: 'Just now',
+      title: `Multi-Phone Risk — ${info.rank} ${info.name}`,
+      msg: `${info.name} has ${info.count} active phone plan${info.count > 1 ? 's' : ''} (${campMap[info.campId] ?? info.branch ?? 'Unknown unit'}). AI flags this as elevated credit concentration risk.`,
+      time: 'Now',
       action: 'Review',
+      customerId,
+      phoneCount: info.count,
     }));
 
     return reply.send({ data: alerts });
   });
 
-  app.post('/weekly-summary', { preHandler: [authenticate] }, async (_req, reply) => {
+  /**
+   * GET /dashboard/customer-phone-counts
+   * Returns all customers with their total sold phone count (active + completed applications).
+   */
+  app.get('/customer-phone-counts', { preHandler: [authenticate] }, async (_req, reply) => {
     const sb = getSupabase();
+
+    const { data: applications } = await sb.from('applications')
+      .select('customer_id, status, customers(id, full_name, rank, branch, camp_id)')
+      .in('status', ['active', 'approved', 'completed', 'settled']);
+
+    const customerMap: Record<string, {
+      customerId: string;
+      name: string;
+      rank: string;
+      branch: string;
+      campId: string;
+      phoneCount: number;
+      isFlagged: boolean;
+      hasArrears: boolean;
+    }> = {};
+
+    (applications ?? []).forEach((app: any) => {
+      const cId = app.customer_id;
+      if (!cId) return;
+      if (!customerMap[cId]) {
+        customerMap[cId] = {
+          customerId: cId,
+          name: app.customers?.full_name || 'Unknown',
+          rank: app.customers?.rank || '',
+          branch: app.customers?.branch || '',
+          campId: app.customers?.camp_id || '',
+          phoneCount: 0,
+          isFlagged: false,
+          hasArrears: false,
+        };
+      }
+      customerMap[cId].phoneCount++;
+    });
+
+    const customerIds = Object.keys(customerMap);
+    
+    // Fetch arrears (missed or not_deducted installments)
+    if (customerIds.length > 0) {
+      const { data: arrearsData } = await sb.from('installments')
+        .select('customer_id')
+        .in('customer_id', customerIds)
+        .in('status', ['missed', 'not_deducted']);
+        
+      (arrearsData ?? []).forEach((inst: any) => {
+        if (inst.customer_id && customerMap[inst.customer_id]) {
+          customerMap[inst.customer_id].hasArrears = true;
+        }
+      });
+    }
+
+    // Flag those with 2+ phones OR arrears
+    Object.values(customerMap).forEach(c => {
+      if (c.phoneCount >= 2 || c.hasArrears) c.isFlagged = true;
+    });
+
+    // Get camp names
+    const campIds = [...new Set(Object.values(customerMap).map(c => c.campId).filter(Boolean))];
+    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
+    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
+
+    const result = Object.values(customerMap)
+      .map(c => ({ ...c, campName: campMap[c.campId] ?? c.branch ?? 'N/A' }))
+      .sort((a, b) => b.phoneCount - a.phoneCount);
+
+    return reply.send({ data: result });
+  });
+
+
+  /**
+   * POST /dashboard/weekly-summary
+   * Generates an AI executive summary using OpenAI GPT-4o-mini.
+   */
+  app.post('/weekly-summary', { preHandler: [authenticate] }, async (req, reply) => {
+    const sb = getSupabase();
+    const body = req.body as { context?: string };
+    const context = body?.context || 'executive_overview';
     
     const { count: totalCustomers } = await sb.from('customers').select('id', { count: 'exact', head: true }).is('deleted_at', null);
     const { count: pendingApps } = await sb.from('applications').select('id', { count: 'exact', head: true }).in('status', ['submitted', 'docs_review', 'camp_review']);
     
-    // Get June/Current month installments data
+    // Get current month installments data
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -385,27 +497,40 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       }
     });
 
-    const anthropicApiKey = process.env.CLAUDE_API_KEY;
-    if (!anthropicApiKey) {
-      return reply.send({ summary: "AI Summary is unavailable (CLAUDE_API_KEY not configured)." });
+    // Multi-phone risk data
+    const { data: multiPhoneApps } = await sb.from('applications')
+      .select('customer_id')
+      .in('status', ['active', 'approved', 'completed']);
+
+    const phoneCounts: Record<string, number> = {};
+    (multiPhoneApps ?? []).forEach((a: any) => {
+      if (a.customer_id) phoneCounts[a.customer_id] = (phoneCounts[a.customer_id] || 0) + 1;
+    });
+    const multiPhoneCustomers = Object.values(phoneCounts).filter(c => c >= 2).length;
+
+    const contextPrompts: Record<string, string> = {
+      executive_overview: `You are a financial AI assistant for AIRVOICE Defence Finance Management. Provide a concise 4-5 sentence executive summary for the following real-time Sri Lankan military phone financing data. Highlight any risks and suggest one clear action. Do not use markdown formatting.\n\nData:\n- Total Military Customers: ${totalCustomers ?? 0}\n- Pending Applications: ${pendingApps ?? 0}\n- Expected Collections This Month: LKR ${expectedTotal.toLocaleString()}\n- Actual Collections This Month: LKR ${actualTotal.toLocaleString()}\n- Failed/Missed Installments: ${failureCount}\n- Customers with 2+ Active Phone Plans (Risk Flag): ${multiPhoneCustomers}`,
+      
+      collections: `You are a collections analyst for AIRVOICE. Analyze the following collection performance data and provide a 4-5 sentence professional summary with specific recommendations. No markdown formatting.\n\nCollections Data:\n- Expected: LKR ${expectedTotal.toLocaleString()}\n- Actual Collected: LKR ${actualTotal.toLocaleString()}\n- Collection Rate: ${expectedTotal > 0 ? ((actualTotal / expectedTotal) * 100).toFixed(1) : '100'}%\n- Missed/Failed Installments: ${failureCount}\n- Pending Applications Awaiting Approval: ${pendingApps ?? 0}`,
+      
+      expenses: `You are a finance controller for AIRVOICE Defence Finance. Provide a 4-5 sentence operational expenses analysis and cost control recommendations based on the current financial data. No markdown.\n\nData:\n- Total Active Military Customers: ${totalCustomers ?? 0}\n- Monthly Collections Target: LKR ${expectedTotal.toLocaleString()}\n- Actual Monthly Income: LKR ${actualTotal.toLocaleString()}\n- Uncollected Installments: ${failureCount}`,
+      
+      risk_recovery: `You are a risk analyst for AIRVOICE. Analyze the following risk indicators for a Sri Lankan military phone financing portfolio and provide a 4-5 sentence diagnostic with recovery action steps. No markdown.\n\nRisk Data:\n- Customers with 2+ Active Phone Plans: ${multiPhoneCustomers} (Credit Concentration Risk)\n- Failed/Missed Installments: ${failureCount}\n- Pending Applications: ${pendingApps ?? 0}\n- Collection Rate: ${expectedTotal > 0 ? ((actualTotal / expectedTotal) * 100).toFixed(1) : '100'}%`,
+      
+      commissions: `You are a sales performance analyst for AIRVOICE. Summarize the following sales and inventory performance data in 4-5 professional sentences. No markdown.\n\nSales Data:\n- Total Active Military Customers: ${totalCustomers ?? 0}\n- Active Phone Plans: ${(insts ?? []).length}\n- Multi-Phone Customers (2+ Plans): ${multiPhoneCustomers}\n- Monthly Collection Achievement: LKR ${actualTotal.toLocaleString()}`,
+    };
+
+    const prompt = contextPrompts[context] || contextPrompts.executive_overview;
+    
+    const summary = await generateAiSummary(prompt, 250);
+    
+    if (!summary) {
+      const collRate = expectedTotal > 0 ? ((actualTotal / expectedTotal) * 100).toFixed(1) : '100';
+      const fallbackStr = `[AI Offline Fallback] AirVoice currently has ${totalCustomers ?? 0} active customers and ${pendingApps ?? 0} pending applications. The monthly collection rate is ${collRate}% (LKR ${actualTotal.toLocaleString()} actual vs LKR ${expectedTotal.toLocaleString()} expected). There are ${failureCount} missed installments and ${multiPhoneCustomers} customers with multiple phone plans flagged for credit concentration risk. Please review flagged customers.`;
+      
+      return reply.send({ summary: fallbackStr });
     }
 
-    try {
-      const { Anthropic } = require('@anthropic-ai/sdk');
-      const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-
-      const prompt = `You are a financial AI assistant for AIRVOICE Defence Finance Management. Please provide a concise, professional 3-4 sentence weekly executive summary of the following real data:\nTotal Customers: ${totalCustomers ?? 0}\nPending Applications: ${pendingApps ?? 0}\nExpected Total Collection: LKR ${expectedTotal}\nActual Total Collection: LKR ${actualTotal}\nFailed Installments: ${failureCount}\nHighlight any risks and suggest a quick action. Avoid markdown.`;
-
-      const response = await anthropic.messages.create({
-        model: "claude-3-haiku-20240307",
-        max_tokens: 150,
-        messages: [{ role: "user", content: prompt }]
-      });
-
-      return reply.send({ summary: (response.content[0] as any).text });
-    } catch (e: any) {
-      console.error('Claude AI Error:', e);
-      return reply.send({ summary: "Failed to generate AI summary at this time. Please try again later." });
-    }
+    return reply.send({ summary });
   });
 }

@@ -10,7 +10,8 @@ import {
   Bot, AlertTriangle, Shield, Coins, Package, Phone, Users, ClipboardList,
   Calendar, CheckCircle, X, ChevronDown, Plus, Layers, Wallet, BarChart2,
   PieChart as PieChartIcon, Target, Award, Percent, User, AlertCircle,
-  Sliders, Star, Copy, Eye, EyeOff, Check, Edit3, ArrowRight, ToggleLeft, ToggleRight
+  Sliders, Star, Copy, Eye, EyeOff, Check, Edit3, ArrowRight, ToggleLeft, ToggleRight,
+  BellOff, PhoneCall, BadgeAlert, UserCheck
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar,
@@ -38,6 +39,20 @@ interface AlertItem {
   msg: string;
   time: string;
   action: string;
+  customerId?: string;
+  phoneCount?: number;
+}
+
+interface CustomerPhoneCount {
+  customerId: string;
+  name: string;
+  rank: string;
+  branch: string;
+  campId: string;
+  campName: string;
+  phoneCount: number;
+  isFlagged: boolean;
+  hasArrears: boolean;
 }
 
 interface ChartItem {
@@ -146,6 +161,10 @@ export default function DashboardPage() {
     lastGenerated: null,
   });
 
+  // Read flags state — track which alert customerIds have been marked as read
+  const [readFlags, setReadFlags] = useState<Set<string>>(new Set());
+  const [showCustomerPhones, setShowCustomerPhones] = useState<boolean>(false);
+
   // Modal states for AI Insights & Drilldowns
   const [aiModal, setAiModal] = useState<{ open: boolean; title: string; prompt: string; content: string; loading: boolean }>({
     open: false,
@@ -178,11 +197,17 @@ export default function DashboardPage() {
   });
   const rawExpensesChartData = expensesChartRes?.data ?? [];
 
-  const { data: alertsRes } = useQuery<{ data: AlertItem[] }>({
+  const { data: alertsRes, refetch: refetchAlerts } = useQuery<{ data: AlertItem[] }>({
     queryKey: ['dashboard-alerts'],
     queryFn: () => api.get('/dashboard/ai-alerts').then((r) => r.data),
   });
   const rawAlerts = alertsRes?.data ?? [];
+
+  const { data: customerPhoneRes } = useQuery<{ data: CustomerPhoneCount[] }>({
+    queryKey: ['dashboard-customer-phone-counts'],
+    queryFn: () => api.get('/dashboard/customer-phone-counts').then((r) => r.data),
+  });
+  const customerPhoneCounts: CustomerPhoneCount[] = customerPhoneRes?.data ?? [];
 
   const { data: expenseBreakdownRes } = useQuery<{ data: ExpenseBreakdownItem[] }>({
     queryKey: ['dashboard-expense-breakdown', selectedYear, selectedMonth],
@@ -230,6 +255,8 @@ export default function DashboardPage() {
   }, [rawExpensesChartData]);
 
   const alerts: AlertItem[] = rawAlerts;
+  const unreadAlerts = alerts.filter(a => !readFlags.has(a.customerId || a.title));
+  const flaggedCustomers = customerPhoneCounts.filter(c => c.isFlagged);
   const rawExpenseBreakdown = expenseBreakdownRes?.data ?? [];
   const expenseBreakdown: ExpenseBreakdownItem[] = useMemo(() => {
     return [...rawExpenseBreakdown].sort((a, b) => b.total - a.total);
@@ -981,36 +1008,162 @@ export default function DashboardPage() {
           {/* LOWER SECTION: CRITICAL ALERTS, AI INSIGHTS WIDGET & INTERACTIVE NOTEPAD */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {visibleWidgets.risk_alerts && (
-              <div className="card p-5 flex flex-col w-full h-[350px]">
+              <div className="card p-5 flex flex-col w-full" style={{ minHeight: showCustomerPhones ? 'auto' : '350px', maxHeight: showCustomerPhones ? '600px' : '350px' }}>
                 <div className="flex items-center justify-between mb-3 shrink-0">
                   <h3 className="font-bold text-sm text-base-primary flex items-center gap-2">
-                    <Bot size={16} className="text-blue-600 dark:text-blue-400" /> Critical AI Risk Flags
+                    <BadgeAlert size={16} className="text-red-500" /> Critical AI Risk Flags
                   </h3>
-                  <span className="badge bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 font-extrabold text-[10px]">
-                    {alerts.length} Flagged
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`badge font-extrabold text-[10px] ${
+                      unreadAlerts.length > 0
+                        ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                        : 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
+                    }`}>
+                      {unreadAlerts.length > 0 ? `${unreadAlerts.length} Unread` : '✓ All Read'}
+                    </span>
+                    <button
+                      onClick={() => setShowCustomerPhones(p => !p)}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    >
+                      <Users size={11} /> {showCustomerPhones ? 'Hide' : 'Customers'}
+                    </button>
+                    <button
+                      onClick={() => refetchAlerts()}
+                      className="p-1 rounded text-base-muted hover:text-blue-600 transition"
+                      title="Refresh AI flags"
+                    >
+                      <RefreshCw size={12} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="border-b border-dashed border-base mb-3 shrink-0" />
 
+                {/* Customer Phone Count Section */}
+                {showCustomerPhones && (
+                  <div className="mb-3 shrink-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <PhoneCall size={12} className="text-purple-500" />
+                      <span className="text-[11px] font-bold text-base-primary uppercase tracking-wide">Customer Sold Phone Count</span>
+                      <span className="badge bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[9px] font-bold">
+                        {customerPhoneCounts.length} Total
+                      </span>
+                    </div>
+                    <div className="overflow-y-auto custom-scrollbar" style={{ maxHeight: '180px' }}>
+                      <table className="w-full text-left text-[10px]">
+                        <thead>
+                          <tr className="text-base-muted border-b border-base">
+                            <th className="pb-1 font-semibold">Customer</th>
+                            <th className="pb-1 font-semibold text-center">Phones</th>
+                            <th className="pb-1 font-semibold text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-base">
+                          {customerPhoneCounts.length === 0 ? (
+                            <tr><td colSpan={3} className="py-3 text-center text-base-muted italic">No phone sale data available</td></tr>
+                          ) : (
+                            customerPhoneCounts.map((c) => (
+                              <tr key={c.customerId} className={c.isFlagged ? 'bg-red-50/40 dark:bg-red-950/20' : ''}>
+                                <td className="py-1.5 pr-2">
+                                  <div className="font-semibold text-base-primary truncate max-w-[110px]">{c.rank} {c.name}</div>
+                                  <div className="text-base-muted">{c.campName}</div>
+                                </td>
+                                <td className="py-1.5 text-center">
+                                  <span className={`font-black text-sm ${
+                                    c.phoneCount >= 2 ? 'text-red-600' : 'text-green-600'
+                                  }`}>{c.phoneCount}</span>
+                                </td>
+                                <td className="py-1.5 text-right flex flex-col items-end gap-1">
+                                  {c.hasArrears && (
+                                    <span className="badge bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 text-[9px] font-bold">⚠ Arrears</span>
+                                  )}
+                                  {c.phoneCount >= 2 && (
+                                    <span className="badge bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 text-[9px] font-bold">⚠ Multi-Phone</span>
+                                  )}
+                                  {!c.isFlagged && (
+                                    <span className="badge bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300 text-[9px] font-bold">✓ OK</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="border-b border-dashed border-base mt-3 mb-3" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <BadgeAlert size={12} className="text-red-500" />
+                      <span className="text-[11px] font-bold text-base-primary uppercase tracking-wide">Flagged Customers (2+ Phones or Arrears)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Alerts List */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar divide-y divide-base">
                   {alerts.length === 0 ? (
-                    <div className="py-8 text-center text-base-muted text-xs italic">
-                      No critical risk anomalies detected at present. All camp deduction streams are healthy.
+                    <div className="py-8 text-center text-base-muted text-xs italic flex flex-col items-center gap-2">
+                      <UserCheck size={24} className="text-green-500 opacity-60" />
+                      No customers with 2+ phone plans detected. Credit concentration risk is low.
                     </div>
                   ) : (
-                    alerts.map((a, i) => (
-                      <div key={i} className="py-2.5 flex items-start justify-between gap-2">
-                        <div className="flex items-start gap-2.5">
-                          <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0 animate-ping" />
-                          <div>
-                            <h4 className="font-bold text-xs text-base-primary">{a.title}</h4>
-                            <p className="text-[11px] text-base-muted mt-0.5 leading-snug">{a.msg}</p>
+                    alerts.map((a, i) => {
+                      const flagKey = a.customerId || a.title;
+                      const isRead = readFlags.has(flagKey);
+                      return (
+                        <div key={i} className={`py-2.5 flex items-start justify-between gap-2 transition-opacity ${isRead ? 'opacity-40' : ''}`}>
+                          <div className="flex items-start gap-2.5">
+                            {isRead ? (
+                              <div className="w-2 h-2 rounded-full bg-slate-400 mt-1.5 shrink-0" />
+                            ) : (
+                              <div className="w-2 h-2 rounded-full bg-red-500 mt-1.5 shrink-0 animate-ping" />
+                            )}
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="font-bold text-xs text-base-primary">{a.title}</h4>
+                                {a.phoneCount && a.phoneCount >= 2 && (
+                                  <span className="badge bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 text-[9px] font-black">
+                                    <Phone size={8} className="inline mr-0.5" />{a.phoneCount} Phones
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-base-muted mt-0.5 leading-snug">{a.msg}</p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className="text-[10px] font-semibold text-base-muted">{a.time || 'Now'}</span>
+                            <button
+                              onClick={() => setReadFlags(prev => {
+                                const next = new Set(prev);
+                                if (isRead) { next.delete(flagKey); } else { next.add(flagKey); }
+                                return next;
+                              })}
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded transition ${
+                                isRead
+                                  ? 'bg-slate-100 text-slate-500 dark:bg-slate-800 hover:bg-red-100 hover:text-red-600'
+                                  : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 hover:bg-blue-200'
+                              }`}
+                            >
+                              {isRead ? <><BellOff size={8} className="inline" /> Unread</> : <><Check size={8} className="inline" /> Mark Read</>}
+                            </button>
                           </div>
                         </div>
-                        <span className="text-[10px] font-semibold text-base-muted shrink-0">{a.time || 'Today'}</span>
-                      </div>
-                    ))
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Footer */}
+                <div className="pt-2 border-t border-base mt-2 flex items-center justify-between shrink-0 text-[10px]">
+                  <span className="text-base-muted italic">
+                    {flaggedCustomers.length} customer{flaggedCustomers.length !== 1 ? 's' : ''} with 2+ phone plans
+                  </span>
+                  {unreadAlerts.length > 0 && (
+                    <button
+                      onClick={() => setReadFlags(new Set(alerts.map(a => a.customerId || a.title)))}
+                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <CheckCircle size={10} /> Mark All Read
+                    </button>
                   )}
                 </div>
               </div>
@@ -1290,7 +1443,7 @@ export default function DashboardPage() {
               {aiModal.loading ? (
                 <div className="py-12 text-center text-base-muted flex flex-col items-center justify-center space-y-3">
                   <RefreshCw className="animate-spin text-amber-500" size={24} />
-                  <span className="text-xs font-semibold">Running Gemini / Claude AI risk &amp; collection analysis…</span>
+                  <span className="text-xs font-semibold">Running OpenAI risk &amp; collection analysis…</span>
                 </div>
               ) : (
                 <div className="space-y-3">
