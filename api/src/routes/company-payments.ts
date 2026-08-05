@@ -75,7 +75,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
     if (q.customer_id) query = query.eq('customer_id', q.customer_id);
 
     const { data: rawData, count, error } = await query;
-    if (error) return reply.status(500).send({ error: error.message });
+    if (error) return reply.status(500).send({ error: error?.message ?? 'Query failed' });
 
     const customerIds = [...new Set((rawData ?? []).map((r: any) => r.customer_id))].filter(Boolean);
     const appIds = [...new Set((rawData ?? []).map((r: any) => r.application_id))].filter(Boolean);
@@ -226,41 +226,10 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
     try {
       const { data: rawData, error } = await sb
         .from('company_payments')
-        .select('*')
+        .select('customer_id, amount, recovered_amount, status')
         .neq('status', 'fully_recovered');
 
-      if (error) {
-        req.log.warn(`company_payments summary query notice: ${error.message}`);
-        return reply.send({ data: [] });
-    const { data: rawData, error } = await sb
-      .from('company_payments')
-      .select('customer_id, amount, recovered_amount, status')
-      .neq('status', 'fully_recovered');
-
-    if (error) return reply.status(500).send({ error: error.message });
-    
-    const customerIds = [...new Set((rawData ?? []).map((r: any) => r.customer_id))].filter(Boolean);
-    const { data: custRes } = customerIds.length > 0 
-      ? await sb.from('customers').select('id, full_name, service_number').in('id', customerIds) 
-      : { data: [] };
-
-    const data = (rawData ?? []).map((p: any) => ({
-      ...p,
-      customer: (custRes ?? []).find((c: any) => c.id === p.customer_id)
-    }));
-
-    const customerMap: Record<string, any> = {};
-    (data ?? []).forEach((p: any) => {
-      const cid = p.customer_id;
-      if (!customerMap[cid]) {
-        customerMap[cid] = {
-          customer_id: cid,
-          customer_name: p.customer?.full_name ?? '—',
-          service_number: p.customer?.service_number ?? '—',
-          total_advanced: 0,
-          total_recovered: 0,
-        };
-      }
+      if (error) return reply.status(500).send({ error: error.message });
 
       const payments = rawData || [];
       if (payments.length === 0) return reply.send({ data: [] });
@@ -270,7 +239,7 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
         ? await sb.from('customers').select('id, full_name, service_number').in('id', custIds)
         : { data: [] };
 
-      const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
+      const custMap = Object.fromEntries((custData || []).map((c: any) => [c.id, c]));
 
       const customerMap: Record<string, any> = {};
       payments.forEach((p: any) => {
