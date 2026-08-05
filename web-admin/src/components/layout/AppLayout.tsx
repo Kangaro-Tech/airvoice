@@ -12,7 +12,7 @@ import {
   BarChart2, DollarSign, RefreshCcw, Shield, Briefcase, TrendingUp,
   Upload, Cpu, Smartphone, LogOut, Menu, AlertCircle, Sun, Moon,
   Settings, Printer, ScrollText, MapPin, BookOpen, BarChart3, Building, Wallet, Camera, Loader2,
-  ClipboardList, CalendarCheck, UserCog, BadgeDollarSign, Scissors, SlidersHorizontal
+  ClipboardList, CalendarCheck, UserCog, BadgeDollarSign, Scissors, SlidersHorizontal, LifeBuoy
 } from 'lucide-react';
 import logoImg from '@/assets/logo.png';
 
@@ -310,6 +310,18 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
+
+  {
+    title: 'Support',
+    items: [
+      {
+        // No roles restriction — all logged-in users can access Help Center
+        label: 'Help Center',
+        to: '/help-center',
+        icon: <LifeBuoy size={16} />,
+      },
+    ],
+  },
 ];
 
 const DICTIONARY: Record<string, Record<string, string>> = {
@@ -331,6 +343,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     'Reports': 'වාර්තා',
     'Audit Log': 'විගණන ලොගය',
     'Settings': 'සැකසුම්',
+    'Help Center': 'උදව් මධ්‍යස්ථානය',
     'P&L Report': 'ලාභ හා අලාභ වාර්තාව',
     'Add Expense': 'වියදමක් එක් කරන්න',
     'Sign out': 'පිටවෙන්න',
@@ -384,6 +397,7 @@ const DICTIONARY: Record<string, Record<string, string>> = {
     'Reports': 'அறிக்கைகள்',
     'Audit Log': 'தணிக்கை பதிவு',
     'Settings': 'அமைப்புகள்',
+    'Help Center': 'உதவி மையம்',
     'P&L Report': 'லாப நஷ்ட அறிக்கை',
     'Add Expense': 'செலவைச் சேர்க்கவும்',
     'Sign out': 'வெளியேறு',
@@ -680,7 +694,7 @@ export default function AppLayout() {
     if (!user) return false;
     if (user.role === 'system_operator') return true;
     if (Array.isArray(user.custom_modules)) {
-      return user.custom_modules.includes(item.to) || item.to === '/dashboard' || item.to === '/notifications';
+      return user.custom_modules.includes(item.to) || item.to === '/dashboard' || item.to === '/notifications' || item.to === '/help-center';
     }
     return !item.roles || item.roles.includes(user.role);
   };
@@ -688,7 +702,7 @@ export default function AppLayout() {
   useEffect(() => {
     if (user?.role === 'system_operator') return;
     if (user && Array.isArray(user.custom_modules)) {
-      const allowedPaths = [...user.custom_modules, '/dashboard', '/notifications'];
+      const allowedPaths = [...user.custom_modules, '/dashboard', '/notifications', '/help-center'];
       // Allow exact match or if path starts with allowed path (e.g. /customers/1)
       const isAllowed = allowedPaths.some(p => location.pathname === p || location.pathname.startsWith(`${p}/`));
       if (!isAllowed) {

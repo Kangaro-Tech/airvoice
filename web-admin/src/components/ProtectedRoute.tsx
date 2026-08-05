@@ -47,7 +47,7 @@ export default function ProtectedRoute({ roles }: ProtectedRouteProps) {
 
   // If user has custom modules explicitly assigned, allow access if the path matches
   if (user.custom_modules && Array.isArray(user.custom_modules)) {
-    const allowedPaths = [...user.custom_modules, '/', '/dashboard', '/notifications', '/profile'];
+    const allowedPaths = [...user.custom_modules, '/', '/dashboard', '/notifications', '/profile', '/help-center'];
     const isAllowed = allowedPaths.some(p => location.pathname === p || location.pathname.startsWith(`${p === '/' ? '/#prevent-match' : p}/`));
     
     // If they have custom modules, we rely on custom modules ONLY.

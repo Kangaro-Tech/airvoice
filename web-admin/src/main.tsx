@@ -78,6 +78,9 @@ import SchedulePage from '@/pages/SchedulePage';
 import ChequePrinterPage from '@/pages/cheque/ChequePrinterPage';
 import StockOrdersPage from '@/pages/inventory/StockOrdersPage';
 
+// Help Center
+import HelpCenterPage from '@/pages/HelpCenterPage';
+
 // 404
 import NotFoundPage from '@/pages/NotFoundPage';
 
@@ -118,6 +121,7 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/profile" element={<MyProfilePage />} />
+              <Route path="/help-center" element={<HelpCenterPage />} />
 
               {/* Customers */}
               <Route path="/customers" element={<CustomersPage />} />

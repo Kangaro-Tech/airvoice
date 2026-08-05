@@ -341,64 +341,136 @@ export default async function dashboardRoutes(app: FastifyInstance) {
   app.get('/ai-alerts', { preHandler: [authenticate] }, async (_req, reply) => {
     const sb = getSupabase();
 
-    // Fetch all active applications with customer info
+    // Fetch all active applications
     const { data: applications } = await sb.from('applications')
-      .select('customer_id, status, customers(id, full_name, rank, branch, camp_id)')
-      .in('status', ['active', 'approved', 'completed']);
+      .select('customer_id, status')
+      .eq('status', 'active')
+      .is('deleted_at', null);
+
+    const appCustomerIds = [...new Set((applications ?? []).map(a => a.customer_id).filter(Boolean))];
+
+    // Fetch customers
+    let customersData: any[] = [];
+    if (appCustomerIds.length > 0) {
+      const { data: cData } = await sb.from('customers')
+        .select('id, full_name, rank, branch, camp_id, service_number')
+        .in('id', appCustomerIds);
+      customersData = cData ?? [];
+    }
+    const customersMap = Object.fromEntries(customersData.map(c => [c.id, c]));
 
     // Count phone applications per customer
-    const customerPhoneCount: Record<string, { count: number; name: string; rank: string; branch: string; campId: string }> = {};
+    const customerPhoneCount: Record<string, { count: number; name: string; rank: string; branch: string; campId: string; hasArrears: boolean; arrearsAmount: number }> = {};
     
     (applications ?? []).forEach((app: any) => {
       const cId = app.customer_id;
-      if (!cId) return;
+      const cData = customersMap[cId];
+      if (!cId || !cData) return;
       if (!customerPhoneCount[cId]) {
         customerPhoneCount[cId] = {
           count: 0,
-          name: app.customers?.full_name || 'Unknown',
-          rank: app.customers?.rank || '',
-          branch: app.customers?.branch || '',
-          campId: app.customers?.camp_id || '',
+          name: cData.full_name || 'Unknown',
+          rank: cData.rank || '',
+          branch: cData.branch || '',
+          campId: cData.camp_id || '',
+          hasArrears: false,
+          arrearsAmount: 0,
         };
       }
       customerPhoneCount[cId].count++;
     });
 
-    // Flag customers with 2 or more phones
+    // Detect arrears
+    if (appCustomerIds.length > 0) {
+      const chunkSize = 200;
+      for (let i = 0; i < appCustomerIds.length; i += chunkSize) {
+        const chunk = appCustomerIds.slice(i, i + chunkSize);
+        const { data: arrearsData } = await sb.from('installments')
+          .select('customer_id, arrears_amount, status')
+          .in('customer_id', chunk)
+          .or('arrears_amount.gt.0,status.eq.not_deducted');
+
+        (arrearsData ?? []).forEach((inst: any) => {
+          const cId = inst.customer_id;
+          if (cId && customerPhoneCount[cId]) {
+            customerPhoneCount[cId].hasArrears = true;
+            customerPhoneCount[cId].arrearsAmount += Number(inst.arrears_amount || 0);
+          }
+        });
+      }
+    }
+
+    // Flag customers with 2 or more phones or arrears
     const flagged = Object.entries(customerPhoneCount)
-      .filter(([_, v]) => v.count >= 2)
+      .filter(([_, v]) => v.count >= 2 || v.hasArrears)
       .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 10);
+      .slice(0, 15);
 
     // Get camp names for flagged customers
     const campIds = [...new Set(flagged.map(([_, v]) => v.campId).filter(Boolean))];
     const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
     const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
 
-    const alerts = flagged.map(([customerId, info]) => ({
-      sev: info.count >= 3 ? 'critical' : 'red',
-      icon: 'ti-alert-triangle',
-      title: `Multi-Phone Risk — ${info.rank} ${info.name}`,
-      msg: `${info.name} has ${info.count} active phone plan${info.count > 1 ? 's' : ''} (${campMap[info.campId] ?? info.branch ?? 'Unknown unit'}). AI flags this as elevated credit concentration risk.`,
-      time: 'Now',
-      action: 'Review',
-      customerId,
-      phoneCount: info.count,
-    }));
+    const alerts = flagged.map(([customerId, info]) => {
+      let msg = '';
+      let title = '';
+      let sev = 'red';
+      
+      if (info.hasArrears && info.count >= 2) {
+        title = `Critical Risk — ${info.rank} ${info.name}`;
+        msg = `${info.name} has ${info.count} active phone plans AND active arrears of LKR ${info.arrearsAmount}. Immediate recovery action required at ${campMap[info.campId] ?? info.branch ?? 'Unknown unit'}.`;
+        sev = 'critical';
+      } else if (info.hasArrears) {
+        title = `Arrears Alert — ${info.rank} ${info.name}`;
+        msg = `${info.name} has missed installments with active arrears of LKR ${info.arrearsAmount}. Please contact them at ${campMap[info.campId] ?? info.branch ?? 'Unknown unit'}.`;
+        sev = 'critical';
+      } else {
+        title = `Multi-Phone Risk — ${info.rank} ${info.name}`;
+        msg = `${info.name} has ${info.count} active phone plans (${campMap[info.campId] ?? info.branch ?? 'Unknown unit'}). AI flags this as elevated credit concentration risk.`;
+        sev = info.count >= 3 ? 'critical' : 'red';
+      }
+
+      return {
+        sev,
+        icon: 'ti-alert-triangle',
+        title,
+        msg,
+        time: 'Now',
+        action: 'Review',
+        customerId,
+        phoneCount: info.count,
+      };
+    });
 
     return reply.send({ data: alerts });
   });
 
   /**
    * GET /dashboard/customer-phone-counts
-   * Returns all customers with their total sold phone count (active + completed applications).
+   * Returns customers with real risk data: phone counts, arrears, retirement risk.
+   * Used by AI Risk Engine and Dashboard risk widget.
    */
   app.get('/customer-phone-counts', { preHandler: [authenticate] }, async (_req, reply) => {
     const sb = getSupabase();
 
+    // Fetch all active applications
     const { data: applications } = await sb.from('applications')
-      .select('customer_id, status, customers(id, full_name, rank, branch, camp_id)')
-      .in('status', ['active', 'approved', 'completed', 'settled']);
+      .select('customer_id, status')
+      .eq('status', 'active')
+      .is('deleted_at', null);
+
+    const appCustomerIds = [...new Set((applications ?? []).map(a => a.customer_id).filter(Boolean))];
+
+    // Fetch customers
+    let customersData: any[] = [];
+    if (appCustomerIds.length > 0) {
+      const { data: cData } = await sb.from('customers')
+        .select('id, full_name, rank, branch, camp_id, service_number, phone_number, retirement_date, risk_score, risk_level')
+        .in('id', appCustomerIds);
+      customersData = cData ?? [];
+    }
+
+    const customersMap = Object.fromEntries(customersData.map(c => [c.id, c]));
 
     const customerMap: Record<string, {
       customerId: string;
@@ -406,58 +478,124 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       rank: string;
       branch: string;
       campId: string;
+      service_number: string;
+      phone_number: string;
+      retirement_date: string;
+      db_risk_score: number;
+      db_risk_level: string;
       phoneCount: number;
       isFlagged: boolean;
       hasArrears: boolean;
+      arrearsAmount: number;
+      retirementRisk: boolean;
     }> = {};
 
     (applications ?? []).forEach((app: any) => {
       const cId = app.customer_id;
-      if (!cId) return;
+      const cData = customersMap[cId];
+      if (!cId || !cData) return;
+
       if (!customerMap[cId]) {
+        const retDate = cData.retirement_date;
+        const retirementRisk = retDate
+          ? (new Date(retDate).getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000) < 12
+          : false;
         customerMap[cId] = {
           customerId: cId,
-          name: app.customers?.full_name || 'Unknown',
-          rank: app.customers?.rank || '',
-          branch: app.customers?.branch || '',
-          campId: app.customers?.camp_id || '',
+          name: cData.full_name || 'Unknown',
+          rank: cData.rank || '',
+          branch: cData.branch || '',
+          campId: cData.camp_id || '',
+          service_number: cData.service_number || '',
+          phone_number: cData.phone_number || '',
+          retirement_date: retDate || '',
+          db_risk_score: cData.risk_score || 0,
+          db_risk_level: cData.risk_level || 'low',
           phoneCount: 0,
           isFlagged: false,
           hasArrears: false,
+          arrearsAmount: 0,
+          retirementRisk,
         };
       }
       customerMap[cId].phoneCount++;
     });
 
     const customerIds = Object.keys(customerMap);
-    
-    // Fetch arrears (missed or not_deducted installments)
+
+    // Detect arrears: installments with arrears_amount > 0 OR status = not_deducted
     if (customerIds.length > 0) {
-      const { data: arrearsData } = await sb.from('installments')
-        .select('customer_id')
-        .in('customer_id', customerIds)
-        .in('status', ['missed', 'not_deducted']);
-        
-      (arrearsData ?? []).forEach((inst: any) => {
-        if (inst.customer_id && customerMap[inst.customer_id]) {
-          customerMap[inst.customer_id].hasArrears = true;
-        }
-      });
+      const chunkSize = 200;
+      for (let i = 0; i < customerIds.length; i += chunkSize) {
+        const chunk = customerIds.slice(i, i + chunkSize);
+        const { data: arrearsData } = await sb.from('installments')
+          .select('customer_id, arrears_amount, status')
+          .in('customer_id', chunk)
+          .or('arrears_amount.gt.0,status.eq.not_deducted');
+
+        (arrearsData ?? []).forEach((inst: any) => {
+          const cId = inst.customer_id;
+          if (cId && customerMap[cId]) {
+            customerMap[cId].hasArrears = true;
+            customerMap[cId].arrearsAmount += Number(inst.arrears_amount || 0);
+          }
+        });
+      }
     }
 
-    // Flag those with 2+ phones OR arrears
+    // Compute composite risk score
+    // - Arrears → critical (score 85-100)
+    // - >=2 phones → high (score 70-84)
+    // - retirement within 12m → +15
+    // - low → score 0-20
     Object.values(customerMap).forEach(c => {
-      if (c.phoneCount >= 2 || c.hasArrears) c.isFlagged = true;
+      let score = c.db_risk_score || 0;
+      let level = 'low';
+
+      if (c.hasArrears) {
+        score = Math.max(score, 85) + Math.min(c.arrearsAmount / 1000, 15);
+        level = 'critical';
+      } else if (c.phoneCount >= 2) {
+        score = Math.max(score, 70);
+        level = 'high';
+      } else {
+        level = score >= 60 ? 'high' : score >= 30 ? 'medium' : 'low';
+      }
+
+      if (c.retirementRisk && score < 100) score = Math.min(score + 15, 100);
+
+      c.db_risk_score = Math.round(Math.min(score, 100));
+      c.db_risk_level = level;
+      c.isFlagged = c.hasArrears || c.phoneCount >= 2 || c.retirementRisk;
     });
 
     // Get camp names
     const campIds = [...new Set(Object.values(customerMap).map(c => c.campId).filter(Boolean))];
-    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name').in('id', campIds) : { data: [] };
-    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c.name]));
+    const campsRes = campIds.length > 0
+      ? await sb.from('camps').select('id, name').in('id', campIds)
+      : { data: [] };
+    const campMap = Object.fromEntries((campsRes.data || []).map((c: any) => [c.id, c.name]));
 
     const result = Object.values(customerMap)
-      .map(c => ({ ...c, campName: campMap[c.campId] ?? c.branch ?? 'N/A' }))
-      .sort((a, b) => b.phoneCount - a.phoneCount);
+      .map(c => ({
+        customerId: c.customerId,
+        name: c.name,
+        rank: c.rank,
+        branch: c.branch,
+        campId: c.campId,
+        campName: campMap[c.campId] ?? c.branch ?? 'N/A',
+        service_number: c.service_number,
+        phone_number: c.phone_number,
+        retirement_date: c.retirement_date,
+        phoneCount: c.phoneCount,
+        hasArrears: c.hasArrears,
+        arrearsAmount: c.arrearsAmount,
+        retirementRisk: c.retirementRisk,
+        isFlagged: c.isFlagged,
+        risk_score: c.db_risk_score,
+        risk_level: c.db_risk_level,
+      }))
+      .sort((a, b) => b.risk_score - a.risk_score);
 
     return reply.send({ data: result });
   });
