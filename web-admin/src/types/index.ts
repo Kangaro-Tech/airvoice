@@ -16,6 +16,7 @@ export interface Customer {
   id: string;
   full_name: string;
   nic_number: string | null;
+  new_nic_number?: string | null;
   service_number: string | null;
   military_id_number: string | null;
   branch: Branch;

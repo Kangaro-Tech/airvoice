@@ -111,7 +111,8 @@ function QuickPanel({ customer, onClose, onProfile }: {
       <div className="divide-y divide-gray-100 mb-4">
         {([
           ['Service No', c.service_number, FileText],
-          ['NIC', c.nic_number, FileText],
+          ['Old NIC', c.nic_number, FileText],
+          ['New NIC', c.new_nic_number, FileText],
           ['Rank', c.rank, Shield],
           ['Camp', camp?.name, Building2],
           ['Phone', c.phone_number, Phone],
@@ -189,6 +190,7 @@ export default function CustomersPage() {
       full_name:      (c.full_name as string) || '',
       service_number: (c.service_number as string) || '',
       nic_number:     (c.nic_number as string) || '',
+      new_nic_number: (c.new_nic_number as string) || '',
       rank:           (c.rank as string) || '',
       phone_number:   (c.phone_number as string) || '',
     });
@@ -203,6 +205,7 @@ export default function CustomersPage() {
         full_name:      editForm.full_name || undefined,
         service_number: editForm.service_number || undefined,
         nic_number:     editForm.nic_number || undefined,
+        new_nic_number: editForm.new_nic_number || undefined,
         rank:           editForm.rank || undefined,
         phone_number:   editForm.phone_number || undefined,
       });
@@ -407,7 +410,10 @@ export default function CustomersPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">
-                        <div className="text-base-secondary">{(c.nic_number as string) || '—'}</div>
+                        <div className="text-base-secondary font-semibold">{(c.nic_number as string) || '—'}</div>
+                        {!!c.new_nic_number && (
+                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-bold">New: {c.new_nic_number as string}</div>
+                        )}
                         <div className="text-base-muted mt-0.5">{(c.service_number as string) || '—'}</div>
                       </td>
                       <td className="px-4 py-3">
@@ -532,7 +538,8 @@ export default function CustomersPage() {
                 {[
                   ['Full Name', 'full_name', 'text'],
                   ['Service No', 'service_number', 'text'],
-                  ['NIC Number', 'nic_number', 'text'],
+                  ['Old NIC Number', 'nic_number', 'text'],
+                  ['New NIC Number', 'new_nic_number', 'text'],
                   ['Rank', 'rank', 'text'],
                   ['Phone Number', 'phone_number', 'text'],
                 ].map(([label, key, type]) => (

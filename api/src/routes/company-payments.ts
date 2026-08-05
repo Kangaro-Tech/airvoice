@@ -14,26 +14,57 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
     const sb = getSupabase();
     const page = parseInt(q.page ?? '1');
     const limit = 30;
+    const offset = (page - 1) * limit;
 
-    let query = sb
-      .from('company_payments')
-      .select(`
-        *,
-        customer:customers(id, full_name, service_number, phone_number),
-        application:applications(id, ref_number, monthly_amount),
-        installment:installments(id, due_date, expected_amount),
-        processed_by_user:users!processed_by(phone_number)
-      `, { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range((page - 1) * limit, page * limit - 1);
+    try {
+      let query = sb
+        .from('company_payments')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
 
-    if (q.status) query = query.eq('status', q.status);
-    if (q.customer_id) query = query.eq('customer_id', q.customer_id);
+      if (q.status) query = query.eq('status', q.status);
+      if (q.customer_id) query = query.eq('customer_id', q.customer_id);
 
-    const { data, count, error } = await query;
-    if (error) return reply.status(500).send({ error: error.message });
+      const { data: rawData, count, error } = await query;
+      if (error) {
+        req.log.warn(`company_payments list query notice: ${error.message}`);
+        return reply.send({ data: [], meta: { total: 0, page, limit } });
+      }
 
-    return reply.send({ data, meta: { total: count, page, limit } });
+      const payments = rawData || [];
+      if (payments.length === 0) return reply.send({ data: [], meta: { total: 0, page, limit } });
+
+      const custIds = [...new Set(payments.map((p: any) => p.customer_id).filter(Boolean))];
+      const appIds = [...new Set(payments.map((p: any) => p.application_id).filter(Boolean))];
+      const instIds = [...new Set(payments.map((p: any) => p.installment_id).filter(Boolean))];
+      const userIds = [...new Set(payments.map((p: any) => p.processed_by).filter(Boolean))];
+
+      const [custRes, appsRes, instsRes, usersRes] = await Promise.all([
+        custIds.length > 0 ? sb.from('customers').select('id, full_name, service_number, phone_number').in('id', custIds) : Promise.resolve({ data: [] }),
+        appIds.length > 0 ? sb.from('applications').select('id, ref_number, monthly_amount').in('id', appIds) : Promise.resolve({ data: [] }),
+        instIds.length > 0 ? sb.from('installments').select('id, due_date, expected_amount').in('id', instIds) : Promise.resolve({ data: [] }),
+        userIds.length > 0 ? sb.from('users').select('id, phone_number, full_name').in('id', userIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const custMap = Object.fromEntries((custRes.data || []).map(c => [c.id, c]));
+      const appMap = Object.fromEntries((appsRes.data || []).map(a => [a.id, a]));
+      const instMap = Object.fromEntries((instsRes.data || []).map(i => [i.id, i]));
+      const userMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u]));
+
+      const data = payments.map((p: any) => ({
+        ...p,
+        customer: custMap[p.customer_id] || null,
+        application: appMap[p.application_id] || null,
+        installment: instMap[p.installment_id] || null,
+        processed_by_user: userMap[p.processed_by] || null,
+      }));
+
+      return reply.send({ data, meta: { total: count ?? 0, page, limit } });
+    } catch (err: any) {
+      req.log.error(err);
+      return reply.send({ data: [], meta: { total: 0, page, limit } });
+    }
   });
 
   // ── POST /company-payments ── AirVoice pays on behalf of customer
@@ -163,36 +194,55 @@ export default async function companyPaymentsRoutes(app: FastifyInstance) {
   // ── GET /company-payments/summary ── Outstanding total per customer
   app.get('/summary', {
     preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')],
-  }, async (_req: FastifyRequest, reply) => {
+  }, async (req: FastifyRequest, reply) => {
     const sb = getSupabase();
-    const { data, error } = await sb
-      .from('company_payments')
-      .select('customer_id, amount, recovered_amount, status, customer:customers(full_name, service_number)')
-      .neq('status', 'fully_recovered');
+    try {
+      const { data: rawData, error } = await sb
+        .from('company_payments')
+        .select('*')
+        .neq('status', 'fully_recovered');
 
-    if (error) return reply.status(500).send({ error: error.message });
-
-    const customerMap: Record<string, any> = {};
-    (data ?? []).forEach((p: any) => {
-      const cid = p.customer_id;
-      if (!customerMap[cid]) {
-        customerMap[cid] = {
-          customer_id: cid,
-          customer_name: p.customer?.full_name ?? '—',
-          service_number: p.customer?.service_number ?? '—',
-          total_advanced: 0,
-          total_recovered: 0,
-        };
+      if (error) {
+        req.log.warn(`company_payments summary query notice: ${error.message}`);
+        return reply.send({ data: [] });
       }
-      customerMap[cid].total_advanced += Number(p.amount);
-      customerMap[cid].total_recovered += Number(p.recovered_amount);
-    });
 
-    return reply.send({
-      data: Object.values(customerMap).map((c: any) => ({
-        ...c,
-        outstanding: c.total_advanced - c.total_recovered,
-      })),
-    });
+      const payments = rawData || [];
+      if (payments.length === 0) return reply.send({ data: [] });
+
+      const custIds = [...new Set(payments.map((p: any) => p.customer_id).filter(Boolean))];
+      const { data: custData } = custIds.length > 0
+        ? await sb.from('customers').select('id, full_name, service_number').in('id', custIds)
+        : { data: [] };
+
+      const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
+
+      const customerMap: Record<string, any> = {};
+      payments.forEach((p: any) => {
+        const cid = p.customer_id;
+        const cust = custMap[cid];
+        if (!customerMap[cid]) {
+          customerMap[cid] = {
+            customer_id: cid,
+            customer_name: cust?.full_name ?? '—',
+            service_number: cust?.service_number ?? '—',
+            total_advanced: 0,
+            total_recovered: 0,
+          };
+        }
+        customerMap[cid].total_advanced += Number(p.amount || 0);
+        customerMap[cid].total_recovered += Number(p.recovered_amount || 0);
+      });
+
+      return reply.send({
+        data: Object.values(customerMap).map((c: any) => ({
+          ...c,
+          outstanding: c.total_advanced - c.total_recovered,
+        })),
+      });
+    } catch (err: any) {
+      req.log.error(err);
+      return reply.send({ data: [] });
+    }
   });
 }

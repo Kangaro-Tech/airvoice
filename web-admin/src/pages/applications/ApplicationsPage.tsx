@@ -804,7 +804,7 @@ export default function ApplicationsPage() {
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-muted" />
             <input
               type="text"
-              placeholder="Search name, NIC, application ID..."
+              placeholder="Search name, NIC / New NIC, application ID..."
               value={search}
               onChange={e => setParams(p => { p.set('q', e.target.value); p.set('page', '1'); return p; })}
               className="form-input pl-9"
@@ -896,7 +896,15 @@ export default function ApplicationsPage() {
                       <td className="px-5 py-4 font-mono text-xs font-semibold text-base-primary">{a.ref_number || a.id}</td>
                       <td className="px-5 py-4">
                         <div className="font-bold text-base-primary">{a.customer_name || '—'}</div>
-                        <div className="text-xs text-base-muted font-mono mt-0.5">{a.service_number || '—'}</div>
+                        <div className="text-xs text-base-muted font-mono mt-0.5">
+                          {a.service_number || '—'}
+                          {a.customer_nic && <span className="ml-1 opacity-80">· {a.customer_nic}</span>}
+                        </div>
+                        {a.customer_new_nic && (
+                          <div className="text-[11px] text-blue-600 dark:text-blue-400 font-bold font-mono mt-0.5">
+                            New: {a.customer_new_nic}
+                          </div>
+                        )}
                       </td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold rounded capitalize ${a.customer_branch === 'army' ? 'bg-green-100 text-green-800' : a.customer_branch === 'navy' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
