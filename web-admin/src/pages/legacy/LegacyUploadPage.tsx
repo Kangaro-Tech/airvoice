@@ -13,6 +13,7 @@ import {
   Paperclip,
   X,
   ArrowLeft,
+  Download,
 } from 'lucide-react';
 
 export default function LegacyUploadPage() {
@@ -56,9 +57,19 @@ export default function LegacyUploadPage() {
 
   return (
     <div className="p-6 max-w-2xl">
-      <div className="flex items-center gap-3 mb-2">
-        <Upload size={28} className="text-[#2563ea] shrink-0" />
-        <h1 className="text-2xl font-bold">Upload Deduction Sheet</h1>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-3">
+          <Upload size={28} className="text-[#2563ea] shrink-0" />
+          <h1 className="text-2xl font-bold">Upload Deduction Sheet</h1>
+        </div>
+        <a
+          href="/Deduction_Template.xlsx"
+          download="Deduction_Template.xlsx"
+          className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors shrink-0"
+        >
+          <Download size={14} />
+          Download Template
+        </a>
       </div>
       <p className="text-base-muted text-sm mb-4">
         Upload an Excel (.xlsx) or CSV file containing salary deduction records.
@@ -116,15 +127,59 @@ export default function LegacyUploadPage() {
       </div>
 
       {/* Expected format hint */}
-      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
-        <div className="font-semibold mb-1 flex items-center gap-1.5">
+      <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 rounded-xl text-sm">
+        <div className="font-semibold mb-3 flex items-center gap-1.5 text-blue-800 dark:text-blue-200">
           <ListChecks size={15} />
-          Expected Columns (7 ESR Format)
+          Column Guide — Required Format (7 ESR Deduction Sheet)
         </div>
-        <div className="text-xs text-blue-700 font-mono">
-          No. · Service No · Name · GU/No · GU/Name · Unit · Monthly Rental · Term · Sale Date · [Oct-24] [Nov-24] …
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100">
+                <th className="text-left px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-bold">Column Name</th>
+                <th className="text-left px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-bold">What to Fill</th>
+                <th className="text-left px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-bold">Example</th>
+              </tr>
+            </thead>
+            <tbody className="text-blue-800 dark:text-blue-200">
+              {[
+                ['No.', 'Row number (auto)', '1, 2, 3…'],
+                ['Service No', 'Staff service/employee number', 'EMP001'],
+                ['Name', 'Full name of staff member', 'John Perera'],
+                ['GU/No', 'Guarantor ID number', 'G001'],
+                ['GU/Name', 'Guarantor full name', 'Mary Silva'],
+                ['Unit', 'Army/camp unit name', 'Base Unit A'],
+                ['Monthly Rental', 'Monthly installment amount (LKR)', '1500'],
+                ['Term', 'Total installment months', '12'],
+                ['Sale Date', 'Phone sale date', '2023-10-01'],
+              ].map(([col, desc, ex]) => (
+                <tr key={col} className="border-b border-blue-100 dark:border-blue-800">
+                  <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-mono font-bold text-blue-900 dark:text-blue-100">{col}</td>
+                  <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700">{desc}</td>
+                  <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-mono text-green-700 dark:text-green-400">{ex}</td>
+                </tr>
+              ))}
+              <tr className="bg-amber-50 dark:bg-amber-950/30">
+                <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-mono font-bold text-blue-900 dark:text-blue-100">[Oct-24], [Nov-24]…</td>
+                <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700">Monthly deduction columns. Add one column per month. Header must be in <span className="font-bold">MMM-YY</span> format.</td>
+                <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-mono text-green-700 dark:text-green-400">Oct-24, Nov-24</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 flex flex-col gap-1.5">
+          <div className="text-xs font-semibold text-blue-900 dark:text-blue-100">📋 Monthly Deduction Column Values:</div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 px-2 py-1 rounded font-mono font-bold">500 / 1500 (number)</span>
+            <span className="text-blue-700 dark:text-blue-300">→ Deduction amount paid this month</span>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <span className="bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 px-2 py-1 rounded font-mono font-bold">0 or blank</span>
+            <span className="text-blue-700 dark:text-blue-300">→ No deduction this month (will be marked as missed)</span>
+          </div>
         </div>
       </div>
+
 
       {/* Optional PDF reference attachment */}
       <div className="mt-5 p-4 surface-2 border border-base rounded-xl">
