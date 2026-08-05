@@ -241,7 +241,7 @@ export default function App() {
 
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
-      const { data } = await axios.post('/chat/', { message: trimmed, history })
+      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/chat/`, { message: trimmed, history })
       setMessages(prev => [...prev, {
         id: uid(), role: 'assistant', content: data.reply, timestamp: new Date()
       }])
