@@ -93,10 +93,10 @@ function buildWorkbook(sheetName) {
 }
 
 const wb1 = buildWorkbook("Deduction Sheet");
-XLSX.writeFile(wb1, path.join(publicDir, 'Deduction_Template.xlsx'));
+XLSX.writeFile(wb1, path.join(publicDir, 'Deduction_Template.xlsx'), { bookType: 'xlsx', type: 'file' });
 
 const wb2 = buildWorkbook("Unit Wise Summary");
-XLSX.writeFile(wb2, path.join(publicDir, 'Unit_Wise_Summary_Template.xlsx'));
+XLSX.writeFile(wb2, path.join(publicDir, 'Unit_Wise_Summary_Template.xlsx'), { bookType: 'xlsx', type: 'file' });
 
 console.log('✅  Templates created successfully in public/ folder.');
 console.log('   → Deduction_Template.xlsx');

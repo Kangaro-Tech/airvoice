@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Download,
 } from 'lucide-react';
+import { downloadExcelTemplate } from '@/utils/templateGenerator';
 
 export default function LegacyUploadPage() {
   const navigate  = useNavigate();
@@ -62,14 +63,13 @@ export default function LegacyUploadPage() {
           <Upload size={28} className="text-[#2563ea] shrink-0" />
           <h1 className="text-2xl font-bold">Upload Deduction Sheet</h1>
         </div>
-        <a
-          href="/Deduction_Template.xlsx"
-          download="Deduction_Template.xlsx"
+        <button
+          onClick={() => downloadExcelTemplate('deduction')}
           className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition-colors shrink-0"
         >
           <Download size={14} />
           Download Template
-        </a>
+        </button>
       </div>
       <p className="text-base-muted text-sm mb-4">
         Upload an Excel (.xlsx) or CSV file containing salary deduction records.
@@ -152,6 +152,8 @@ export default function LegacyUploadPage() {
                 ['Monthly Rental', 'Monthly installment amount (LKR)', '1500'],
                 ['Term', 'Total installment months', '12'],
                 ['Sale Date', 'Phone sale date', '2023-10-01'],
+                ['Phone Model', 'Model of the phone purchased', 'VIVO Y 03 4/128'],
+                ['Qty', 'Number of phones purchased', '1'],
               ].map(([col, desc, ex]) => (
                 <tr key={col} className="border-b border-blue-100 dark:border-blue-800">
                   <td className="px-2 py-1.5 border border-blue-200 dark:border-blue-700 font-mono font-bold text-blue-900 dark:text-blue-100">{col}</td>
