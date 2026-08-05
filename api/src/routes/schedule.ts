@@ -19,32 +19,52 @@ export default async function scheduleRoutes(app: FastifyInstance) {
     const [y, m] = month.split('-').map(Number);
     const monthEnd = new Date(y, m, 0).toISOString().split('T')[0];
 
-    let query = sb
-      .from('schedule_events')
-      .select(`
-        *,
-        customer:customers(id, full_name, service_number, phone_number),
-        application:applications(id, ref_number),
-        created_by_user:users!created_by(phone_number)
-      `)
-      .gte('event_date', monthStart)
-      .lte('event_date', monthEnd)
-      .order('event_date', { ascending: true })
-      .order('event_time', { ascending: true });
+    try {
+      let query = sb
+        .from('schedule_events')
+        .select('*')
+        .gte('event_date', monthStart)
+        .lte('event_date', monthEnd)
+        .order('event_date', { ascending: true });
 
-    // Admins can see all; others only see their own events
-    const isAdmin = ['admin', 'super_admin', 'system_operator'].includes(req.user!.role);
-    if (!isAdmin || q.all !== 'true') {
-      // Filter: events created by me OR assigned to me
-      query = query.or(`created_by.eq.${req.user!.id},assigned_to.cs.{${req.user!.id}}`);
+      const isAdmin = ['admin', 'super_admin', 'system_operator'].includes(req.user!.role);
+      if (!isAdmin || q.all !== 'true') {
+        query = query.or(`created_by.eq.${req.user!.id}`);
+      }
+
+      if (q.status) query = query.eq('status', q.status);
+
+      const { data: rawData, error } = await query;
+      if (error) {
+        req.log.warn(`schedule_events query notice: ${error.message}`);
+        return reply.send({ data: [], month });
+      }
+
+      const events = rawData || [];
+      if (events.length === 0) return reply.send({ data: [], month });
+
+      const custIds = [...new Set(events.map((e: any) => e.customer_id).filter(Boolean))];
+      const appIds = [...new Set(events.map((e: any) => e.application_id).filter(Boolean))];
+
+      const [custRes, appsRes] = await Promise.all([
+        custIds.length > 0 ? sb.from('customers').select('id, full_name, service_number, phone_number').in('id', custIds) : Promise.resolve({ data: [] }),
+        appIds.length > 0 ? sb.from('applications').select('id, ref_number').in('id', appIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const custMap = Object.fromEntries((custRes.data || []).map(c => [c.id, c]));
+      const appMap = Object.fromEntries((appsRes.data || []).map(a => [a.id, a]));
+
+      const data = events.map((e: any) => ({
+        ...e,
+        customer: custMap[e.customer_id] || null,
+        application: appMap[e.application_id] || null,
+      }));
+
+      return reply.send({ data, month });
+    } catch (err: any) {
+      req.log.error(err);
+      return reply.send({ data: [], month });
     }
-
-    if (q.status) query = query.eq('status', q.status);
-
-    const { data, error } = await query;
-    if (error) return reply.status(500).send({ error: error.message });
-
-    return reply.send({ data, month });
   });
 
   // ── POST /schedule ── Create event

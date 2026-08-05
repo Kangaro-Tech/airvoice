@@ -284,6 +284,7 @@ export default function CustomerProfilePage() {
               setEditForm({
                 full_name:      String(c.full_name ?? ''),
                 nic_number:     String(c.nic_number ?? ''),
+                new_nic_number: String(c.new_nic_number ?? ''),
                 service_number: String(c.service_number ?? ''),
                 rank:           String(c.rank ?? ''),
                 phone_number:   String(c.phone_number ?? ''),
@@ -335,7 +336,8 @@ export default function CustomerProfilePage() {
               <div className="px-4 py-2">
                 <InfoRow label="Full Name"            value={c.full_name as string} />
                 <InfoRow label="Name with Initials"   value={c.full_name_si as string} />
-                <InfoRow label="NIC Number"           value={c.nic_number as string} mono />
+                <InfoRow label="Old NIC Number"       value={c.nic_number as string} mono />
+                <InfoRow label="New NIC Number"       value={c.new_nic_number as string} mono />
                 <InfoRow label="Date of Birth"        value={c.date_of_birth as string} />
                 <InfoRow label="Gender"               value={c.gender as string} />
                 <InfoRow label="Mobile Phone"         value={c.phone_number as string} />
@@ -931,7 +933,8 @@ export default function CustomerProfilePage() {
         <div className="space-y-4">
           {[
             { label: 'Full Name',       key: 'full_name',       required: true },
-            { label: 'NIC Number',      key: 'nic_number' },
+            { label: 'Old NIC Number',  key: 'nic_number' },
+            { label: 'New NIC Number',  key: 'new_nic_number' },
             { label: 'Service Number',  key: 'service_number' },
             { label: 'Military ID',     key: 'military_id_number' },
             { label: 'Rank',            key: 'rank' },

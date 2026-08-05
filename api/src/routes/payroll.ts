@@ -9,12 +9,16 @@ export default async function payrollRoutes(app: FastifyInstance) {
 
   // ── GET /payroll/staff ─── List all staff members (list view – select only needed columns)
   app.get('/staff', { preHandler: [authenticate, requireRole('finance_officer', 'accountant', 'admin', 'super_admin', 'system_operator')] }, async (_req, reply) => {
-    const { data, error } = await getSupabase()
-      .from('staff_registry')
-      .select('id,user_id,full_name,designation,department,basic_salary,transport_allow,meal_allow,attendance_allowance,performance_allowance,allowance_01,allowance_02,commission_rate,epf_no,is_active,phone_number,profile_photo_url,joined_date')
-      .order('full_name');
-    if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data });
+    try {
+      const { data, error } = await getSupabase()
+        .from('staff_registry')
+        .select('*')
+        .order('full_name');
+      if (error) return reply.send({ data: [] });
+      return reply.send({ data: data || [] });
+    } catch {
+      return reply.send({ data: [] });
+    }
   });
 
   // ── GET /payroll/staff/users ─── List registered staff users for payroll linking

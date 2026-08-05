@@ -4,8 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { api, payrollApi } from '@/services/api';
 import {
   Wallet, Users, Plus, CheckCircle2, ChevronRight, Loader2,
-  Download, XCircle, FileText, DollarSign, Building, ExternalLink
+  Download, XCircle, FileText, DollarSign, Building, ExternalLink,
+  TrendingUp, Clock, AlertCircle, ArrowUpRight, ArrowDownRight, PieChart as PieIcon, ShieldCheck, CalendarCheck
 } from 'lucide-react';
+import {
+  AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell
+} from 'recharts';
 
 interface Staff {
   id: string;
@@ -467,6 +471,111 @@ export default function PayrollPage() {
     document.body.removeChild(link);
   };
 
+const MONTH_OPTIONS = [
+  { value: 'All', label: 'All Months' },
+  { value: '01', label: 'January (01)' },
+  { value: '02', label: 'February (02)' },
+  { value: '03', label: 'March (03)' },
+  { value: '04', label: 'April (04)' },
+  { value: '05', label: 'May (05)' },
+  { value: '06', label: 'June (06)' },
+  { value: '07', label: 'July (07)' },
+  { value: '08', label: 'August (08)' },
+  { value: '09', label: 'September (09)' },
+  { value: '10', label: 'October (10)' },
+  { value: '11', label: 'November (11)' },
+  { value: '12', label: 'December (12)' },
+];
+
+  const [overviewTimeframe, setOverviewTimeframe] = useState<'1M' | '3M' | '6M' | '1Y'>('6M');
+  const [runYearFilter, setRunYearFilter] = useState<string>('All');
+  const [runMonthFilter, setRunMonthFilter] = useState<string>('All');
+
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    const currentYear = new Date().getFullYear().toString();
+    years.add(currentYear);
+    (runs || []).forEach(r => {
+      if (r.run_month && r.run_month.includes('-')) {
+        years.add(r.run_month.split('-')[0]);
+      }
+    });
+    return Array.from(years).sort().reverse();
+  }, [runs]);
+
+  const filteredRuns = useMemo(() => {
+    return (runs || []).filter(r => {
+      if (!r.run_month || !r.run_month.includes('-')) return true;
+      const [y, m] = r.run_month.split('-');
+      if (runYearFilter !== 'All' && y !== runYearFilter) return false;
+      if (runMonthFilter !== 'All' && m !== runMonthFilter) return false;
+      return true;
+    });
+  }, [runs, runYearFilter, runMonthFilter]);
+
+  useEffect(() => {
+    if (filteredRuns.length > 0) {
+      const exists = filteredRuns.some(r => r.id === selectedRunId);
+      if (!exists) {
+        setSelectedRunId(filteredRuns[0].id);
+      }
+    }
+  }, [filteredRuns, selectedRunId]);
+
+  const monthlyPayrollBreakdown = useMemo(() => {
+    if (selectedRun && selectedRun.lines && selectedRun.lines.length > 0) {
+      const basic = selectedRun.lines.reduce((s, l) => s + Number(l.basic_salary || 0), 0);
+      const allow = selectedRun.lines.reduce((s, l) => s + Number(l.transport_allow || 0) + Number(l.meal_allow || 0), 0);
+      const comm = selectedRun.lines.reduce((s, l) => s + Number(l.commission_amount || 0), 0);
+      const epfEe = Number(selectedRun.total_epf_ee || 0);
+      const epfEr = Number(selectedRun.total_epf_er || 0);
+      const etf = Number(selectedRun.total_etf || 0);
+      const gross = Number(selectedRun.total_gross || 0);
+      const net = Number(selectedRun.total_net || 0);
+      const count = selectedRun.lines.length;
+      return { basic, allow, comm, epfEe, epfEr, etf, statutory: epfEe + epfEr + etf, gross, net, count, month: selectedRun.run_month };
+    }
+
+    const basic = staff.reduce((s, st) => s + Number(st.basic_salary || 0), 0);
+    const allow = staff.reduce((s, st) => s + Number(st.transport_allow || 0) + Number(st.meal_allow || 0), 0);
+    const comm = 0;
+    const gross = basic + allow;
+    const epfEe = Math.round(gross * 0.08);
+    const epfEr = Math.round(gross * 0.12);
+    const etf = Math.round(gross * 0.03);
+    const net = gross - epfEe;
+    const count = staff.length;
+    return { basic, allow, comm, epfEe, epfEr, etf, statutory: epfEe + epfEr + etf, gross, net, count, month: 'Current Month' };
+  }, [selectedRun, staff]);
+
+  const overviewStats = useMemo(() => {
+    const paid = runs.filter(r => r.status === 'paid');
+    const approved = runs.filter(r => r.status === 'approved');
+    const draft = runs.filter(r => r.status === 'draft');
+
+    const paidTotal = paid.reduce((sum, r) => sum + Number(r.total_net || 0), 0);
+    const approvedTotal = approved.reduce((sum, r) => sum + Number(r.total_net || 0), 0);
+    const draftTotal = draft.reduce((sum, r) => sum + Number(r.total_net || 0), 0);
+
+    const grandTotal = paidTotal + approvedTotal + draftTotal;
+    const paidPct = grandTotal > 0 ? Math.round((paidTotal / grandTotal) * 100) : 0;
+
+    const previousRun = paid.length > 0 ? paid[0] : (runs.length > 1 ? runs[1] : null);
+    const upcomingRun = draft.length > 0 ? draft[0] : (approved.length > 0 ? approved[0] : (runs.length > 0 ? runs[0] : null));
+
+    return {
+      paidTotal,
+      approvedTotal,
+      draftTotal,
+      paidCount: paid.length,
+      approvedCount: approved.length,
+      draftCount: draft.length,
+      paidPct,
+      previousRun,
+      upcomingRun,
+    };
+  }, [runs]);
+
   // Suppress unused var warning
   void payrollTotals;
 
@@ -561,200 +670,531 @@ export default function PayrollPage() {
       {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           OVERVIEW TAB
       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      {/* ═════════════════════════════════════════════════════════════════════
+          OVERVIEW TAB (Redesigned SaaS Premium Dashboard)
+      ═════════════════════════════════════════════════════════════════════ */}
       {activeTab === 'overview' && (
-        <div className="space-y-5">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-4 gap-4">
+        <div className="space-y-6">
+
+          {/* ── Top 4 KPI Summary Cards ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: 'Total Staff',      value: staff.length,                                                                                                          icon: Users,      color: 'text-blue-600',   bg: 'bg-blue-50'   },
-              { label: 'Monthly Payroll',  value: `LKR ${staff.reduce((s, st) => s + st.basic_salary + st.transport_allow + st.meal_allow, 0).toLocaleString()}`,        icon: DollarSign, color: 'text-green-600',  bg: 'bg-green-50'  },
-              { label: 'EPF Liability',    value: `LKR ${Math.round(staff.reduce((s, st) => s + (st.basic_salary + st.transport_allow + st.meal_allow) * 0.20, 0)).toLocaleString()}`, icon: Building, color: 'text-amber-600',  bg: 'bg-amber-50'  },
-              { label: 'ETF Liability',    value: `LKR ${Math.round(staff.reduce((s, st) => s + (st.basic_salary + st.transport_allow + st.meal_allow) * 0.03, 0)).toLocaleString()}`, icon: FileText, color: 'text-purple-600', bg: 'bg-purple-50' },
-            ].map(({ label, value, icon: Icon, color, bg }) => (
+              { label: 'TOTAL STAFF',      value: staff.length,                                                                                                          icon: Users,      color: 'text-blue-600'   },
+              { label: 'MONTHLY PAYROLL',  value: `LKR ${staff.reduce((s, st) => s + st.basic_salary + st.transport_allow + st.meal_allow, 0).toLocaleString()}`,        icon: DollarSign, color: 'text-green-600'  },
+              { label: 'EPF LIABILITY',    value: `LKR ${Math.round(staff.reduce((s, st) => s + (st.basic_salary + st.transport_allow + st.meal_allow) * 0.20, 0)).toLocaleString()}`, icon: Building, color: 'text-amber-600'  },
+              { label: 'ETF LIABILITY',    value: `LKR ${Math.round(staff.reduce((s, st) => s + (st.basic_salary + st.transport_allow + st.meal_allow) * 0.03, 0)).toLocaleString()}`, icon: FileText, color: 'text-purple-600' },
+            ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} className="card p-5">
                 <div className="flex items-center gap-2 mb-2">
-                  <div>
-                    <Icon size={18} className="text-[#2563ea]" />
-                  </div>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-base-muted">{label}</span>
+                  <Icon size={18} className="text-[#2563ea]" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-base-muted">{label}</span>
                 </div>
-                <div className={`text-xl font-black ${color}`}>{value}</div>
+                <div className={`text-2xl font-extrabold ${color}`}>{value}</div>
               </div>
             ))}
           </div>
 
-          {/* Runs List + Run Detail */}
-          <div className="flex gap-5">
-            {/* Run list sidebar */}
-            <div className="w-72 shrink-0">
-              <div className="card h-full">
-                <div className="px-4 py-3.5 border-b border-base flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-base-secondary">Salary Runs</h3>
-                  <button onClick={() => setShowCreateModal(true)} className="text-blue-600 text-xs font-semibold hover:text-blue-800 transition-colors">New</button>
+          {/* ── Top Hero Analytics Section (2-Column Layout) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            {/* Left Card (8 Columns): Monthly Payroll Summary & Distribution Breakdown */}
+            <div className="lg:col-span-8 card p-6 relative overflow-hidden flex flex-col justify-between space-y-6">
+              
+              {/* Card Header */}
+              <div className="flex items-start justify-between flex-wrap gap-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <DollarSign size={16} className="text-blue-600" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-base-muted">
+                      Monthly Payroll Breakdown
+                    </span>
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-3xl lg:text-4xl font-extrabold text-base-primary tracking-tight font-mono">
+                      LKR {monthlyPayrollBreakdown.net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800/50">
+                      <CalendarCheck size={13} />
+                      {monthlyPayrollBreakdown.month}
+                    </span>
+                  </div>
+                  <p className="text-xs text-base-muted mt-1">
+                    Total Net Payout for {monthlyPayrollBreakdown.count} staff member(s)
+                  </p>
                 </div>
-                {runsLoading ? (
-                  <div className="flex items-center justify-center py-10 text-base-muted">
-                    <Loader2 size={18} className="animate-spin mr-2 text-blue-600" />
+              </div>
+
+              {/* 4 Cost Component Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="surface-2 rounded-2xl p-3.5 border border-base">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-base-muted mb-1 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-blue-600" /> Basic Pay
                   </div>
-                ) : runs.length === 0 ? (
-                  <div className="py-10 text-center text-base-muted">
-                    <Wallet size={30} className="mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">No runs yet</p>
+                  <div className="text-sm font-extrabold font-mono text-base-primary">
+                    LKR {monthlyPayrollBreakdown.basic.toLocaleString()}
                   </div>
-                ) : (
-                  <div className="divide-y divide-gray-50">
-                    {runs.map(run => (
-                      <button
-                        key={run.id}
-                        onClick={() => setSelectedRunId(run.id)}
-                        className={`w-full px-4 py-3 text-left hover:bg-[var(--bg-surface-2)] transition-colors flex items-center justify-between ${
-                          selectedRunId === run.id ? 'bg-blue-50/70 border-l-2 border-blue-600 dark:bg-blue-950/30' : ''
-                        }`}
-                      >
-                        <div>
-                          <div className="font-semibold text-sm text-base-primary">{run.run_month}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[run.status]}`}>
-                              {run.status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-base-muted mt-1">Net: LKR {Number(run.total_net ?? 0).toLocaleString()}</div>
-                        </div>
-                        <ChevronRight size={15} className="text-gray-300" />
-                      </button>
-                    ))}
+                </div>
+
+                <div className="surface-2 rounded-2xl p-3.5 border border-base">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-base-muted mb-1 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-green-600" /> Allowances
                   </div>
-                )}
+                  <div className="text-sm font-extrabold font-mono text-green-600">
+                    LKR {monthlyPayrollBreakdown.allow.toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="surface-2 rounded-2xl p-3.5 border border-base">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-base-muted mb-1 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-amber-500" /> Commissions
+                  </div>
+                  <div className="text-sm font-extrabold font-mono text-amber-600">
+                    LKR {monthlyPayrollBreakdown.comm.toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="surface-2 rounded-2xl p-3.5 border border-base">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-base-muted mb-1 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-purple-600" /> EPF / ETF
+                  </div>
+                  <div className="text-sm font-extrabold font-mono text-purple-600">
+                    LKR {monthlyPayrollBreakdown.statutory.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Visual Multi-Segment Proportional Distribution Bar */}
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-base-primary font-bold">Cost Distribution Breakdown</span>
+                  <span className="text-base-muted font-mono">
+                    Gross: LKR {monthlyPayrollBreakdown.gross.toLocaleString()}
+                  </span>
+                </div>
+
+                {(() => {
+                  const gross = monthlyPayrollBreakdown.gross || 1;
+                  const basicPct = Math.min(100, Math.round((monthlyPayrollBreakdown.basic / gross) * 100));
+                  const allowPct = Math.min(100, Math.round((monthlyPayrollBreakdown.allow / gross) * 100));
+                  const commPct = Math.min(100, Math.round((monthlyPayrollBreakdown.comm / gross) * 100));
+                  const statPct = Math.max(0, 100 - (basicPct + allowPct + commPct));
+
+                  return (
+                    <div>
+                      <div className="w-full h-3.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex shadow-inner">
+                        <div style={{ width: `${basicPct}%` }} className="bg-blue-600 h-full transition-all" title={`Basic Salary: ${basicPct}%`} />
+                        <div style={{ width: `${allowPct}%` }} className="bg-green-500 h-full transition-all" title={`Allowances: ${allowPct}%`} />
+                        <div style={{ width: `${commPct}%` }} className="bg-amber-500 h-full transition-all" title={`Commissions: ${commPct}%`} />
+                        <div style={{ width: `${statPct}%` }} className="bg-purple-500 h-full transition-all" title={`Statutory: ${statPct}%`} />
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] font-medium text-base-muted pt-2 flex-wrap gap-2">
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600" /> Basic ({basicPct}%)</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-green-500" /> Allowances ({allowPct}%)</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Commissions ({commPct}%)</span>
+                        <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-500" /> Statutory ({statPct}%)</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Footer Stats Bar */}
+              <div className="pt-3 border-t border-base flex items-center justify-between text-xs text-base-muted flex-wrap gap-2">
+                <span>Avg Pay / Staff: <strong className="text-base-primary font-mono font-bold">LKR {monthlyPayrollBreakdown.count > 0 ? Math.round(monthlyPayrollBreakdown.net / monthlyPayrollBreakdown.count).toLocaleString() : 0}</strong></span>
+                <span>Company EPF (12%): <strong className="text-amber-600 font-mono font-bold">LKR {monthlyPayrollBreakdown.epfEr.toLocaleString()}</strong></span>
+                <span>Company ETF (3%): <strong className="text-purple-600 font-mono font-bold">LKR {monthlyPayrollBreakdown.etf.toLocaleString()}</strong></span>
               </div>
             </div>
 
-            {/* Run detail panel */}
-            {runDetailLoading ? (
-              <div className="flex-1 min-w-0 flex items-center justify-center py-24">
-                <div className="text-center space-y-3">
-                  <Loader2 size={36} className="animate-spin text-blue-600 mx-auto" />
-                  <p className="text-sm text-base-muted">Loading payroll run...</p>
+            {/* Right Card (4 Columns): Payroll Summary Arc Gauge Card */}
+            <div className="lg:col-span-4 card p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-bold text-base text-base-primary">Payroll Summary</h3>
+                    <p className="text-xs text-base-muted mt-0.5">Disbursement &amp; Approval Status</p>
+                  </div>
+                  <button onClick={() => navigate('/reports')} className="text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 transition-colors">
+                    View report
+                  </button>
+                </div>
+
+                {/* 3 Metric Columns with Vertical Color Bars */}
+                <div className="grid grid-cols-3 gap-2 border-b border-base pb-4 mb-4">
+                  <div className="pl-3 border-l-2 border-blue-600">
+                    <div className="text-[11px] font-semibold text-base-muted">Paid</div>
+                    <div className="text-xs font-bold text-base-primary mt-0.5 font-mono truncate" title={`LKR ${overviewStats.paidTotal.toLocaleString()}`}>
+                      LKR {(overviewStats.paidTotal / 1000).toFixed(0)}k
+                    </div>
+                  </div>
+                  <div className="pl-3 border-l-2 border-sky-500">
+                    <div className="text-[11px] font-semibold text-base-muted">Approved</div>
+                    <div className="text-xs font-bold text-base-primary mt-0.5 font-mono truncate" title={`LKR ${overviewStats.approvedTotal.toLocaleString()}`}>
+                      LKR {(overviewStats.approvedTotal / 1000).toFixed(0)}k
+                    </div>
+                  </div>
+                  <div className="pl-3 border-l-2 border-amber-500">
+                    <div className="text-[11px] font-semibold text-base-muted">Pending</div>
+                    <div className="text-xs font-bold text-base-primary mt-0.5 font-mono truncate" title={`LKR ${overviewStats.draftTotal.toLocaleString()}`}>
+                      LKR {(overviewStats.draftTotal / 1000).toFixed(0)}k
+                    </div>
+                  </div>
                 </div>
               </div>
-            ) : selectedRun ? (
-              <div className="flex-1 min-w-0 space-y-4">
-                <div className="card p-5">
-                  <div className="flex items-center justify-between mb-5">
+
+              {/* Donut Arc Gauge */}
+              <div className="relative flex items-center justify-center my-2">
+                <div className="h-44 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsPieChart>
+                      <Pie
+                        data={[
+                          { name: 'Paid', value: overviewStats.paidTotal || (runs.length === 0 ? 1 : 0), color: '#2563ea' },
+                          { name: 'Approved', value: overviewStats.approvedTotal || 0, color: '#0284c7' },
+                          { name: 'Pending', value: overviewStats.draftTotal || 0, color: '#f59e0b' },
+                        ]}
+                        cx="50%"
+                        cy="70%"
+                        startAngle={180}
+                        endAngle={0}
+                        innerRadius={65}
+                        outerRadius={90}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {[
+                          { color: '#2563ea' },
+                          { color: '#0284c7' },
+                          { color: '#f59e0b' },
+                        ].map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                        ))}
+                      </Pie>
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Gauge Center Badge */}
+                <div className="absolute top-[48%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+                  <div className="text-2xl font-black text-base-primary">
+                    {overviewStats.paidPct}%
+                  </div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-base-muted">
+                    Disbursed
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center text-[11px] text-base-muted font-medium mt-1">
+                {overviewStats.paidCount} Paid · {overviewStats.approvedCount} Approved · {overviewStats.draftCount} Draft Run(s)
+              </div>
+            </div>
+          </div>
+
+          {/* ── Bottom Section (2-Column Layout) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            {/* Left Main Card (8 Columns): Selected Run Staff Disbursement Details */}
+            <div className="lg:col-span-8 space-y-4">
+              
+              {runDetailLoading ? (
+                <div className="card p-12 text-center">
+                  <Loader2 size={32} className="animate-spin text-blue-600 mx-auto mb-2" />
+                  <p className="text-xs text-base-muted font-medium">Loading payroll details...</p>
+                </div>
+              ) : selectedRun ? (
+                <div className="card overflow-hidden">
+                  
+                  {/* Selected Run Top Header */}
+                  <div className="p-6 border-b border-base flex items-center justify-between flex-wrap gap-4">
                     <div>
-                      <h3 className="font-bold text-lg text-base-primary">Payroll — {selectedRun.run_month}</h3>
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${STATUS_STYLES[selectedRun.status]}`}>
-                        {selectedRun.status}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-extrabold text-xl text-base-primary">
+                          Payroll — {selectedRun.run_month}
+                        </h3>
+                        <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_STYLES[selectedRun.status]}`}>
+                          {selectedRun.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-base-muted mt-1">
+                        {selectedRun.lines?.length ?? 0} staff members included in this payroll run
+                      </p>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex items-center gap-2">
                       {selectedRun.status === 'draft' && (
                         <button
                           onClick={() => approveRun.mutate(selectedRun.id)}
                           disabled={approveRun.isPending}
-                          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-50"
                         >
-                          <CheckCircle2 size={15} /> Approve
+                          <CheckCircle2 size={14} /> Approve Run
                         </button>
                       )}
                       {selectedRun.status === 'approved' && (
                         <button
                           onClick={() => markPaid.mutate(selectedRun.id)}
                           disabled={markPaid.isPending}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-50"
                         >
-                          <CheckCircle2 size={15} /> Mark as Paid
+                          <CheckCircle2 size={14} /> Mark as Paid
                         </button>
                       )}
                       <button
                         onClick={exportCSV}
-                        className="flex items-center gap-2 px-4 py-2 border border-base text-gray-600 rounded-lg text-sm font-semibold hover:bg-[var(--bg-surface-2)] transition-colors"
+                        className="flex items-center gap-1.5 px-4 py-2 surface-2 text-base-secondary rounded-xl text-xs font-bold transition-all hover:bg-[var(--bg-surface-3)]"
                       >
-                        <Download size={15} /> Export CSV
+                        <Download size={14} /> Export CSV
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-5 gap-4">
+
+                  {/* 5 Key Metric Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-6 surface-2 border-b border-base">
                     {[
-                      ['Total Gross',  `LKR ${Number(selectedRun.total_gross  ?? 0).toLocaleString()}`],
-                      ['EPF (EE 8%)', `LKR ${Number(selectedRun.total_epf_ee  ?? 0).toLocaleString()}`],
-                      ['EPF (ER 12%)',`LKR ${Number(selectedRun.total_epf_er  ?? 0).toLocaleString()}`],
-                      ['ETF (3%)',    `LKR ${Number(selectedRun.total_etf      ?? 0).toLocaleString()}`],
-                      ['Total Net Pay',`LKR ${Number(selectedRun.total_net    ?? 0).toLocaleString()}`],
-                    ].map(([label, value]) => (
-                      <div key={label} className="surface-2 rounded-xl p-3">
-                        <div className="text-xs text-base-muted mb-1">{label}</div>
-                        <div className="font-bold text-sm text-base-primary font-mono">{value}</div>
+                      ['Total Gross', `LKR ${Number(selectedRun.total_gross || 0).toLocaleString()}`, 'text-base-primary'],
+                      ['EPF (EE 8%)', `LKR ${Number(selectedRun.total_epf_ee || 0).toLocaleString()}`, 'text-amber-600'],
+                      ['EPF (ER 12%)', `LKR ${Number(selectedRun.total_epf_er || 0).toLocaleString()}`, 'text-amber-600'],
+                      ['ETF (3%)', `LKR ${Number(selectedRun.total_etf || 0).toLocaleString()}`, 'text-purple-600'],
+                      ['Total Net Pay', `LKR ${Number(selectedRun.total_net || 0).toLocaleString()}`, 'text-green-600'],
+                    ].map(([label, val, color]) => (
+                      <div key={label} className="surface rounded-2xl p-3.5 border border-base">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-base-muted mb-1">{label}</div>
+                        <div className={`text-xs font-bold font-mono truncate ${color}`}>{val}</div>
                       </div>
                     ))}
                   </div>
+
+                  {/* Staff Payslips Table / Transaction History */}
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-sm text-base-primary flex items-center gap-2">
+                        <Users size={16} className="text-blue-600" />
+                        Transaction &amp; Staff Payslip History
+                      </h4>
+                      <span className="text-xs font-semibold text-base-muted">
+                        {selectedRun.lines?.length ?? 0} Record(s)
+                      </span>
+                    </div>
+
+                    {(!selectedRun.lines || selectedRun.lines.length === 0) ? (
+                      <div className="py-12 text-center text-base-muted">
+                        <Users size={32} className="mx-auto mb-2 opacity-30 text-blue-500" />
+                        <p className="text-xs font-medium">No staff lines found in this run.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        {selectedRun.lines.map(line => {
+                          const name = line.staff?.full_name ?? 'Staff Member';
+                          const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
+                          const netAmt = Number(line.net_salary ?? 0);
+
+                          return (
+                            <div
+                              key={line.id}
+                              className="flex items-center justify-between p-3.5 rounded-2xl surface border border-base hover:bg-[var(--bg-surface-2)] transition-all gap-4"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                {/* Staff Avatar */}
+                                <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                                  {line.staff?.profile_photo_url ? (
+                                    <img src={line.staff.profile_photo_url} alt={name} className="w-full h-full rounded-full object-cover" />
+                                  ) : initials}
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="font-bold text-sm text-base-primary truncate">
+                                    {name}
+                                  </div>
+                                  <div className="text-xs text-base-muted truncate">
+                                    {line.staff?.designation ?? 'Employee'} {line.staff?.department ? `· ${line.staff.department}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Amount Breakdown */}
+                              <div className="flex items-center gap-6 shrink-0">
+                                <div className="text-right hidden sm:block">
+                                  <div className="text-xs text-base-muted font-mono">
+                                    Basic: LKR {Number(line.basic_salary ?? 0).toLocaleString()}
+                                  </div>
+                                  <div className="text-[11px] text-green-600 font-medium">
+                                    +Allowances: LKR {(Number(line.transport_allow ?? 0) + Number(line.meal_allow ?? 0)).toLocaleString()}
+                                  </div>
+                                </div>
+
+                                <div className="text-right">
+                                  <div className="font-mono font-extrabold text-sm text-base-primary">
+                                    LKR {netAmt.toLocaleString()}
+                                  </div>
+                                  <div className="text-[10px] text-base-muted font-mono">
+                                    Gross: LKR {Number(line.gross_salary ?? 0).toLocaleString()}
+                                  </div>
+                                </div>
+
+                                {/* Download Payslip Button */}
+                                <button
+                                  onClick={() => downloadPayslip(line)}
+                                  className="flex items-center gap-1 px-3 py-1.5 surface-2 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-950 text-base-secondary rounded-xl text-xs font-semibold transition-colors"
+                                  title="Download Payslip"
+                                >
+                                  <Download size={13} />
+                                  <span className="hidden md:inline">Payslip</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="card p-12 text-center">
+                  <Wallet size={36} className="mx-auto mb-2 opacity-30 text-blue-500" />
+                  <p className="text-xs text-base-muted font-medium">Select a payroll run from the right panel to view details.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Right Side Widgets (4 Columns): Previous/Upcoming Run Cards + Run Switcher */}
+            <div className="lg:col-span-4 space-y-4">
+              
+              {/* Previous Payroll Card */}
+              {overviewStats.previousRun && (
+                <div className="card p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-base-muted flex items-center gap-1.5">
+                      <Clock size={13} className="text-blue-500" />
+                      Previous Payroll
+                    </span>
+                    <span className="text-[11px] font-extrabold text-base-muted uppercase">
+                      {overviewStats.previousRun.run_month}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <div className="text-2xl font-extrabold text-base-primary font-mono">
+                      LKR {Number(overviewStats.previousRun.total_net || 0).toLocaleString()}
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${STATUS_STYLES[overviewStats.previousRun.status]}`}>
+                      {overviewStats.previousRun.status}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Upcoming / Active Payroll Card */}
+              {overviewStats.upcomingRun && (
+                <div className="card p-5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-base-muted flex items-center gap-1.5">
+                      <CalendarCheck size={13} className="text-amber-500" />
+                      Upcoming / Active Payroll
+                    </span>
+                    <span className="text-[11px] font-extrabold text-base-muted uppercase">
+                      {overviewStats.upcomingRun.run_month}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between mt-1">
+                    <div className="text-2xl font-extrabold text-base-primary font-mono">
+                      LKR {Number(overviewStats.upcomingRun.total_net || 0).toLocaleString()}
+                    </div>
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase ${STATUS_STYLES[overviewStats.upcomingRun.status]}`}>
+                      {overviewStats.upcomingRun.status}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Interactive Salary Runs Selector List */}
+              <div className="card overflow-hidden">
+                <div className="p-4 border-b border-base space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-base-primary">All Salary Runs ({filteredRuns.length})</h4>
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 flex items-center gap-1"
+                    >
+                      <Plus size={13} /> New Run
+                    </button>
+                  </div>
+
+                  {/* Year & Month Dropdown Selectors */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-base-muted block mb-1">
+                        Year
+                      </label>
+                      <select
+                        value={runYearFilter}
+                        onChange={e => setRunYearFilter(e.target.value)}
+                        className="w-full text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-base surface outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="All">All Years</option>
+                        {availableYears.map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-base-muted block mb-1">
+                        Month
+                      </label>
+                      <select
+                        value={runMonthFilter}
+                        onChange={e => setRunMonthFilter(e.target.value)}
+                        className="w-full text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-base surface outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {MONTH_OPTIONS.map(m => (
+                          <option key={m.value} value={m.value}>{m.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Lines table */}
-                <div className="card overflow-hidden">
-                  <div className="px-5 py-3.5 border-b border-base">
-                    <h4 className="font-semibold text-sm text-base-secondary flex items-center gap-2">
-                      <Users size={15} /> Staff Payslips ({selectedRun.lines?.length ?? 0})
-                    </h4>
+                {runsLoading ? (
+                  <div className="p-8 text-center"><Loader2 size={18} className="animate-spin text-blue-600 mx-auto" /></div>
+                ) : filteredRuns.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-base-muted">
+                    No salary runs found for selected filters ({runYearFilter} / {runMonthFilter === 'All' ? 'All Months' : runMonthFilter}).
                   </div>
-                  {(!selectedRun.lines || selectedRun.lines.length === 0) ? (
-                    <div className="py-12 text-center text-base-muted">
-                      <Users size={30} className="mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No payroll lines found</p>
-                    </div>
-                  ) : (
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="surface-2 border-b border-base">
-                          {['Staff', 'Basic', 'Allowances', 'Commission', 'Gross', 'EPF(EE)', 'Other Deductions', 'Net Pay', ''].map(h => (
-                            <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-base-muted">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {selectedRun.lines.map(line => (
-                          <tr key={line.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-4 py-3">
-                              <div className="font-semibold text-base-primary">{line.staff?.full_name}</div>
-                              <div className="text-xs text-base-muted">{line.staff?.designation}</div>
-                            </td>
-                            <td className="px-4 py-3 font-mono text-sm">LKR {Number(line.basic_salary ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-mono text-sm text-base-muted">
-                              LKR {(Number(line.transport_allow ?? 0) + Number(line.meal_allow ?? 0)).toLocaleString()}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className="font-mono text-sm">LKR {Number(line.commission_amount ?? 0).toLocaleString()}</span>
-                              {line.phones_sold > 0 && <div className="text-xs text-base-muted">{line.phones_sold} phones</div>}
-                            </td>
-                            <td className="px-4 py-3 font-bold font-mono">LKR {Number(line.gross_salary ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-mono text-sm text-amber-600">- LKR {Number(line.epf_ee ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-mono text-sm text-red-500">- LKR {Number(line.deductions ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3 font-bold font-mono text-green-700">LKR {Number(line.net_salary ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-3">
-                              <button onClick={() => downloadPayslip(line)} className="p-1.5 rounded-lg surface-2 text-base-muted hover:bg-[var(--bg-surface-2)] transition-colors" title="Download Payslip">
-                                <Download size={14} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+                ) : (
+                  <div className="divide-y divide-base max-h-96 overflow-y-auto">
+                    {filteredRuns.map(run => {
+                      const isSelected = selectedRunId === run.id;
+                      return (
+                        <button
+                          key={run.id}
+                          onClick={() => setSelectedRunId(run.id)}
+                          className={`w-full p-3.5 text-left transition-all flex items-center justify-between ${
+                            isSelected
+                              ? 'bg-blue-50/70 border-l-4 border-blue-600 dark:bg-blue-950/30'
+                              : 'hover:bg-[var(--bg-surface-2)]'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-bold text-sm text-base-primary">
+                              {run.run_month}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${STATUS_STYLES[run.status]}`}>
+                                {run.status}
+                              </span>
+                              <span className="text-xs text-base-muted font-mono">
+                                LKR {Number(run.total_net || 0).toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                          <ChevronRight size={16} className={isSelected ? 'text-blue-600' : 'text-base-muted'} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex-1 card flex items-center justify-center py-24">
-                <div className="text-center text-base-muted">
-                  <Wallet size={40} className="mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">Select a payroll run to view details</p>
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="mt-4 flex items-center gap-1.5 mx-auto px-4 py-2 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 transition-colors"
-                  >
-                    <Plus size={14} /> Create First Run
-                  </button>
-                </div>
-              </div>
-            )}
+            </div>
+
           </div>
         </div>
       )}
@@ -764,53 +1204,94 @@ export default function PayrollPage() {
       â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       {activeTab === 'slips' && (
         <div className="space-y-5">
-          {/* Run selector row */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-semibold text-gray-600 shrink-0">Run:</span>
-            {runsLoading ? (
-              <Loader2 size={16} className="animate-spin text-base-muted" />
-            ) : runs.length === 0 ? (
-              <span className="text-sm text-base-muted">No runs yet</span>
-            ) : (
-              runs.map(run => (
-                <button
-                  key={run.id}
-                  onClick={() => setSelectedRunId(run.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                    selectedRunId === run.id
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'surface text-gray-600 border-base hover:border-blue-300'
-                  }`}
+          {/* Run Selector Bar with Year & Month Dropdowns */}
+          <div className="card p-4 flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <span className="text-xs font-bold uppercase tracking-wider text-base-muted shrink-0 flex items-center gap-1.5">
+                <CalendarCheck size={16} className="text-blue-600" /> Select Run:
+              </span>
+
+              {/* Year Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-base-muted">Year:</span>
+                <select
+                  value={runYearFilter}
+                  onChange={e => setRunYearFilter(e.target.value)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-base surface outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {run.run_month}
-                </button>
-              ))
-            )}
+                  <option value="All">All Years</option>
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Month Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-base-muted">Month:</span>
+                <select
+                  value={runMonthFilter}
+                  onChange={e => setRunMonthFilter(e.target.value)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-base surface outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {MONTH_OPTIONS.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Run Selector Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-base-muted">Payroll Run:</span>
+                {runsLoading ? (
+                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                ) : filteredRuns.length === 0 ? (
+                  <span className="text-xs text-base-muted italic">No matching runs</span>
+                ) : (
+                  <select
+                    value={selectedRunId || ''}
+                    onChange={e => setSelectedRunId(e.target.value)}
+                    className="text-xs font-bold px-3 py-1.5 rounded-xl border border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    {filteredRuns.map(run => (
+                      <option key={run.id} value={run.id}>
+                        {run.run_month} — LKR {Number(run.total_net || 0).toLocaleString()} ({run.status.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
             {selectedRun && (
-              <div className="ml-auto flex gap-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider ${STATUS_STYLES[selectedRun.status]}`}>
+                  {selectedRun.status}
+                </span>
+
                 {selectedRun.status === 'draft' && (
                   <button
                     onClick={() => approveRun.mutate(selectedRun.id)}
                     disabled={approveRun.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
                   >
-                    <CheckCircle2 size={13} /> Approve Run
+                    <CheckCircle2 size={14} /> Approve Run
                   </button>
                 )}
                 {selectedRun.status === 'approved' && (
                   <button
                     onClick={() => markPaid.mutate(selectedRun.id)}
                     disabled={markPaid.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
                   >
-                    <CheckCircle2 size={13} /> Mark Paid
+                    <CheckCircle2 size={14} /> Mark Paid
                   </button>
                 )}
                 <button
                   onClick={exportCSV}
-                  className="flex items-center gap-1.5 px-3 py-1.5 border border-base text-gray-600 rounded-lg text-xs font-semibold hover:bg-[var(--bg-surface-2)] transition-colors"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 surface-2 text-base-secondary rounded-xl text-xs font-bold transition-all hover:bg-[var(--bg-surface-3)]"
                 >
-                  <Download size={13} /> Export CSV
+                  <Download size={14} /> Export CSV
                 </button>
               </div>
             )}

@@ -18,6 +18,7 @@ const CreateCustomerSchema = z.object({
   full_name_si: z.string().optional(),
   full_name_ta: z.string().optional(),
   nic_number: z.string().regex(/^[0-9]{9}[VvXx]$|^[0-9]{12}$/, 'Invalid NIC format').optional(),
+  new_nic_number: z.string().regex(/^[0-9]{9}[VvXx]$|^[0-9]{12}$/, 'Invalid NIC format').optional().nullable(),
   date_of_birth: z.string().date().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
   branch: z.enum(['army', 'navy', 'air_force']),
@@ -56,7 +57,7 @@ export default async function customerRoutes(app: FastifyInstance) {
     let query = supabase
       .from('customers')
       .select(`
-        id, full_name, nic_number, service_number, branch, rank,
+        id, full_name, nic_number, new_nic_number, service_number, branch, rank,
         phone_number, risk_level, risk_score, is_active,
         has_app_account, retirement_date, camp_id,
         regiment:regiments(id, name)
@@ -67,10 +68,12 @@ export default async function customerRoutes(app: FastifyInstance) {
 
     if (params.q) {
       query = query.or(
-        `full_name.ilike.%${params.q}%,nic_number.ilike.%${params.q}%,service_number.ilike.%${params.q}%,phone_number.ilike.%${params.q}%`
+        `full_name.ilike.%${params.q}%,nic_number.ilike.%${params.q}%,new_nic_number.ilike.%${params.q}%,service_number.ilike.%${params.q}%,phone_number.ilike.%${params.q}%`
       );
     }
-    if (params.nic) query = query.eq('nic_number', params.nic);
+    if (params.nic) {
+      query = query.or(`nic_number.eq.${params.nic},new_nic_number.eq.${params.nic}`);
+    }
     if (params.service_number) query = query.eq('service_number', params.service_number);
     if (params.branch) query = query.eq('branch', params.branch);
     if (params.camp_id) query = query.eq('camp_id', params.camp_id);
@@ -319,6 +322,7 @@ export default async function customerRoutes(app: FastifyInstance) {
       full_name_si:        z.string().optional().nullable(),
       full_name_ta:        z.string().optional().nullable(),
       nic_number:          z.string().optional().nullable(),
+      new_nic_number:      z.string().optional().nullable(),
       service_number:      z.string().optional().nullable(),
       military_id_number:  z.string().optional().nullable(),
       rank:                z.string().optional(),

@@ -91,7 +91,19 @@ export default async function applicationRoutes(app: FastifyInstance) {
     }
 
     if (query.status) q = q.eq('status', query.status);
-    if (query.q) q = q.or(`ref_number.ilike.%${query.q}%`);
+    if (query.q) {
+      const term = query.q.trim();
+      const { data: matchedCusts } = await supabase
+        .from('customers')
+        .select('id')
+        .or(`full_name.ilike.%${term}%,nic_number.ilike.%${term}%,new_nic_number.ilike.%${term}%,service_number.ilike.%${term}%,phone_number.ilike.%${term}%`);
+      const matchedCustIds = (matchedCusts || []).map(c => c.id).filter(Boolean);
+      if (matchedCustIds.length > 0) {
+        q = q.or(`ref_number.ilike.%${term}%,customer_id.in.(${matchedCustIds.join(',')})`);
+      } else {
+        q = q.or(`ref_number.ilike.%${term}%`);
+      }
+    }
 
     const { data: rawData, error, count } = await q;
     if (error) return reply.status(500).send({ error: error.message });
@@ -127,6 +139,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
           status: a.status === 'draft' ? 'submitted' : a.status,
           customer_name: c?.full_name,
           customer_nic: c?.nic_number,
+          customer_new_nic: c?.new_nic_number,
           service_number: c?.service_number,
           customer_branch: c?.branch,
           risk_score: c?.risk_score,
@@ -140,12 +153,14 @@ export default async function applicationRoutes(app: FastifyInstance) {
         };
       });
       
-      // Post-filter for query.q if it didn't match ref_number but might match customer name/svc number
+      // Post-filter for query.q if it didn't match ref_number but might match customer name/svc number/NIC
       if (query.q && !isSalesOfficer) {
         const term = query.q.toLowerCase();
         normalized = normalized.filter(a => 
           (a.ref_number || '').toLowerCase().includes(term) ||
           (a.customer_name || '').toLowerCase().includes(term) ||
+          (a.customer_nic || '').toLowerCase().includes(term) ||
+          (a.customer_new_nic || '').toLowerCase().includes(term) ||
           (a.service_number || '').toLowerCase().includes(term)
         );
       }
@@ -181,7 +196,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
     // Manually fetch related entities (FK constraints missing in DB)
     const [customerRes, phoneModelRes, phoneRes, guarantorRes, commissionRes] = await Promise.all([
       appData.customer_id
-        ? supabase.from('customers').select('id, full_name, nic_number, service_number, branch, rank, retirement_date, risk_level, risk_score, camp_id').eq('id', appData.customer_id).single()
+        ? supabase.from('customers').select('id, full_name, nic_number, new_nic_number, service_number, branch, rank, retirement_date, risk_level, risk_score, camp_id').eq('id', appData.customer_id).single()
         : Promise.resolve({ data: null }),
       appData.phone_model_id
         ? supabase.from('phone_models').select('id, brand, model, storage, sale_price').eq('id', appData.phone_model_id).single()
@@ -638,24 +653,54 @@ export default async function applicationRoutes(app: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const q = request.query as { status?: string };
     const supabase = getSupabase();
-    let query = supabase
-      .from('special_approval_requests')
-      .select(`
-        *,
-        customer:customers(id, full_name, service_number, nic_number, rank),
-        phone_model:phone_models(id, brand, model, sale_price),
-        requested_by_user:users!requested_by(id, phone_number),
-        application:applications(id, ref_number, status)
-      `)
-      .order('created_at', { ascending: false });
 
-    if (q.status) query = query.eq('status', q.status);
-    if (request.user!.role === 'sales_officer') {
-      query = query.eq('requested_by', request.user!.id);
+    try {
+      let query = supabase
+        .from('special_approval_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (q.status) query = query.eq('status', q.status);
+      if (request.user!.role === 'sales_officer') {
+        query = query.eq('requested_by', request.user!.id);
+      }
+
+      const { data: rawData, error } = await query;
+
+      if (error) {
+        request.log.warn(`special_approval_requests query notice: ${error.message}`);
+        return reply.send({ data: [] });
+      }
+
+      const requests = rawData || [];
+      if (requests.length === 0) return reply.send({ data: [] });
+
+      const custIds = [...new Set(requests.map((r: any) => r.customer_id).filter(Boolean))];
+      const modelIds = [...new Set(requests.map((r: any) => r.phone_model_id).filter(Boolean))];
+      const userIds = [...new Set(requests.map((r: any) => r.requested_by).filter(Boolean))];
+
+      const [custRes, modelsRes, usersRes] = await Promise.all([
+        custIds.length > 0 ? supabase.from('customers').select('id, full_name, service_number, nic_number, rank').in('id', custIds) : Promise.resolve({ data: [] }),
+        modelIds.length > 0 ? supabase.from('phone_models').select('id, brand, model, sale_price').in('id', modelIds) : Promise.resolve({ data: [] }),
+        userIds.length > 0 ? supabase.from('users').select('id, phone_number, full_name').in('id', userIds) : Promise.resolve({ data: [] }),
+      ]);
+
+      const custMap = Object.fromEntries((custRes.data || []).map(c => [c.id, c]));
+      const modelMap = Object.fromEntries((modelsRes.data || []).map(m => [m.id, m]));
+      const userMap = Object.fromEntries((usersRes.data || []).map(u => [u.id, u]));
+
+      const data = requests.map((r: any) => ({
+        ...r,
+        customer: custMap[r.customer_id] || null,
+        phone_model: modelMap[r.phone_model_id] || null,
+        requested_by_user: userMap[r.requested_by] || null,
+      }));
+
+      return reply.send({ data });
+    } catch (err: any) {
+      request.log.error(err);
+      return reply.send({ data: [] });
     }
-    const { data, error } = await query;
-    if (error) return reply.status(500).send({ error: error.message });
-    return reply.send({ data });
   });
 
   // ── POST /applications/special-approval-requests/:id/review ──

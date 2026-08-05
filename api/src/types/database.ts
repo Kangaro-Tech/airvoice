@@ -50,6 +50,7 @@ export interface Database {
           full_name_si: string | null;
           full_name_ta: string | null;
           nic_number: string | null;
+          new_nic_number: string | null;
           date_of_birth: string | null;
           gender: string | null;
           branch: string;
