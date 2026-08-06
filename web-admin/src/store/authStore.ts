@@ -146,6 +146,7 @@ export const useAuthStore = create<AuthState>()(
             return;
           }
 
+          localStorage.setItem('av_token', idToken);
           set({
             user:          backendUser,
             firebaseUser:  fbUser,
@@ -167,6 +168,10 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await api.post('/auth/login-email', { email, password });
           const { data: backendUser, token } = response.data as { data: StaffUser; token: string };
+
+          if (token) {
+            localStorage.setItem('av_token', token);
+          }
 
           set({
             user:        backendUser,
@@ -208,6 +213,7 @@ export const useAuthStore = create<AuthState>()(
         if (loginMethod === 'phone') {
           await signOut(firebaseAuth);
         }
+        localStorage.removeItem('av_token');
         set({
           user: null, firebaseUser: null,
           idToken: null, emailToken: null,

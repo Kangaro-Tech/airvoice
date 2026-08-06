@@ -67,13 +67,14 @@ function renderMarkdown(text: string) {
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || '',
+  timeout: 60_000,
+})
+
 export default function App() {
   // Auth state
   const [user, setUser] = useState<{name: string, role: string} | null>(null)
-  const [loginEmail, setLoginEmail] = useState('')
-  const [loginPassword, setLoginPassword] = useState('')
-  const [loginError, setLoginError] = useState('')
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -87,6 +88,54 @@ export default function App() {
   // Translation state
   const [language, setLanguage] = useState('en')
   const translationCache = useRef<Record<string, string>>({})
+
+  const parseStoredAuth = (raw: string | null) => {
+    if (!raw) return null
+    try {
+      const parsed = JSON.parse(raw)
+      const state = parsed.state ?? parsed
+      return state.emailToken || state.idToken || null
+    } catch {
+      return null
+    }
+  }
+
+  const getStoredToken = () => {
+    const token = parseStoredAuth(localStorage.getItem('airvoice-auth')) || localStorage.getItem('av_token')
+    if (token) return token
+
+    try {
+      const parentRaw = window.parent?.sessionStorage?.getItem('airvoice-auth')
+      return parseStoredAuth(parentRaw)
+    } catch {
+      return null
+    }
+  }
+
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = getStoredToken()
+      if (!token) {
+        return
+      }
+
+      try {
+        const response = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        const userData = response.data?.data
+        if (userData?.role) {
+          setUser({ name: userData.full_name || userData.email || 'Staff Member', role: userData.role })
+          localStorage.setItem('av_token', token)
+        }
+      } catch (err) {
+        console.warn('Help Center session restore failed', err)
+      }
+    }
+
+    restoreSession()
+  }, [])
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -169,53 +218,29 @@ export default function App() {
     return () => observer.disconnect()
   }, [language])
 
-  // Auto-login from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('hc_user')
-    if (saved) setUser(JSON.parse(saved))
-  }, [])
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoggingIn(true)
-    setLoginError('')
-    try {
-      const { data } = await axios.post('/auth/login-email', { email: loginEmail, password: loginPassword })
-      
-      // /auth/login-email returns { data: { id, role, full_name... }, token }
-      const userData = data.data;
-      
-      // Check role (allow all staff roles)
-      const allowedRoles = [
-        'admin', 'super_admin', 'system-operator', 'system_operator', 
-        'camp_officer', 'finance_officer', 'accountant', 
-        'sales_officer', 'recovery_officer', 'inventory_manager'
-      ];
-      if (!allowedRoles.includes(userData.role)) {
-        setLoginError('Access denied: Staff only')
-        setIsLoggingIn(false)
+    const restoreSession = async () => {
+      const token = getStoredToken()
+      if (!token) {
         return
       }
 
-      const fullName = userData.full_name || 'Staff Member';
+      try {
+        const response = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
 
-      const userObj = { role: userData.role, name: fullName }
-      setUser(userObj)
-      localStorage.setItem('hc_user', JSON.stringify(userObj))
-      
-    } catch (err: any) {
-      console.error("Login Error:", err);
-      setLoginError(err.response?.data?.error || err.message || 'Login failed. Check connection.')
-    } finally {
-      setIsLoggingIn(false)
+        const userData = response.data?.data
+        if (userData?.role) {
+          setUser({ name: userData.full_name || userData.email || 'Staff Member', role: userData.role })
+        }
+      } catch (err) {
+        console.warn('Help Center session restore failed', err)
+      }
     }
-  }
 
-  const handleLogout = () => {
-    setUser(null)
-    localStorage.removeItem('hc_user')
-    setMessages([])
-  }
+    restoreSession()
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -241,7 +266,7 @@ export default function App() {
 
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
-      const { data } = await axios.post(`${import.meta.env.VITE_API_URL}/chat/`, { message: trimmed, history })
+      const { data } = await api.post('/chat/', { message: trimmed, history })
       setMessages(prev => [...prev, {
         id: uid(), role: 'assistant', content: data.reply, timestamp: new Date()
       }])
@@ -279,52 +304,6 @@ export default function App() {
     ? FAQ_TOPICS
     : FAQ_TOPICS.filter(t => t.label === category)
 
-  if (!user) {
-    return (
-      <div className="login-screen">
-        <div className="ambient-bg">
-          <div className="orb orb-1"></div>
-          <div className="orb orb-2"></div>
-          <div className="orb orb-3"></div>
-        </div>
-        
-        <div className="login-card">
-          <div className="login-header slide-up" style={{animationDelay: '0.1s'}}>
-            <div className="login-icon"><IoShieldCheckmarkOutline size={34} /></div>
-            <h2>Staff Access</h2>
-            <p>AirVoice Help Center Login</p>
-          </div>
-          <form onSubmit={handleLogin} className="login-form slide-up" style={{animationDelay: '0.2s'}}>
-            <div className="input-group">
-              <label>Email Address</label>
-              <input 
-                type="email" 
-                placeholder="staff@airvoice.lk" 
-                value={loginEmail} 
-                onChange={e => setLoginEmail(e.target.value)} 
-                required 
-              />
-            </div>
-            <div className="input-group">
-              <label>Password</label>
-              <input 
-                type="password" 
-                placeholder="••••••••" 
-                value={loginPassword} 
-                onChange={e => setLoginPassword(e.target.value)} 
-                required 
-              />
-            </div>
-            {loginError && <div className="login-error"><IoAlertCircleOutline size={16}/> {loginError}</div>}
-            <button type="submit" className="login-btn" disabled={isLoggingIn}>
-              {isLoggingIn ? 'Verifying...' : 'Login to Help Center'}
-            </button>
-          </form>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="app">
       {/* ── Header ── */}
@@ -338,7 +317,7 @@ export default function App() {
           </div>
           <div className="header-title">
             <h1>{import.meta.env.VITE_APP_NAME ?? 'AirVoice Help Center'}</h1>
-            <p>Welcome, {user.name} ({user.role})</p>
+            {user ? <p>Welcome, {user.name} ({user.role})</p> : <p>Welcome to AirVoice Help Center</p>}
           </div>
         </div>
         <div className="header-right">
@@ -364,9 +343,11 @@ export default function App() {
             <IoSparkles size={13} />
             <span>GPT-4o Powered</span>
           </div>
-          <button className="logout-btn" onClick={handleLogout} title="Logout">
-            Logout
-          </button>
+          {user && (
+            <button className="logout-btn" onClick={handleLogout} title="Logout">
+              Logout
+            </button>
+          )}
         </div>
       </header>
 

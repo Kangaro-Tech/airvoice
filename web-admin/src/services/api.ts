@@ -14,11 +14,13 @@ api.interceptors.request.use(async (config) => {
       const token = await firebaseUser.getIdToken();
       config.headers.Authorization = `Bearer ${token}`;
       useAuthStore.setState({ idToken: token });
+      localStorage.setItem('av_token', token);
     } catch { /* use cached token */ }
   } else {
     const token = getActiveToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      localStorage.setItem('av_token', token);
     }
   }
   return config;
