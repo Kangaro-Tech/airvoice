@@ -204,7 +204,7 @@ export default async function payrollRoutes(app: FastifyInstance) {
   });
 
   // ── POST /payroll/staff/:id/upload-photo ─── Upload staff profile photo
-  app.post('/staff/:id/upload-photo', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
+  app.post('/payroll/staff/:id/upload-photo', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator', 'finance_officer')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
     const sb = getSupabase();
 
