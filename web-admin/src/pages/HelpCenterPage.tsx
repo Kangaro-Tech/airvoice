@@ -11,6 +11,13 @@ export default function HelpCenterPage() {
   const [loading, setLoading] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  const sendAuthToken = () => {
+    const token = localStorage.getItem('av_token');
+    if (token && iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'AUTH_TOKEN', token }, '*');
+    }
+  }
+
   useEffect(() => {
     const handleLanguageChange = (e: Event) => {
       const customEvent = e as CustomEvent;
@@ -20,16 +27,27 @@ export default function HelpCenterPage() {
       }
     };
 
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'HELP_CENTER_READY') {
+        sendAuthToken();
+      }
+    };
+
     window.addEventListener('languageChange', handleLanguageChange);
-    return () => window.removeEventListener('languageChange', handleLanguageChange);
+    window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('languageChange', handleLanguageChange);
+      window.removeEventListener('message', handleMessage);
+    };
   }, []);
 
   const handleIframeLoad = () => {
     setLoading(false);
-    // Send initial language to iframe
     const lang = localStorage.getItem('app-language') || 'en';
     if (iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'LANGUAGE_CHANGE', language: lang }, '*');
+      sendAuthToken();
+      setTimeout(sendAuthToken, 250);
     }
   };
 

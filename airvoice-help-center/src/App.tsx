@@ -55,6 +55,13 @@ function formatTime(d: Date) {
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+const formatDisplayName = (fullName: string) => {
+  const parts = fullName.trim().split(/\s+/)
+  if (parts.length === 0) return 'Staff Member'
+  if (parts.length === 1) return parts[0]
+  return `${parts[0]} ${parts[parts.length - 1]}`
+}
+
 function renderMarkdown(text: string) {
   return text
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -101,49 +108,69 @@ export default function App() {
   }
 
   const getStoredToken = () => {
-    const token = parseStoredAuth(localStorage.getItem('airvoice-auth')) || localStorage.getItem('av_token')
+    const token = localStorage.getItem('av_token')
+      || parseStoredAuth(localStorage.getItem('airvoice-auth'))
+      || parseStoredAuth(sessionStorage.getItem('airvoice-auth'))
     if (token) return token
 
     try {
       const parentRaw = window.parent?.sessionStorage?.getItem('airvoice-auth')
-      return parseStoredAuth(parentRaw)
+      const parentToken = parseStoredAuth(parentRaw)
+        || window.parent?.localStorage?.getItem('av_token')
+        || parseStoredAuth(window.parent?.localStorage?.getItem('airvoice-auth'))
+      return parentToken || null
     } catch {
       return null
     }
   }
 
-  useEffect(() => {
-    const restoreSession = async () => {
-      const token = getStoredToken()
-      if (!token) {
-        return
-      }
-
-      try {
-        const response = await api.get('/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        const userData = response.data?.data
-        if (userData?.role) {
-          setUser({ name: userData.full_name || userData.email || 'Staff Member', role: userData.role })
-          localStorage.setItem('av_token', token)
-        }
-      } catch (err) {
-        console.warn('Help Center session restore failed', err)
-      }
+  const restoreSession = async (token?: string | null) => {
+    const authToken = token || getStoredToken()
+    if (!authToken) {
+      return
     }
 
+    api.defaults.headers.common.Authorization = `Bearer ${authToken}`
+
+    try {
+      const response = await api.get('/auth/me')
+
+      const userData = response.data?.data
+      if (!userData) return
+
+      const name =
+        userData.staff?.full_name
+        || userData.full_name
+        || [userData.first_name, userData.last_name].filter(Boolean).join(' ')
+        || userData.email
+        || 'Staff Member'
+
+      const role = userData.role || userData.user_role || 'Staff'
+
+      setUser({ name, role })
+      localStorage.setItem('av_token', authToken)
+    } catch (err) {
+      console.warn('Help Center session restore failed', err)
+    }
+  }
+
+  useEffect(() => {
     restoreSession()
   }, [])
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      if (e.data && e.data.type === 'LANGUAGE_CHANGE') {
+      if (!e.data) return
+      if (e.data.type === 'LANGUAGE_CHANGE') {
         setLanguage(e.data.language)
+      }
+      if (e.data.type === 'AUTH_TOKEN' && typeof e.data.token === 'string') {
+        localStorage.setItem('av_token', e.data.token)
+        restoreSession(e.data.token)
       }
     }
     window.addEventListener('message', handleMessage)
+    window.parent?.postMessage?.({ type: 'HELP_CENTER_READY' }, '*')
     return () => window.removeEventListener('message', handleMessage)
   }, [])
 
@@ -217,30 +244,6 @@ export default function App() {
 
     return () => observer.disconnect()
   }, [language])
-
-  useEffect(() => {
-    const restoreSession = async () => {
-      const token = getStoredToken()
-      if (!token) {
-        return
-      }
-
-      try {
-        const response = await api.get('/auth/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-
-        const userData = response.data?.data
-        if (userData?.role) {
-          setUser({ name: userData.full_name || userData.email || 'Staff Member', role: userData.role })
-        }
-      } catch (err) {
-        console.warn('Help Center session restore failed', err)
-      }
-    }
-
-    restoreSession()
-  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -403,7 +406,9 @@ export default function App() {
                 <div className="welcome-orb">
                   <MdSupportAgent size={48} />
                 </div>
-                <h2>Hello! How can I help you?</h2>
+                <h2>
+                  Hello{user?.name ? `, ${formatDisplayName(user.name)}` : ''}! How can I help you?
+                </h2>
                 <p>
                   I'm your AirVoice AI assistant. Ask me anything about deduction uploads,
                   phone sales, camps, attendance, or any other system feature.
