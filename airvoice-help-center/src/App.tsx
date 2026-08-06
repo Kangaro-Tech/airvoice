@@ -343,11 +343,6 @@ export default function App() {
             <IoSparkles size={13} />
             <span>GPT-4o Powered</span>
           </div>
-          {user && (
-            <button className="logout-btn" onClick={handleLogout} title="Logout">
-              Logout
-            </button>
-          )}
         </div>
       </header>
 
