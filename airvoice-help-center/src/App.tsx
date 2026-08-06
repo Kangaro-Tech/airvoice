@@ -191,7 +191,7 @@ export default function App() {
             translationCache.current[cacheKey] = decoded
             node.textContent = decoded
           }
-        } catch {
+        } catch (err) {
           // ignore
         }
         return
