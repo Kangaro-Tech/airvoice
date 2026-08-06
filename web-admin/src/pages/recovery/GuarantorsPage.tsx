@@ -462,7 +462,7 @@ export default function GuarantorsPage() {
                 </thead>
                 <tbody className="divide-y divide-base">
                   {filteredGuarantors.map(g => {
-                    const activeReq = g.guarantor_requests?.find(r => r.status === 'accepted');
+                    const activeReq = g.guarantor_requests?.find(r => r.status === 'accepted') ?? g.guarantor_requests?.[0];
                     const hasApp = activeReq?.application;
                     const custName = activeReq?.application?.customer?.full_name ?? '—';
                     const custService = activeReq?.application?.customer?.service_number ?? '';

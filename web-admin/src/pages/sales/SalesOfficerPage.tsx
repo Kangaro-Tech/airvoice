@@ -574,7 +574,7 @@ export default function SalesOfficerPage() {
             <TrendingUp size={28} className="text-[#2563ea]" /> Sales Officer View
           </h1>
           <p className="text-sm text-base-muted mt-0.5">
-            {totalSold} phones sold · LKR {totalPayable.toLocaleString()} commission payable
+            {`${totalSold} phones sold`} · {`LKR ${totalPayable.toLocaleString()} commission payable`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -667,8 +667,8 @@ export default function SalesOfficerPage() {
               <Percent size={16} className="text-green-500" /> Commission Rules
             </h3>
             <div className="text-xs text-gray-600 space-y-2 leading-relaxed">
-              <p>📍 Standard Commission: <strong>LKR 250</strong> per successful phone registration.</p>
-              <p>📍 Commission releases automatically only after the <strong>first monthly deduction</strong> is processed successfully.</p>
+              <p>{'📍 Standard Commission: '}<strong>LKR 250</strong>{' per successful phone registration.'}</p>
+              <p>{'📍 Commission releases automatically only after the '}<strong>first monthly deduction</strong>{' is processed successfully.'}</p>
               <p>📍 Refrain from submitting applications for customers with low credit ratings or retiring soon.</p>
             </div>
           </div>

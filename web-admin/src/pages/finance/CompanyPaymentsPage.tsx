@@ -184,7 +184,7 @@ export default function CompanyPaymentsPage() {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-5 text-white">
         <div className="text-xs font-semibold uppercase tracking-wide opacity-75 mb-1">Total Outstanding</div>
         <div className="text-3xl font-bold">LKR {totalOutstanding.toLocaleString()}</div>
-        <div className="text-sm opacity-75 mt-1">Across {summary.filter((c: any) => c.outstanding > 0).length} customers</div>
+        <div className="text-sm opacity-75 mt-1">{`Across ${summary.filter((c: any) => c.outstanding > 0).length} customers`}</div>
       </div>
 
       {/* Filter + Table */}

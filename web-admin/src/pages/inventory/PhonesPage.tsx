@@ -365,7 +365,7 @@ export default function PhonesPage() {
             <Phone size={28} className="text-[#2563ea]" /> Phone Catalogue
           </h1>
           <p className="text-sm text-base-muted mt-0.5">
-            {models.length} device configurations — tap <strong>View Details</strong> to see specs & upload images
+            {`${models.length} device configurations — tap `}<strong>View Details</strong>{` to see specs & upload images`}
           </p>
         </div>
         {compareList.length > 0 && (
