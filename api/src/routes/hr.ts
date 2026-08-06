@@ -180,7 +180,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   });
 
   // POST /hr/leaves/balances
-  app.post('/leaves/balances', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin')] }, async (req: FastifyRequest, reply) => {
+  app.post('/leaves/balances', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req, reply) => {
     const body = z.object({
       staff_id: z.string().uuid(),
       year: z.number().int(),
