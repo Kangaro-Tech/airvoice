@@ -25,13 +25,13 @@ interface Notification {
 // ── Type meta ──────────────────────────────────────────────────────────────
 
 const TYPE_META: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
-  application_status: { label: 'Application',     icon: FileText,       color: '#2563eb', bg: '#eff6ff' },
-  payment_due:        { label: 'Payment',          icon: CreditCard,     color: '#d97706', bg: '#fffbeb' },
-  guarantor_request:  { label: 'Guarantor',        icon: Users,          color: '#7c3aed', bg: '#f5f3ff' },
-  guarantor_response: { label: 'Guarantor',        icon: Shield,         color: '#7c3aed', bg: '#f5f3ff' },
-  recovery_alert:     { label: 'Recovery',         icon: AlertTriangle,  color: '#dc2626', bg: '#fef2f2' },
-  stock_alert:        { label: 'Stock',            icon: RefreshCw,      color: '#16a34a', bg: '#f0fdf4' },
-  system:             { label: 'System',           icon: Megaphone,      color: '#475569', bg: '#f8fafc' },
+  application_status: { label: 'Application', icon: FileText, color: '#2563eb', bg: '#eff6ff' },
+  payment_due: { label: 'Payment', icon: CreditCard, color: '#d97706', bg: '#fffbeb' },
+  guarantor_request: { label: 'Guarantor', icon: Users, color: '#7c3aed', bg: '#f5f3ff' },
+  guarantor_response: { label: 'Guarantor', icon: Shield, color: '#7c3aed', bg: '#f5f3ff' },
+  recovery_alert: { label: 'Recovery', icon: AlertTriangle, color: '#dc2626', bg: '#fef2f2' },
+  stock_alert: { label: 'Stock', icon: RefreshCw, color: '#16a34a', bg: '#f0fdf4' },
+  system: { label: 'System', icon: Megaphone, color: '#475569', bg: '#f8fafc' },
 };
 
 function getMeta(type: string) {
@@ -41,23 +41,23 @@ function getMeta(type: string) {
 // ── Date grouping ──────────────────────────────────────────────────────────
 
 function groupByDate(notifications: Notification[]) {
-  const today     = new Date(); today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
   const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const weekAgo   = new Date(today); weekAgo.setDate(today.getDate() - 7);
+  const weekAgo = new Date(today); weekAgo.setDate(today.getDate() - 7);
 
   const groups: { label: string; items: Notification[] }[] = [
-    { label: 'Today',     items: [] },
+    { label: 'Today', items: [] },
     { label: 'Yesterday', items: [] },
     { label: 'This Week', items: [] },
-    { label: 'Older',     items: [] },
+    { label: 'Older', items: [] },
   ];
 
   for (const n of notifications) {
-    const d = new Date(n.created_at); d.setHours(0,0,0,0);
-    if (d >= today)      groups[0].items.push(n);
+    const d = new Date(n.created_at); d.setHours(0, 0, 0, 0);
+    if (d >= today) groups[0].items.push(n);
     else if (d >= yesterday) groups[1].items.push(n);
-    else if (d >= weekAgo)   groups[2].items.push(n);
-    else                     groups[3].items.push(n);
+    else if (d >= weekAgo) groups[2].items.push(n);
+    else groups[3].items.push(n);
   }
   return groups.filter(g => g.items.length > 0);
 }
@@ -67,22 +67,22 @@ function groupByDate(notifications: Notification[]) {
 function relTime(date: string) {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1)  return 'Just now';
+  if (mins < 1) return 'Just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24)  return `${hrs}h ago`;
+  if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
 // ── Filter options ─────────────────────────────────────────────────────────
 
 const FILTER_OPTIONS = [
-  { key: 'all',               label: 'All' },
-  { key: 'unread',            label: 'Unread' },
-  { key: 'application_status',label: 'Applications' },
-  { key: 'payment_due',       label: 'Payments' },
+  { key: 'all', label: 'All' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'application_status', label: 'Applications' },
+  { key: 'payment_due', label: 'Payments' },
   { key: 'guarantor_request', label: 'Guarantors' },
-  { key: 'recovery_alert',    label: 'Recovery' },
+  { key: 'recovery_alert', label: 'Recovery' },
 ];
 
 // ── Main Page ──────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ export default function NotificationsPage() {
 
   // ── Filtered list ──────────────────────────────────────────────────────
   const filtered = all.filter(n => {
-    if (typeFilter === 'all')    return true;
+    if (typeFilter === 'all') return true;
     if (typeFilter === 'unread') return !n.read_at;
     return n.type === typeFilter || n.type.startsWith(typeFilter.replace('_request', ''));
   });
@@ -164,8 +164,8 @@ export default function NotificationsPage() {
                 )}
               </div>
               <p className="text-blue-200 text-sm">
-                {all.length} total &nbsp;·&nbsp;
-                <span className="text-blue-100 font-semibold">{unread} unread</span>
+                {`${all.length} total`} &nbsp;·&nbsp;
+                <span className="text-blue-100 font-semibold">{`${unread} unread`}</span>
                 &nbsp;·&nbsp; auto-refreshes every 15s
               </p>
             </div>
@@ -200,24 +200,22 @@ export default function NotificationsPage() {
         <div className="max-w-3xl mx-auto px-6 py-3 flex items-center gap-2 overflow-x-auto">
           <Filter size={14} className="text-base-muted shrink-0" />
           {FILTER_OPTIONS.map(opt => {
-            const count = opt.key === 'all'    ? all.length
-                        : opt.key === 'unread' ? unread
-                        : all.filter(n => n.type === opt.key || n.type.startsWith(opt.key.replace('_request',''))).length;
+            const count = opt.key === 'all' ? all.length
+              : opt.key === 'unread' ? unread
+                : all.filter(n => n.type === opt.key || n.type.startsWith(opt.key.replace('_request', ''))).length;
             return (
               <button
                 key={opt.key}
                 onClick={() => setTypeFilter(opt.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                  typeFilter === opt.key
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${typeFilter === opt.key
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'surface-2 text-gray-600 hover:bg-[var(--bg-surface-3)]'
-                }`}
+                  }`}
               >
                 {opt.label}
                 {count > 0 && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${
-                    typeFilter === opt.key ? 'bg-white/20 text-white' : 'surface-3 text-base-muted'
-                  }`}>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${typeFilter === opt.key ? 'bg-white/20 text-white' : 'surface-3 text-base-muted'
+                    }`}>
                     {count}
                   </span>
                 )}
@@ -273,11 +271,10 @@ export default function NotificationsPage() {
                           navigate(n.action_url);
                         }
                       }}
-                      className={`group relative flex gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${
-                        isUnread
+                      className={`group relative flex gap-4 p-4 rounded-2xl border transition-all cursor-pointer ${isUnread
                           ? 'surface border-blue-200 dark:border-blue-800 shadow-sm hover:border-blue-300 hover:shadow-md'
                           : 'bg-white/70 border-base hover:bg-[var(--bg-surface)] hover:border-[var(--border-color)]'
-                      } ${isDeleting ? 'opacity-40 scale-95' : ''}`}
+                        } ${isDeleting ? 'opacity-40 scale-95' : ''}`}
                     >
                       {/* Unread left accent */}
                       {isUnread && (

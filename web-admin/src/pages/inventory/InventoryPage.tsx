@@ -925,7 +925,7 @@ export default function InventoryPage() {
             <Package size={28} className="text-[#2563ea]" /> Device Inventory
           </h1>
           <p className="text-sm text-base-muted mt-0.5">
-            {totalUnits} units in stock · LKR {totalValue.toLocaleString()} total value
+            {`${totalUnits.toLocaleString()} units in stock`} · {`LKR ${totalValue.toLocaleString()} total value`}
             {lowStock.length > 0 && (
               <span className="ml-2 text-blue-600 dark:text-blue-400 font-semibold">⚠ {lowStock.length} models low stock</span>
             )}
@@ -1040,7 +1040,7 @@ export default function InventoryPage() {
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-base-muted">Sold</div>
-                      <div className="font-semibold text-gray-600">{m.sold} units</div>
+                      <div className="font-semibold text-gray-600">{`${(m.sold || 0).toLocaleString()} units`}</div>
                     </div>
                   </div>
                   {/* Edit / Delete actions */}

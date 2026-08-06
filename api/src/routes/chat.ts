@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const sb = createClient(
   process.env.SUPABASE_URL!,
@@ -116,6 +115,11 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
   // ── Chat Completion ────────────────────────────────────────────────────────
   app.post('/', async (req, reply) => {
     try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return reply.status(503).send({ success: false, error: 'OpenAI API key is not configured on the server.' });
+      }
+      const openai = new OpenAI({ apiKey });
       const { message, history } = chatSchema.parse(req.body);
 
       // Fetch live Supabase context for richer answers

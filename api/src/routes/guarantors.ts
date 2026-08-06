@@ -70,124 +70,157 @@ async function sendGuarantorFCMNotification(
 export default async function guarantorRoutes(app: FastifyInstance) {
 
   // ── GET / ──────────────────────────────────────────────────
-  // List all guarantors
+  // List all guarantors (optimized with parallel batch fetching)
   app.get('/', { preHandler: [authenticate, requireStaff] },
   async (req: FastifyRequest, reply: FastifyReply) => {
     const sb = getSupabase();
-    const { data, error } = await sb.from('guarantors')
+    const { data: guarantors, error } = await sb.from('guarantors')
       .select('*')
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
 
     if (error) return reply.status(500).send({ error: error.message });
 
-    const dataWithJoins = data ? [...data] : [];
-    if (dataWithJoins.length > 0) {
-      const guarantorIds = dataWithJoins.map(g => g.id);
-      const campIds = [...new Set(dataWithJoins.map(g => g.camp_id).filter(Boolean))];
-
-      // Fetch guarantor_requests in chunks to prevent 400 URI Too Long
-      const requests: any[] = [];
-      for (let i = 0; i < guarantorIds.length; i += 500) {
-        const chunk = guarantorIds.slice(i, i + 500);
-        const { data } = await sb.from('guarantor_requests').select('id, status, application_id, guarantor_id').in('guarantor_id', chunk);
-        if (data) requests.push(...data);
-      }
-
-      const [campsRes] = await Promise.all([
-        campIds.length > 0 ? sb.from('camps').select('id, name').in('id', campIds) : Promise.resolve({ data: [] }),
-      ]);
-
-      const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c]));
-      
-      let appMap: any = {};
-      let customerMap: any = {};
-      
-      if (requests.length > 0) {
-        const appIds = [...new Set(requests.map((r: any) => r.application_id).filter(Boolean))];
-        if (appIds.length > 0) {
-          const appsData: any[] = [];
-          for (let i = 0; i < appIds.length; i += 500) {
-             const { data } = await sb.from('applications').select('id, ref_number, status, customer_id').in('id', appIds.slice(i, i + 500));
-             if (data) appsData.push(...data);
-          }
-          appMap = Object.fromEntries(appsData.map((a: any) => [a.id, a]));
-          
-          const customerIds = [...new Set(appsData.map((a: any) => a.customer_id).filter(Boolean))];
-          if (customerIds.length > 0) {
-             const custs: any[] = [];
-             for (let i = 0; i < customerIds.length; i += 500) {
-                const { data } = await sb.from('customers').select('id, full_name, service_number, risk_score').in('id', customerIds.slice(i, i + 500));
-                if (data) custs.push(...data);
-             }
-             customerMap = Object.fromEntries(custs.map((c: any) => [c.id, c]));
-          }
-        }
-      }
-
-      // Legacy applications where guarantor_id is set directly (bypassing requests)
-      const legacyAppsData: any[] = [];
-      for (let i = 0; i < guarantorIds.length; i += 500) {
-        const chunk = guarantorIds.slice(i, i + 500);
-        const { data: legacyApps } = await sb.from('applications')
-          .select('id, ref_number, status, customer_id, guarantor_id')
-          .in('guarantor_id', chunk);
-        if (legacyApps) legacyAppsData.push(...legacyApps);
-      }
-      
-      const legacyCustIds = [...new Set(legacyAppsData.map((a: any) => a.customer_id).filter(Boolean))];
-      if (legacyCustIds.length > 0) {
-        for (let i = 0; i < legacyCustIds.length; i += 500) {
-          const { data: lCusts } = await sb.from('customers').select('id, full_name, service_number, risk_score').in('id', legacyCustIds.slice(i, i + 500));
-          (lCusts || []).forEach((c: any) => customerMap[c.id] = c);
-        }
-      }
-      
-      const reqsByGuarantor = requests.reduce((acc: any, req: any) => {
-        const app = appMap[req.application_id];
-        const cust = app ? customerMap[app.customer_id] : null;
-        
-        const mappedReq = {
-          id: req.id,
-          status: req.status,
-          application: app ? {
-            id: app.id,
-            ref_number: app.ref_number,
-            status: app.status,
-            customer: cust || null
-          } : null
-        };
-        
-        acc[req.guarantor_id] = acc[req.guarantor_id] || [];
-        acc[req.guarantor_id].push(mappedReq);
-        return acc;
-      }, {});
-
-      // Add dummy accepted requests for legacy applications so the UI renders them identically
-      legacyAppsData.forEach(app => {
-        if (!app.guarantor_id) return;
-        reqsByGuarantor[app.guarantor_id] = reqsByGuarantor[app.guarantor_id] || [];
-        // Only push if not already mapped via requests
-        if (!reqsByGuarantor[app.guarantor_id].some((r: any) => r.application?.id === app.id)) {
-          reqsByGuarantor[app.guarantor_id].push({
-            id: `legacy-${app.id}`,
-            status: 'accepted',
-            application: {
-              id: app.id,
-              ref_number: app.ref_number,
-              status: app.status,
-              customer: customerMap[app.customer_id] || null
-            }
-          });
-        }
-      });
-
-      dataWithJoins.forEach(g => {
-        g.camp = campMap[g.camp_id] || null;
-        g.guarantor_requests = reqsByGuarantor[g.id] || [];
-      });
+    const guarantorsList = guarantors ? [...guarantors] : [];
+    if (guarantorsList.length === 0) {
+      return reply.send({ data: [] });
     }
 
-    return reply.send({ data: dataWithJoins });
+    const gIds = guarantorsList.map(g => g.id).filter(Boolean);
+    const gCustIds = guarantorsList.map(g => g.customer_id).filter(Boolean);
+    const campIds = [...new Set(guarantorsList.map(g => g.camp_id).filter(Boolean))];
+
+    // Batch fetch Camps, Guarantor Requests, and Legacy Applications in PARALLEL
+    const [campsRes, requestsRes, legacyAppsRes] = await Promise.all([
+      campIds.length > 0
+        ? sb.from('camps').select('id, name').in('id', campIds)
+        : Promise.resolve({ data: [] }),
+      sb.from('guarantor_requests')
+        .select('id, status, application_id, guarantor_id, guarantor_customer_id, requester_id'),
+      sb.from('applications')
+        .select('id, ref_number, status, customer_id, guarantor_id')
+        .not('guarantor_id', 'is', null),
+    ]);
+
+    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, c]));
+    const allRequests = requestsRes.data || [];
+    const legacyApps = legacyAppsRes.data || [];
+
+    // Filter relevant requests matching our guarantors (by guarantor_id or guarantor_customer_id)
+    const gIdSet = new Set(gIds);
+    const gCustIdSet = new Set(gCustIds);
+
+    const relevantReqs = allRequests.filter((r: any) =>
+      (r.guarantor_id && gIdSet.has(r.guarantor_id)) ||
+      (r.guarantor_customer_id && gCustIdSet.has(r.guarantor_customer_id))
+    );
+
+    const relevantLegacyApps = legacyApps.filter((a: any) =>
+      a.guarantor_id && gIdSet.has(a.guarantor_id)
+    );
+
+    // Collect Application IDs & Customer IDs to fetch in a single parallel batch
+    const appIds = [...new Set([
+      ...relevantReqs.map((r: any) => r.application_id),
+      ...relevantLegacyApps.map((a: any) => a.id)
+    ].filter(Boolean))];
+
+    const customerIdsToFetch = [...new Set([
+      ...relevantReqs.map((r: any) => r.requester_id),
+      ...relevantLegacyApps.map((a: any) => a.customer_id)
+    ].filter(Boolean))];
+
+    const [appsRes, custsRes] = await Promise.all([
+      appIds.length > 0
+        ? sb.from('applications').select('id, ref_number, status, customer_id').in('id', appIds)
+        : Promise.resolve({ data: [] }),
+      customerIdsToFetch.length > 0
+        ? sb.from('customers').select('id, full_name, service_number, risk_score, phone_number').in('id', customerIdsToFetch)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const appMap = Object.fromEntries((appsRes.data || []).map((a: any) => [a.id, a]));
+
+    // Check if any applications have customer_ids not yet in customerIdsToFetch
+    const appCustIds = [...new Set((appsRes.data || []).map((a: any) => a.customer_id).filter(Boolean))];
+    const missingCustIds = appCustIds.filter(id => !customerIdsToFetch.includes(id));
+
+    let addCusts: any[] = [];
+    if (missingCustIds.length > 0) {
+      const { data: addData } = await sb.from('customers').select('id, full_name, service_number, risk_score, phone_number').in('id', missingCustIds);
+      addCusts = addData || [];
+    }
+
+    const allCustomers = [...(custsRes.data || []), ...addCusts];
+    const customerMap = Object.fromEntries(allCustomers.map((c: any) => [c.id, c]));
+
+    // Organize requests by guarantor ID & guarantor customer ID
+    const reqsByGuarantor: Record<string, any[]> = {};
+
+    const pushReq = (key: string, reqObj: any) => {
+      if (!key) return;
+      reqsByGuarantor[key] = reqsByGuarantor[key] || [];
+      if (!reqsByGuarantor[key].some(r => r.id === reqObj.id)) {
+        reqsByGuarantor[key].push(reqObj);
+      }
+    };
+
+    relevantReqs.forEach((req: any) => {
+      const app = appMap[req.application_id];
+      const custId = app?.customer_id || req.requester_id;
+      const cust = custId ? customerMap[custId] : null;
+
+      const mappedReq = {
+        id: req.id,
+        status: req.status,
+        application: app ? {
+          id: app.id,
+          ref_number: app.ref_number,
+          status: app.status,
+          customer: cust || null
+        } : (req.requester_id && customerMap[req.requester_id] ? {
+          id: req.application_id || req.id,
+          ref_number: '—',
+          status: req.status,
+          customer: customerMap[req.requester_id]
+        } : null)
+      };
+
+      if (req.guarantor_id) pushReq(req.guarantor_id, mappedReq);
+      if (req.guarantor_customer_id) pushReq(req.guarantor_customer_id, mappedReq);
+    });
+
+    relevantLegacyApps.forEach((app: any) => {
+      if (!app.guarantor_id) return;
+      const cust = app.customer_id ? customerMap[app.customer_id] : null;
+      const legacyReqObj = {
+        id: `legacy-${app.id}`,
+        status: 'accepted',
+        application: {
+          id: app.id,
+          ref_number: app.ref_number,
+          status: app.status,
+          customer: cust || null
+        }
+      };
+      pushReq(app.guarantor_id, legacyReqObj);
+    });
+
+    // Attach camp and guarantor_requests to each guarantor
+    guarantorsList.forEach(g => {
+      g.camp = campMap[g.camp_id] || null;
+      const r1 = reqsByGuarantor[g.id] || [];
+      const r2 = reqsByGuarantor[g.customer_id] || [];
+      const combined = [...r1];
+      r2.forEach(r => {
+        if (!combined.some(c => c.id === r.id)) {
+          combined.push(r);
+        }
+      });
+      g.guarantor_requests = combined;
+    });
+
+    return reply.send({ data: guarantorsList });
   });
 
   // ── POST / ──────────────────────────────────────────────────

@@ -315,25 +315,25 @@ if (loadingSummary) return <div className="p-6 text-base-primary text-sm">Loadin
             <div className="p-5 surface rounded-xl border border-base shadow-sm relative overflow-hidden">
               <div className="text-xs font-bold text-base-muted uppercase tracking-wider mb-2">EXPECTED</div>
               <div className="text-2xl font-bold text-base-primary">{formatLKR(summary?.expected_collections)}</div>
-              <div className="text-xs text-base-muted mt-2">{summary?.active_plans_count ?? ''} active plans</div>
+              <div className="text-xs text-base-muted mt-2">{`${(summary?.active_plans_count ?? 0).toLocaleString()} active plans`}</div>
               <DollarSign className="absolute top-4 right-4 text-[#2563ea] w-8 h-8 opacity-40" />
             </div>
             <div className="p-5 surface rounded-xl border border-base shadow-sm relative overflow-hidden">
               <div className="text-xs font-bold text-base-muted uppercase tracking-wider mb-2">COLLECTED</div>
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">{formatLKR(summary?.collected)}</div>
-              <div className="text-xs text-base-muted mt-2">{summary?.confirmed_deductions_count ?? ''} confirmed</div>
+              <div className="text-xs text-base-muted mt-2">{`${(summary?.confirmed_deductions_count ?? 0).toLocaleString()} confirmed`}</div>
               <CheckCircle className="absolute top-4 right-4 text-[#2563ea] w-8 h-8 opacity-40" />
             </div>
             <div className="p-5 surface rounded-xl border border-base shadow-sm relative overflow-hidden">
               <div className="text-xs font-bold text-base-muted uppercase tracking-wider mb-2">ARREARS</div>
               <div className="text-2xl font-bold text-red-600 dark:text-red-400">{formatLKR(summary?.arrears_amount)}</div>
-              <div className="text-xs text-base-muted mt-2">{summary?.arrears_count ?? ''} overdue</div>
+              <div className="text-xs text-base-muted mt-2">{`${(summary?.arrears_count ?? 0).toLocaleString()} overdue`}</div>
               <AlertCircle className="absolute top-4 right-4 text-[#2563ea] w-8 h-8 opacity-40" />
             </div>
             <div className="p-5 surface rounded-xl border border-base shadow-sm relative overflow-hidden">
               <div className="text-xs font-bold text-base-muted uppercase tracking-wider mb-2">NET PROFIT</div>
               <div className="text-2xl font-bold text-green-700 dark:text-green-500">{formatLKR(summary?.net_profit)}</div>
-              <div className="text-xs text-base-muted mt-2">After {formatLKR(summary?.total_expenses)} expenses</div>
+              <div className="text-xs text-base-muted mt-2">{`After ${formatLKR(summary?.total_expenses)} expenses`}</div>
               <TrendingUp className="absolute top-4 right-4 text-[#2563ea] w-8 h-8 opacity-40" />
             </div>
           </div>
