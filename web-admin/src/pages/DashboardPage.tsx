@@ -81,9 +81,25 @@ interface DashboardPreset {
   widgets: Record<string, boolean>;
 }
 
+const RESTRICTED_INCOME_ROLES = [
+  'finance_officer',
+  'recovery_officer',
+  'camp_officer',
+  'sales_officer',
+  'inventory_manager',
+  'accountant',
+  'system_operator',
+];
+
 export default function DashboardPage() {
   const { user, hasRole } = useRoleAccess();
   const now = new Date();
+
+  // Role-based financial privacy check for dashboard
+  const canViewIncome = useMemo(() => {
+    if (!user?.role) return false;
+    return !RESTRICTED_INCOME_ROLES.includes(user.role);
+  }, [user?.role]);
 
   // Filters & State
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
@@ -581,7 +597,7 @@ export default function DashboardPage() {
                   {kpis?.collectionRatePct}%
                 </div>
                 <div className="text-xs text-base-muted mt-1 font-medium">
-                  LKR {(kpis?.actualTotal ?? 0).toLocaleString()} collected
+                  {canViewIncome ? `LKR ${(kpis?.actualTotal ?? 0).toLocaleString()} collected` : 'Collection efficiency rate'}
                 </div>
               </div>
               <div className="p-2.5 rounded-xl bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 shrink-0 border border-green-100 dark:border-green-900/40">
@@ -597,7 +613,7 @@ export default function DashboardPage() {
             }`}
           >
             {/* CARD 1: Net Income */}
-            {visibleWidgets.net_income && (
+            {canViewIncome && visibleWidgets.net_income && (
               <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
                 <div>
                   <div className="flex items-start justify-between">
@@ -638,7 +654,7 @@ export default function DashboardPage() {
             )}
 
             {/* CARD 2: Total Income / Collections */}
-            {visibleWidgets.collections && (
+            {canViewIncome && visibleWidgets.collections && (
               <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
                 <div>
                   <div className="flex items-start justify-between">
@@ -732,7 +748,7 @@ export default function DashboardPage() {
             )}
 
             {/* CARD 4: Net Income Margin % */}
-            {visibleWidgets.income_margin && (
+            {canViewIncome && visibleWidgets.income_margin && (
               <div className="card p-5 flex flex-col justify-between hover:border-blue-400/50 transition-all shadow-sm">
                 <div>
                   <div className="flex items-start justify-between">
@@ -893,7 +909,7 @@ export default function DashboardPage() {
                         <Pie
                           data={[
                             { name: 'Stock Assets', value: kpis?.inventoryValue ?? 1, color: '#3b82f6' },
-                            { name: 'Actual Collections', value: kpis?.actualTotal ?? 1, color: '#10b981' },
+                            ...(canViewIncome ? [{ name: 'Actual Collections', value: kpis?.actualTotal ?? 1, color: '#10b981' }] : []),
                           ]}
                           innerRadius={40}
                           outerRadius={60}
@@ -1384,7 +1400,7 @@ export default function DashboardPage() {
                 { key: 'commissions', label: 'Commission Payable & Targets', desc: 'Sales officer payout readiness' },
                 { key: 'risk_alerts', label: 'Critical AI Risk Flags', desc: 'Anomaly tracker panel' },
                 { key: 'notepad', label: 'Interactive Dashboard Notepad', desc: 'Quick note taking widget' },
-              ].map((w) => {
+              ].filter(w => !['net_income', 'collections', 'income_margin'].includes(w.key) || canViewIncome).map((w) => {
                 const isVisible = visibleWidgets[w.key] ?? true;
                 return (
                   <div
