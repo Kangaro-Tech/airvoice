@@ -12,19 +12,42 @@ import {
 import SpecialApprovalRequestModal from '@/components/SpecialApprovalRequestModal';
 import { SearchableSelect } from '@/components/SearchableSelect';
 
-function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCapture: (f: File) => void; label: string }) {
+function CameraModal({ onClose, onCapture, label, facingMode = 'environment' }: { onClose: () => void; onCapture: (f: File) => void; label: string; facingMode?: 'user' | 'environment' }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string>('');
 
   useEffect(() => {
     let activeStream: MediaStream | null = null;
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } })
+    setReady(false);
+    setError('');
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera is not supported in this browser.');
+      return;
+    }
+
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    })
       .then(s => {
         setStream(s);
         activeStream = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
+          const playVideo = () => {
+            videoRef.current?.play().catch(err => {
+              console.warn('Video play failed:', err);
+            });
+            setReady(true);
+          };
+          videoRef.current.onloadedmetadata = playVideo;
+          if (videoRef.current.readyState >= 2) playVideo();
         }
       })
       .catch(err => {
@@ -37,7 +60,7 @@ function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCap
         activeStream.getTracks().forEach(t => t.stop());
       }
     };
-  }, []);
+  }, [facingMode]);
 
   const capturePhoto = () => {
     if (!videoRef.current) return;
@@ -65,7 +88,7 @@ function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCap
         <div className="p-5 flex-1 flex flex-col items-center justify-center min-h-[300px]">
           {error ? (
             <p className="text-red-500 text-sm font-semibold text-center">{error}</p>
-          ) : !stream ? (
+          ) : !stream || !ready ? (
             <div className="flex flex-col items-center gap-2 text-slate-400">
               <Loader2 className="animate-spin text-amber-500" size={24} />
               <p className="text-xs">Initializing camera feed…</p>
@@ -80,7 +103,7 @@ function CameraModal({ onClose, onCapture, label }: { onClose: () => void; onCap
           <button onClick={onClose} className="px-4 py-2 border border-slate-805 bg-slate-800 hover:bg-slate-850 text-slate-300 rounded-xl text-xs font-semibold">Cancel</button>
           <button
             onClick={capturePhoto}
-            disabled={!stream}
+            disabled={!ready}
             className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors"
           >
             <Camera size={14} /> Capture Photo
@@ -1616,6 +1639,7 @@ export default function SalesOfficerPage() {
       {cameraActiveFor && (
         <CameraModal
           label={cameraActiveFor === 'nic_front' ? 'NIC Front' : cameraActiveFor === 'nic_back' ? 'NIC Back' : 'Selfie'}
+          facingMode={cameraActiveFor === 'selfie' ? 'user' : 'environment'}
           onClose={() => setCameraActiveFor(null)}
           onCapture={(file) => {
             setSelectedFiles(prev => ({ ...prev, [cameraActiveFor!]: file }));
