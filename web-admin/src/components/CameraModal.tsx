@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Loader2, XCircle } from 'lucide-react';
+import { Camera, Loader2, XCircle, Upload, AlertCircle } from 'lucide-react';
 
 interface CameraModalProps {
   label: string;
@@ -11,9 +11,21 @@ interface CameraModalProps {
 
 export default function CameraModal({ label, onClose, onCapture, facingMode = 'environment' }: CameraModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
+
+  // Format clean label title with proper spaces (e.g. TakeNIC FrontPhoto -> Take NIC Front Photo)
+  const cleanLabel = (label || '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/_/g, ' ')
+    .replace(/\bPhoto\b/gi, '')
+    .trim();
+
+  const formattedTitle = cleanLabel.toLowerCase().startsWith('take')
+    ? cleanLabel
+    : `Take ${cleanLabel} Photo`;
 
   useEffect(() => {
     let activeStream: MediaStream | null = null;
@@ -21,7 +33,7 @@ export default function CameraModal({ label, onClose, onCapture, facingMode = 'e
     setError('');
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError('Camera is not supported in this browser.');
+      setError('Camera is not supported in this browser. Please upload a photo file instead.');
       return;
     }
 
@@ -36,21 +48,10 @@ export default function CameraModal({ label, onClose, onCapture, facingMode = 'e
       .then(s => {
         activeStream = s;
         setStream(s);
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-          const playVideo = () => {
-            videoRef.current?.play().catch(err => {
-              console.warn('Video play failed:', err);
-            });
-            setReady(true);
-          };
-          videoRef.current.onloadedmetadata = playVideo;
-          if (videoRef.current.readyState >= 2) playVideo();
-        }
       })
       .catch(err => {
         console.error('Webcam error:', err);
-        setError('Could not access camera. Please check browser permissions.');
+        setError('Could not access camera. Please check browser permissions or upload a photo file.');
       });
 
     return () => {
@@ -58,10 +59,36 @@ export default function CameraModal({ label, onClose, onCapture, facingMode = 'e
     };
   }, [facingMode]);
 
+  // Dedicated effect to attach stream to video element once stream is set & video element exists
+  useEffect(() => {
+    if (!stream || !videoRef.current) return;
+
+    videoRef.current.srcObject = stream;
+    const playVideo = () => {
+      videoRef.current?.play().catch(err => console.warn('Video play error:', err));
+      setReady(true);
+    };
+
+    videoRef.current.onloadedmetadata = playVideo;
+    if (videoRef.current.readyState >= 2) {
+      playVideo();
+    }
+
+    // Safety fallback: if metadata loading hangs, set ready after 1.5s
+    const timer = setTimeout(() => {
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {});
+      }
+      setReady(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [stream]);
+
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const canvas = document.createElement('canvas');
-    canvas.width  = videoRef.current.videoWidth  || 1280;
+    canvas.width = videoRef.current.videoWidth || 1280;
     canvas.height = videoRef.current.videoHeight || 720;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -75,30 +102,53 @@ export default function CameraModal({ label, onClose, onCapture, facingMode = 'e
 
     canvas.toBlob(blob => {
       if (!blob) return;
-      const filename = `${label.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.jpg`;
+      const filename = `${cleanLabel.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}.jpg`;
       const file = new File([blob], filename, { type: 'image/jpeg' });
       onCapture(file);
     }, 'image/jpeg', 0.95);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onCapture(file);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[70] p-4">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileUpload}
+        accept="image/*"
+        className="hidden"
+      />
       <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Camera size={16} className="text-amber-400" />
-            <h3 className="font-bold text-white text-sm">{label}</h3>
+            <h3 className="font-bold text-white text-sm">{formattedTitle}</h3>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
             <XCircle size={20} />
           </button>
         </div>
 
-        {/* Camera feed */}
+        {/* Camera feed / Error */}
         <div className="p-5 flex-1 flex flex-col items-center justify-center min-h-[320px] relative">
           {error ? (
-            <p className="text-red-400 text-sm font-semibold text-center px-4 z-10">{error}</p>
+            <div className="flex flex-col items-center text-center p-4 max-w-sm">
+              <AlertCircle size={32} className="text-amber-400 mb-2" />
+              <p className="text-red-400 text-sm font-semibold mb-3">{error}</p>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
+              >
+                <Upload size={14} /> Upload Image File Instead
+              </button>
+            </div>
           ) : (
             <div className={`relative w-full rounded-xl overflow-hidden bg-black border border-slate-700 ${ready ? 'block' : 'opacity-0 absolute pointer-events-none'}`} style={{ aspectRatio: '16/9' }}>
               <video
@@ -131,30 +181,39 @@ export default function CameraModal({ label, onClose, onCapture, facingMode = 'e
           {!error && !ready && (
             <div className="flex flex-col items-center justify-center gap-2 text-slate-400 absolute inset-0 z-10">
               <Loader2 className="animate-spin text-amber-400" size={28} />
-              <p className="text-xs">Initializing camera…</p>
+              <p className="text-xs">Initializing camera feed…</p>
             </div>
           )}
 
           {!error && ready && (
             <p className="text-xs text-slate-400 mt-3 text-center">
               {facingMode === 'environment'
-                ? 'Align the NIC card inside the frame, then capture.'
+                ? 'Align the document inside the frame, then capture.'
                 : 'Look directly at the camera and capture your selfie.'}
             </p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="px-5 pb-5 pt-2 flex justify-between gap-3 border-t border-slate-800/50">
-          <button
-            onClick={onClose}
-            className="px-4 py-2.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="px-5 pb-5 pt-2 flex justify-between items-center gap-3 border-t border-slate-800/50">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-2.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              title="Upload file from device"
+            >
+              <Upload size={13} /> Upload File
+            </button>
+          </div>
           <button
             onClick={capturePhoto}
-            disabled={!ready}
+            disabled={!ready || !!error}
             className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 rounded-xl text-xs font-black flex items-center gap-1.5 transition-colors"
           >
             <Camera size={14} /> Capture Photo
