@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
@@ -53,6 +54,26 @@ interface CustomerPhoneCount {
   phoneCount: number;
   isFlagged: boolean;
   hasArrears: boolean;
+}
+
+interface PagedCustomerPhoneCountResponse {
+  data: CustomerPhoneCount[];
+  total: number;
+  page: number;
+  limit: number;
+  pages: number;
+  summary?: {
+    total: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+    flagged: number;
+    withArrears: number;
+    multiPhone: number;
+    twoPhones: number;
+    totalArrearsAmount: number;
+  };
 }
 
 interface ChartItem {
@@ -219,11 +240,14 @@ export default function DashboardPage() {
   });
   const rawAlerts = alertsRes?.data ?? [];
 
-  const { data: customerPhoneRes } = useQuery<{ data: CustomerPhoneCount[] }>({
+  const { data: customerPhoneRes, isLoading: customerPhoneLoading } = useQuery<PagedCustomerPhoneCountResponse>({
     queryKey: ['dashboard-customer-phone-counts'],
     queryFn: () => api.get('/dashboard/customer-phone-counts').then((r) => r.data),
   });
   const customerPhoneCounts: CustomerPhoneCount[] = customerPhoneRes?.data ?? [];
+  const customerPhoneCountsSummary = customerPhoneRes?.summary;
+  const customerPhoneCountTotal = customerPhoneCountsSummary?.total ?? customerPhoneCounts.length;
+  const multiPhoneCount = customerPhoneCountsSummary?.multiPhone ?? customerPhoneCounts.filter(c => c.phoneCount >= 2).length;
 
   const { data: expenseBreakdownRes } = useQuery<{ data: ExpenseBreakdownItem[] }>({
     queryKey: ['dashboard-expense-breakdown', selectedYear, selectedMonth],
@@ -277,6 +301,10 @@ export default function DashboardPage() {
   const expenseBreakdown: ExpenseBreakdownItem[] = useMemo(() => {
     return [...rawExpenseBreakdown].sort((a, b) => b.total - a.total);
   }, [rawExpenseBreakdown]);
+
+  useEffect(() => {
+    void runInlineAiProcess();
+  }, []);
 
   const finSummary = finSummaryRes || { income: kpis.actualTotal, expenses: 3250000, netProfit: kpis.netProfit };
   const expenseGrandTotal = useMemo(() => expenseBreakdown.reduce((s, e) => s + e.total, 0), [expenseBreakdown]);
@@ -525,7 +553,7 @@ export default function DashboardPage() {
           </div>
 
           {/* TOP SUMMARY STAT CARDS (Classic Command Dashboard Style) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* STAT CARD 1: TOTAL CUSTOMERS */}
             <div className="card p-4 flex items-start justify-between hover:border-blue-400/50 transition-all shadow-sm">
               <div>
@@ -604,6 +632,33 @@ export default function DashboardPage() {
                 <Target size={18} />
               </div>
             </div>
+            {/* STAT CARD 5: MULTIPLE PHONES CUSTOMERS */}
+            <Link
+              to="/customers/multiple-phones"
+              className="card p-4 flex items-start justify-between hover:border-red-400/60 transition-all shadow-sm border border-red-200/50 bg-red-50/40 dark:bg-red-950/20 cursor-pointer group no-underline"
+            >
+              <div>
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-red-600">
+                  <AlertTriangle size={14} className="text-red-500" /> Multiple Phones
+                </div>
+                <div className="flex items-baseline gap-2 mt-1.5">
+                  <div className="text-2xl font-black text-red-700">
+                    {multiPhoneCount}
+                  </div>
+                  {customerPhoneCountTotal > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 text-[10px] font-bold border border-red-300 dark:border-red-800">
+                      High Risk
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs text-red-500 mt-1 font-medium group-hover:underline">
+                  Click to view list →
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 shrink-0 border border-red-200 dark:border-red-900/40">
+                <AlertTriangle size={18} />
+              </div>
+            </Link>
           </div>
 
           {/* WIDGET CARDS GRID (3-Column Layout) */}
@@ -1075,7 +1130,13 @@ export default function DashboardPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-base">
-                          {customerPhoneCounts.length === 0 ? (
+                          {customerPhoneLoading ? (
+                            <tr>
+                              <td colSpan={3} className="py-8 text-center text-base-muted italic">
+                                Loading phone risk data…
+                              </td>
+                            </tr>
+                          ) : customerPhoneCounts.length === 0 ? (
                             <tr><td colSpan={3} className="py-3 text-center text-base-muted italic">No phone sale data available</td></tr>
                           ) : (
                             customerPhoneCounts.map((c) => (
@@ -1171,7 +1232,7 @@ export default function DashboardPage() {
                 {/* Footer */}
                 <div className="pt-2 border-t border-base mt-2 flex items-center justify-between shrink-0 text-[10px]">
                   <span className="text-base-muted italic">
-                    {flaggedCustomers.length} customer{flaggedCustomers.length !== 1 ? 's' : ''} with 2+ phone plans
+                    {customerPhoneCountTotal} customer{customerPhoneCountTotal !== 1 ? 's' : ''} with 2+ phone plans
                   </span>
                   {unreadAlerts.length > 0 && (
                     <button

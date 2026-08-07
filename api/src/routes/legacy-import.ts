@@ -938,10 +938,28 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
         // Process both new and existing customers, but skip if no customer_id
         if (!legacyRow.customer_id) continue;
         
-        // If application already exists, process its installments but do not recreate application
+        // If an application with similar details already exists, process its installments but do not recreate application
         if (existingAppsByCustomer.has(legacyRow.customer_id)) {
-          appsToProcessInstallments.push(...existingAppsByCustomer.get(legacyRow.customer_id)!);
-          continue;
+          const apps = existingAppsByCustomer.get(legacyRow.customer_id)!;
+          const srcRow = legacyRow.service_number ? rowByServiceNo.get(legacyRow.service_number) : undefined;
+          const srcRowSaleDate = srcRow?.sale_date ? new Date(srcRow.sale_date).toISOString().split('T')[0] : null;
+          const monthlyAmt = Number(srcRow?.monthly_amount ?? 0);
+          const termMonths = Number(srcRow?.term_months ?? 24);
+          const itemCount = Number(srcRow?.item_count ?? 1) || 1;
+          const perItemMonthlyAmt = monthlyAmt / itemCount;
+
+          let foundExisting = false;
+          for (const a of apps) {
+            const aSaleDate = a.sale_date ? new Date(a.sale_date).toISOString().split('T')[0] : null;
+            if (a.monthly_amount === perItemMonthlyAmt && a.term_months === termMonths && aSaleDate === srcRowSaleDate) {
+              foundExisting = true;
+              if (!appsToProcessInstallments.some(x => x.id === a.id)) {
+                appsToProcessInstallments.push(a);
+              }
+              break;
+            }
+          }
+          if (foundExisting) continue;
         }
 
         const srcRow = legacyRow.service_number ? rowByServiceNo.get(legacyRow.service_number) : undefined;
@@ -986,7 +1004,7 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
             status:         remainingMonths > 0 ? 'active' : 'completed',
             sale_date:      saleDate ? saleDate.toISOString().split('T')[0] : null,
             plan_end_date:  planEndDate.toISOString().split('T')[0],
-            ref_number:     `LGC-${srcRow.service_number ?? legacyRow.customer_id.slice(0,8)}${itemCount > 1 ? `-${i+1}` : ''}`,
+            ref_number:     `LGC-${srcRow.service_number ?? legacyRow.customer_id.slice(0,8)}-${Date.now().toString(36)}-${legacyRow.row_number}${itemCount > 1 ? `-${i+1}` : ''}`,
             notes:          `Auto-generated from legacy import${itemCount > 1 ? ` (Item ${i+1} of ${itemCount})` : ''}`,
           });
         }
@@ -1017,14 +1035,21 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
             const phoneId = phoneAssignments.get(insertedApp._insertIndex);
             if (!phoneId) continue;
             phoneUpdates.push(
-              (async () => sb.from('phones').update({
-                status:         'sold',
-                application_id: insertedApp.id,
-                customer_id:    insertedApp.customer_id,
-                sold_date:      insertedApp.sale_date ?? new Date().toISOString().split('T')[0],
-                sold_price:     insertedApp.monthly_amount * insertedApp.term_months,
-                updated_at:     new Date().toISOString(),
-              }).eq('id', phoneId))());
+              (async () => {
+                await sb.from('phones').update({
+                  status:         'sold',
+                  application_id: insertedApp.id,
+                  customer_id:    insertedApp.customer_id,
+                  sold_date:      insertedApp.sale_date ?? new Date().toISOString().split('T')[0],
+                  sold_price:     insertedApp.monthly_amount * insertedApp.term_months,
+                  updated_at:     new Date().toISOString(),
+                }).eq('id', phoneId);
+
+                await sb.from('applications').update({
+                  phone_id: phoneId,
+                }).eq('id', insertedApp.id);
+              })()
+            );
           }
           // Run in batches to avoid DB overload
           for (let pi = 0; pi < phoneUpdates.length; pi += 200) {
@@ -1118,6 +1143,11 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
               monthNumber++;
               const futureDate = new Date(lastHistDate.getFullYear(), lastHistDate.getMonth() + i, 1);
               const key = `${app_.id}_${futureDate.getFullYear()}_${futureDate.getMonth() + 1}`;
+              
+              // Check if futureDate is actually in the past compared to current month
+              const isPastDue = futureDate.getFullYear() < now2.getFullYear() || 
+                               (futureDate.getFullYear() === now2.getFullYear() && futureDate.getMonth() < now2.getMonth());
+
               if (!existingInstallmentKeys.has(key)) {
                 installmentsToInsert.push({
                   application_id:  app_.id,
@@ -1128,8 +1158,8 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
                   month_number:    monthNumber,
                   expected_amount: monthlyAmt,
                   deducted_amount: 0,
-                  arrears_amount:  0,
-                  status:          'pending',
+                  arrears_amount:  isPastDue ? monthlyAmt : 0,
+                  status:          isPastDue ? 'not_deducted' : 'pending',
                 });
               }
             }

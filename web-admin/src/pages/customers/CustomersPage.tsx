@@ -187,12 +187,12 @@ export default function CustomersPage() {
   const openEdit = (c: Customer) => {
     setEditCustomer(c);
     setEditForm({
-      full_name:      (c.full_name as string) || '',
+      full_name: (c.full_name as string) || '',
       service_number: (c.service_number as string) || '',
-      nic_number:     (c.nic_number as string) || '',
+      nic_number: (c.nic_number as string) || '',
       new_nic_number: (c.new_nic_number as string) || '',
-      rank:           (c.rank as string) || '',
-      phone_number:   (c.phone_number as string) || '',
+      rank: (c.rank as string) || '',
+      phone_number: (c.phone_number as string) || '',
     });
     setEditError('');
   };
@@ -202,12 +202,12 @@ export default function CustomersPage() {
     setEditError(''); setEditSubmitting(true);
     try {
       await api.patch(`/customers/${editCustomer.id}`, {
-        full_name:      editForm.full_name || undefined,
+        full_name: editForm.full_name || undefined,
         service_number: editForm.service_number || undefined,
-        nic_number:     editForm.nic_number || undefined,
+        nic_number: editForm.nic_number || undefined,
         new_nic_number: editForm.new_nic_number || undefined,
-        rank:           editForm.rank || undefined,
-        phone_number:   editForm.phone_number || undefined,
+        rank: editForm.rank || undefined,
+        phone_number: editForm.phone_number || undefined,
       });
       qc.invalidateQueries({ queryKey: ['customers'] });
       setEditCustomer(null);
@@ -380,12 +380,16 @@ export default function CustomersPage() {
                   const riskScore = Number(c.risk_score ?? 0);
                   const isSelected = selected.has(cid);
                   const isViewing = quickView?.id === c.id;
+                  const isHighRiskPhones = activePhones >= 2;
 
                   return (
                     <tr
                       key={cid}
                       onClick={() => setQuickView(isViewing ? null : c)}
-                      className={`cursor-pointer transition-colors ${isViewing ? 'bg-blue-50' : 'hover:bg-[var(--bg-surface-2)]'}`}
+                      className={`cursor-pointer transition-colors ${isViewing ? 'bg-blue-50' :
+                          isHighRiskPhones ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-500' :
+                            'hover:bg-[var(--bg-surface-2)]'
+                        }`}
                     >
                       <td className="px-4 py-3">
                         <input
@@ -422,7 +426,7 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={`text-lg font-bold ${activePhones === 0 ? 'text-base-muted' :
-                            activePhones === 1 ? 'text-slate-800' : 'text-amber-600'
+                            activePhones === 1 ? 'text-slate-800' : 'text-red-600'
                           }`}>
                           {activePhones}
                         </span>

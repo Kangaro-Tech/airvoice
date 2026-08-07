@@ -22,6 +22,7 @@ import MyProfilePage from '@/pages/MyProfilePage';
 import CustomersPage from '@/pages/customers/CustomersPage';
 import CustomerProfilePage from '@/pages/customers/CustomerProfilePage';
 import CreateCustomerPage from '@/pages/customers/CreateCustomerPage';
+import MultiplePhonesPage from '@/pages/customers/MultiplePhonesPage';
 
 // Pages — Applications
 import ApplicationsPage from '@/pages/applications/ApplicationsPage';
@@ -127,6 +128,7 @@ function App() {
               {/* Customers */}
               <Route path="/customers" element={<CustomersPage />} />
               <Route path="/customers/new" element={<CreateCustomerPage />} />
+              <Route path="/customers/multiple-phones" element={<MultiplePhonesPage />} />
               <Route path="/customers/:id" element={<CustomerProfilePage />} />
 
               {/* Applications */}

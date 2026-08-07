@@ -39,20 +39,21 @@ export default function AIRiskPage() {
   });
 
   const customers: any[] = riskRes?.data ?? [];
+  const riskSummary = riskRes?.summary;
 
   const counts = {
-    total:       customers.length,
-    critical:    customers.filter(c => c.risk_level === 'critical').length,
-    high:        customers.filter(c => c.risk_level === 'high').length,
-    medium:      customers.filter(c => c.risk_level === 'medium').length,
-    low:         customers.filter(c => c.risk_level === 'low').length,
-    flagged:     customers.filter(c => c.isFlagged).length,
-    withArrears: customers.filter(c => c.hasArrears).length,
-    multiPhone:  customers.filter(c => c.phoneCount >= 2).length,
-    twoPhones:   customers.filter(c => c.phoneCount === 2).length,
+    total:       riskSummary?.total ?? customers.length,
+    critical:    riskSummary?.critical ?? customers.filter(c => c.risk_level === 'critical').length,
+    high:        riskSummary?.high ?? customers.filter(c => c.risk_level === 'high').length,
+    medium:      riskSummary?.medium ?? customers.filter(c => c.risk_level === 'medium').length,
+    low:         riskSummary?.low ?? customers.filter(c => c.risk_level === 'low').length,
+    flagged:     riskSummary?.flagged ?? customers.filter(c => c.isFlagged).length,
+    withArrears: riskSummary?.withArrears ?? customers.filter(c => c.hasArrears).length,
+    multiPhone:  riskSummary?.multiPhone ?? customers.filter(c => c.phoneCount >= 2).length,
+    twoPhones:   riskSummary?.twoPhones ?? customers.filter(c => c.phoneCount === 2).length,
   };
 
-  const totalArrearsAmount = customers.reduce((s: number, c: any) => s + (c.arrearsAmount || 0), 0);
+  const totalArrearsAmount = riskSummary?.totalArrearsAmount ?? customers.reduce((s: number, c: any) => s + (c.arrearsAmount || 0), 0);
 
   const buildLocalSummary = () => {
     const highRisk = customers.filter((c: any) => c.risk_score >= 60);
@@ -120,7 +121,7 @@ export default function AIRiskPage() {
             AI Risk Engine
           </h1>
           <p className="text-sm text-base-muted mt-1">
-            Real-time risk scoring from live database — arrears, multi-phone flags, retirement risk
+            Real-time risk scoring from live database ï¿½ arrears, multi-phone flags, retirement risk
           </p>
         </div>
         <div className="flex gap-2">
@@ -168,7 +169,7 @@ export default function AIRiskPage() {
           <AlertTriangle size={20} className="text-red-600 shrink-0" />
           <div>
             <div className="font-bold text-sm text-red-800 dark:text-red-200">
-              {counts.withArrears} customer{counts.withArrears > 1 ? 's' : ''} with active arrears — Total: LKR {totalArrearsAmount.toLocaleString()}
+              {counts.withArrears} customer{counts.withArrears > 1 ? 's' : ''} with active arrears ï¿½ Total: LKR {totalArrearsAmount.toLocaleString()}
             </div>
             <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
               Customers have installments with arrears amount or not_deducted status. Immediate recovery action required.
@@ -192,7 +193,7 @@ export default function AIRiskPage() {
         <div className="card p-4 flex items-start gap-3" style={{ borderLeft: '4px solid #3b82f6' }}>
           <Shield size={17} className="text-blue-500 mt-0.5 shrink-0" />
           <div>
-            <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>AI Risk Engine Ready — Live Database Connected</div>
+            <div className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>AI Risk Engine Ready ï¿½ Live Database Connected</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               {isLoading ? 'Loading...' : `${counts.total} customers with active phone plans. ${counts.flagged} flagged for risk. ${counts.withArrears} with arrears.`}
               {' '}Click "Run AI Analysis" to generate OpenAI-powered risk analysis.
@@ -205,7 +206,7 @@ export default function AIRiskPage() {
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-base flex-wrap gap-2">
           <h2 className="font-semibold text-base-primary text-sm flex items-center gap-2">
             <TrendingDown size={15} className="text-slate-400" />
-            Customers with Active Plans — Sorted by Risk Score
+            Customers with Active Plans ï¿½ Sorted by Risk Score
             <span className="badge bg-slate-100 text-slate-600 text-[10px] font-bold ml-1">{filtered.length} shown</span>
           </h2>
           <div className="flex gap-1.5 flex-wrap">
@@ -261,11 +262,11 @@ export default function AIRiskPage() {
                         <div className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{c.name}</div>
                         <div className="text-[10px] text-slate-400">{c.rank}</div>
                       </td>
-                      <td className="px-3 py-3 text-xs text-slate-500 max-w-[100px] truncate">{c.campName ?? '—'}</td>
+                      <td className="px-3 py-3 text-xs text-slate-500 max-w-[100px] truncate">{c.campName ?? 'ï¿½'}</td>
                       <td className="px-3 py-3">
                         <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-[10px] font-semibold capitalize">{c.branch}</span>
                       </td>
-                      <td className="px-3 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{c.service_number || '—'}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{c.service_number || 'ï¿½'}</td>
                       <td className="px-3 py-3 text-center">
                         <span className={`font-black text-base ${c.phoneCount >= 2 ? 'text-red-600' : c.phoneCount === 2 ? 'text-amber-600' : 'text-green-600'}`}>
                           {c.phoneCount}
@@ -327,7 +328,7 @@ export default function AIRiskPage() {
                           <span className={monthsLeft < 12 ? 'text-red-600 font-bold' : monthsLeft < 24 ? 'text-orange-600 font-semibold' : 'text-slate-400'}>
                             {monthsLeft < 0 ? 'Retired' : `${monthsLeft}m`}
                           </span>
-                        ) : <span className="text-slate-300">—</span>}
+                        ) : <span className="text-slate-300">ï¿½</span>}
                       </td>
                     </tr>
                   );

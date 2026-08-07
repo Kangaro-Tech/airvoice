@@ -219,7 +219,7 @@ export default async function customerRoutes(app: FastifyInstance) {
     });
 
     // Notify interested roles about the new customer
-    notify({ kind: 'customer_added', customerName: customer.full_name ?? 'Unknown', nic: customer.nic_number ?? '' }).catch(() => {});
+    notify({ kind: 'customer_added', customerName: customer.full_name ?? 'Unknown', nic: customer.nic_number ?? '' }).catch(() => { });
 
     return reply.status(201).send({
       data: customer,
@@ -318,26 +318,26 @@ export default async function customerRoutes(app: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
-      full_name:           z.string().min(1).optional(),
-      full_name_si:        z.string().optional().nullable(),
-      full_name_ta:        z.string().optional().nullable(),
-      nic_number:          z.string().optional().nullable(),
-      new_nic_number:      z.string().optional().nullable(),
-      service_number:      z.string().optional().nullable(),
-      military_id_number:  z.string().optional().nullable(),
-      rank:                z.string().optional(),
-      branch:              z.enum(['army', 'navy', 'air_force']).optional(),
-      camp_id:             z.string().uuid().optional().nullable(),
-      regiment_id:         z.string().uuid().optional().nullable(),
-      phone_number:        z.string().optional().nullable(),
-      email:               z.string().email().optional().nullable(),
-      address:             z.string().optional().nullable(),
-      date_of_birth:       z.string().date().optional().nullable(),
-      gender:              z.string().optional().nullable(),
-      retirement_date:     z.string().date().optional().nullable(),
-      is_active:           z.boolean().optional(),
-      is_blocked:          z.boolean().optional(),
-      block_reason:        z.string().optional().nullable(),
+      full_name: z.string().min(1).optional(),
+      full_name_si: z.string().optional().nullable(),
+      full_name_ta: z.string().optional().nullable(),
+      nic_number: z.string().optional().nullable(),
+      new_nic_number: z.string().optional().nullable(),
+      service_number: z.string().optional().nullable(),
+      military_id_number: z.string().optional().nullable(),
+      rank: z.string().optional(),
+      branch: z.enum(['army', 'navy', 'air_force']).optional(),
+      camp_id: z.string().uuid().optional().nullable(),
+      regiment_id: z.string().uuid().optional().nullable(),
+      phone_number: z.string().optional().nullable(),
+      email: z.string().email().optional().nullable(),
+      address: z.string().optional().nullable(),
+      date_of_birth: z.string().date().optional().nullable(),
+      gender: z.string().optional().nullable(),
+      retirement_date: z.string().date().optional().nullable(),
+      is_active: z.boolean().optional(),
+      is_blocked: z.boolean().optional(),
+      block_reason: z.string().optional().nullable(),
     }).safeParse(request.body);
 
     if (!body.success) {
@@ -376,13 +376,13 @@ export default async function customerRoutes(app: FastifyInstance) {
     if (error) return reply.status(500).send({ error: error.message });
 
     writeAuditLog({
-      user_id:     request.user!.id,
-      action:      body.data.is_blocked === true ? AuditActions.CUSTOMER_BLOCKED : AuditActions.CUSTOMER_UPDATED,
+      user_id: request.user!.id,
+      action: body.data.is_blocked === true ? AuditActions.CUSTOMER_BLOCKED : AuditActions.CUSTOMER_UPDATED,
       entity_type: 'customers',
-      entity_id:   id,
-      old_values:  oldCustomer,
-      new_values:  body.data,
-      ip_address:  request.ip,
+      entity_id: id,
+      old_values: oldCustomer,
+      new_values: body.data,
+      ip_address: request.ip,
     });
 
     return reply.send({ data });
@@ -409,13 +409,13 @@ export default async function customerRoutes(app: FastifyInstance) {
     if (error) return reply.status(500).send({ error: error.message });
 
     writeAuditLog({
-      user_id:     request.user!.id,
-      action:      AuditActions.CUSTOMER_UPDATED,
+      user_id: request.user!.id,
+      action: AuditActions.CUSTOMER_UPDATED,
       entity_type: 'customers',
-      entity_id:   id,
-      old_values:  old ?? undefined,
-      new_values:  { deleted: true },
-      ip_address:  request.ip,
+      entity_id: id,
+      old_values: old ?? undefined,
+      new_values: { deleted: true },
+      ip_address: request.ip,
     });
 
     return reply.send({ success: true });

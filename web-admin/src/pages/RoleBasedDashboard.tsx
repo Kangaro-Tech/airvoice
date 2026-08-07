@@ -8,12 +8,14 @@ import { RoleBasedAccess } from '@/components/RoleBasedAccess';
 import { DashboardNotepad } from '@/components/DashboardNotepad';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
+import { Link } from 'react-router-dom';
 import {
   BarChart2,
   Users,
   DollarSign,
   Package,
   AlertCircle,
+  AlertTriangle,
   TrendingUp,
 } from 'lucide-react';
 
@@ -26,6 +28,14 @@ export default function RoleBasedDashboard() {
     queryFn: () => api.get('/admin/dashboard-stats').then(r => r.data),
     enabled: isAdmin(),
   });
+
+  // Fetch multiple phone count data (visible to all)
+  const { data: phoneCountsRes } = useQuery<{ data: { phoneCount: number }[] }>({
+    queryKey: ['dashboard-customer-phone-counts'],
+    queryFn: () => api.get('/dashboard/customer-phone-counts').then(r => r.data),
+  });
+  const multiplePhonesCount = (phoneCountsRes?.data ?? []).filter(c => c.phoneCount >= 2).length;
+
 
   if (!user) {
     return <div className="p-6">Loading...</div>;
@@ -193,6 +203,34 @@ export default function RoleBasedDashboard() {
             </div>
           </div>
         </RoleBasedAccess>
+
+        {/* Multiple Phones Alert — visible to ALL roles */}
+        {multiplePhonesCount > 0 && (
+          <div className="mb-6">
+            <Link
+              to="/customers/multiple-phones"
+              className="flex items-start gap-4 p-4 rounded-xl bg-red-50 border border-red-200 hover:border-red-400 hover:bg-red-100 transition-all shadow-sm group"
+            >
+              <div className="p-2.5 rounded-xl bg-red-100 border border-red-200 text-red-600 shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-red-800 text-sm flex items-center gap-2">
+                  ⚠️ Multiple Phones Alert
+                  <span className="px-2 py-0.5 rounded-full bg-red-200 text-red-800 text-xs font-bold">
+                    {multiplePhonesCount} customers
+                  </span>
+                </div>
+                <p className="text-xs text-red-600 mt-1">
+                  {multiplePhonesCount} customer{multiplePhonesCount > 1 ? 's have' : ' has'} 2 or more active phone plans. Click to view the full list.
+                </p>
+              </div>
+              <div className="text-red-400 group-hover:text-red-600 transition-colors text-xs font-semibold mt-1">
+                View List →
+              </div>
+            </Link>
+          </div>
+        )}
 
         {/* Role & Permission Info */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
