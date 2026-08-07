@@ -47,6 +47,7 @@ import StaffDirectoryPage from '@/pages/hr/StaffDirectoryPage';
 import AttendanceManagementPage from '@/pages/hr/AttendanceManagementPage';
 import LeaveManagementPage from '@/pages/hr/LeaveManagementPage';
 import PayrollManagementPage from '@/pages/hr/PayrollManagementPage';
+import MyRequestsPage from '@/pages/hr/MyRequestsPage';
 
 // Pages — Recovery & Sales
 import RecoveryPage from '@/pages/recovery/RecoveryPage';
@@ -174,6 +175,9 @@ function App() {
                 <Route path="/hr/advances" element={<PayrollManagementPage />} />
                 <Route path="/hr/deductions" element={<PayrollManagementPage />} />
               </Route>
+
+              {/* Personal Requests (All Staff) */}
+              <Route path="/my-requests" element={<MyRequestsPage />} />
 
               {/* Installments & Reports (Finance + Camp Officer) */}
               <Route element={<ProtectedRoute roles={['finance_officer', 'accountant', 'camp_officer', 'admin', 'super_admin', 'system_operator']} />}>

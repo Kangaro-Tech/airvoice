@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth';
 import { getSupabase } from '../config/supabase';
 import { writeAuditLog, AuditActions } from '../services/audit';
+import { notify } from '../services/notify';
 
 export default async function hrRoutes(app: FastifyInstance) {
   // ── ATTENDANCE ─────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ export default async function hrRoutes(app: FastifyInstance) {
   // POST /hr/leaves/request
   app.post('/leaves/request', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
-      staff_id: z.string().uuid(),
+      staff_id: z.string().uuid().optional(),
       start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       leave_type: z.string(),
@@ -90,21 +91,39 @@ export default async function hrRoutes(app: FastifyInstance) {
     if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
 
     const sb = getSupabase();
-    const { data, error } = await sb.from('leave_requests').insert(body.data).select().single();
+    let staffId = body.data.staff_id;
+    if (!staffId) {
+      const { data: staffRec } = await sb.from('staff_registry').select('id').eq('user_id', req.user!.id).single();
+      if (!staffRec) return reply.status(400).send({ error: 'You are not linked to a staff record.' });
+      staffId = staffRec.id;
+    }
+    const insertData = { ...body.data, staff_id: staffId };
+    const { data, error } = await sb.from('leave_requests').insert(insertData).select().single();
     if (error) return reply.status(500).send({ error: error.message });
     
     // @ts-ignore
     writeAuditLog({ user_id: req.user!.id, action: 'LEAVE_REQUESTED', entity_type: 'leave_requests', entity_id: data.id });
+    
+    // Notify admins
+    const { data: staff } = await sb.from('users').select('full_name').eq('id', body.data.staff_id).single();
+    notify({ kind: 'hr_request_submitted', requestType: 'Leave', staffName: staff?.full_name || 'Staff Member', refId: data.id });
+
     return reply.status(201).send({ data });
   });
 
   // GET /hr/leaves/requests
-  app.get('/leaves/requests', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req: FastifyRequest, reply) => {
+  app.get('/leaves/requests', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
     const q = req.query as { staff_id?: string, status?: string };
     const sb = getSupabase();
+    
+    let staffIdToQuery = q.staff_id;
+    if (!staffIdToQuery && !['system_operator', 'admin', 'super_admin', 'finance_officer'].includes(req.user!.role)) {
+      const { data: staffRec } = await sb.from('staff_registry').select('id').eq('user_id', req.user!.id).single();
+      if (staffRec) staffIdToQuery = staffRec.id;
+    }
     let query = sb.from('leave_requests').select('*, staff:staff_registry(full_name)');
     
-    if (q.staff_id) query = query.eq('staff_id', q.staff_id);
+    if (staffIdToQuery) query = query.eq('staff_id', staffIdToQuery);
     if (q.status) query = query.eq('status', q.status);
     query = query.order('created_at', { ascending: false });
 
@@ -163,6 +182,10 @@ export default async function hrRoutes(app: FastifyInstance) {
     
     // @ts-ignore
     writeAuditLog({ user_id: req.user!.id, action: 'LEAVE_STATUS_UPDATED', entity_type: 'leave_requests', entity_id: data.id });
+    
+    // Notify user
+    notify({ kind: 'hr_request_resolved', requestType: 'Leave', status: body.data.status, refId: id }, request.staff_id);
+
     return reply.send({ data });
   });
 
@@ -241,9 +264,9 @@ export default async function hrRoutes(app: FastifyInstance) {
   // ── PAYROLL ADVANCES & DEDUCTIONS ──────────────────────────────────────────
 
   // POST /hr/payroll/advance
-  app.post('/payroll/advance', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer', 'accountant')] }, async (req: FastifyRequest, reply) => {
+  app.post('/payroll/advance', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
     const body = z.object({
-      staff_id: z.string().uuid(),
+      staff_id: z.string().uuid().optional(),
       amount: z.number().positive(),
       request_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       deduction_month: z.string().regex(/^\d{4}-\d{2}$/)
@@ -252,21 +275,46 @@ export default async function hrRoutes(app: FastifyInstance) {
     if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
 
     const sb = getSupabase();
-    const { data, error } = await sb.from('salary_advances').insert(body.data).select().single();
+    let staffId = body.data.staff_id;
+    if (!staffId) {
+      const { data: staffRec } = await sb.from('staff_registry').select('id').eq('user_id', req.user!.id).single();
+      if (!staffRec) return reply.status(400).send({ error: 'You are not linked to a staff record.' });
+      staffId = staffRec.id;
+    }
+
+    const currentDay = new Date().getDate();
+    if (currentDay >= 21) {
+      return reply.status(400).send({ error: 'Salary advance requests can only be made before the 21st of the month.' });
+    }
+
+    const insertData = { ...body.data, staff_id: staffId };
+    const { data, error } = await sb.from('salary_advances').insert(insertData).select().single();
     if (error) return reply.status(500).send({ error: error.message });
     
     // @ts-ignore
     writeAuditLog({ user_id: req.user!.id, action: 'SALARY_ADVANCE_REQUESTED', entity_type: 'salary_advances', entity_id: data.id });
+    
+    // Notify admins
+    const { data: staff } = await sb.from('users').select('full_name').eq('id', body.data.staff_id).single();
+    notify({ kind: 'hr_request_submitted', requestType: 'Salary Advance', staffName: staff?.full_name || 'Staff Member', refId: data.id });
+
     return reply.status(201).send({ data });
   });
 
   // GET /hr/payroll/advances
-  app.get('/payroll/advances', { preHandler: [authenticate, requireRole('system_operator', 'admin', 'super_admin', 'finance_officer')] }, async (req: FastifyRequest, reply) => {
+  app.get('/payroll/advances', { preHandler: [authenticate] }, async (req: FastifyRequest, reply) => {
     const q = req.query as { staff_id?: string, status?: string };
     const sb = getSupabase();
+
+    let staffIdToQuery = q.staff_id;
+    if (!staffIdToQuery && !['system_operator', 'admin', 'super_admin', 'finance_officer'].includes(req.user!.role)) {
+      const { data: staffRec } = await sb.from('staff_registry').select('id').eq('user_id', req.user!.id).single();
+      if (staffRec) staffIdToQuery = staffRec.id;
+    }
+
     let query = sb.from('salary_advances').select('*, staff:staff_registry(full_name)');
     
-    if (q.staff_id) query = query.eq('staff_id', q.staff_id);
+    if (staffIdToQuery) query = query.eq('staff_id', staffIdToQuery);
     if (q.status) query = query.eq('status', q.status);
     query = query.order('created_at', { ascending: false });
 
@@ -297,6 +345,13 @@ export default async function hrRoutes(app: FastifyInstance) {
     
     // @ts-ignore
     writeAuditLog({ user_id: req.user!.id, action: 'SALARY_ADVANCE_STATUS_UPDATED', entity_type: 'salary_advances', entity_id: data.id });
+
+    // Notify user
+    const { data: advance } = await sb.from('salary_advances').select('staff_id').eq('id', id).single();
+    if (advance) {
+      notify({ kind: 'hr_request_resolved', requestType: 'Salary Advance', status: body.data.status, refId: id }, advance.staff_id);
+    }
+
     return reply.send({ data });
   });
 

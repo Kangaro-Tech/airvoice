@@ -50,7 +50,10 @@ export type NotifyEvent =
   | { kind: 'special_approval_resolved'; customerName: string; requestId: string; granted: boolean; salesOfficerId: string }
   | { kind: 'legacy_import_completed'; totalRows: number; importedRows: number; duplicateRows: number; newCustomers: number; newCamps: number; batchId: string }
   | { kind: 'camp_added'; campName: string }
-  | { kind: 'camp_deductions_imported'; campName: string; batchId: string };
+  | { kind: 'camp_added'; campName: string }
+  | { kind: 'camp_deductions_imported'; campName: string; batchId: string }
+  | { kind: 'hr_request_submitted'; requestType: string; staffName: string; refId: string }
+  | { kind: 'hr_request_resolved'; requestType: string; status: string; refId: string };
 
 // Role → which roles get this notification
 const ROLE_TARGETS: Record<NotifyEvent['kind'], string[]> = {
@@ -76,6 +79,8 @@ const ROLE_TARGETS: Record<NotifyEvent['kind'], string[]> = {
   legacy_import_completed:    ['admin', 'super_admin', 'finance_officer'],
   camp_added:                 ['admin', 'super_admin'],
   camp_deductions_imported:   ['camp_officer'],
+  hr_request_submitted:       ['admin', 'super_admin'],
+  hr_request_resolved:        [], // Direct notification
 };
 
 // ── Build the notification payload for each event ────────────
@@ -234,6 +239,20 @@ function buildPayload(event: NotifyEvent): { type: string; title: string; body: 
         title: `💵 Deductions Imported`,
         body: `New deductions have been imported for soldiers in ${event.campName}.`,
         action_url: `/customers`,
+      };
+    case 'hr_request_submitted':
+      return {
+        type: 'system',
+        title: `📝 New ${event.requestType} Request`,
+        body: `${event.staffName} submitted a new ${event.requestType} request.`,
+        action_url: event.requestType === 'Leave' ? `/hr/leaves` : `/hr/advances`,
+      };
+    case 'hr_request_resolved':
+      return {
+        type: 'system',
+        title: `📋 ${event.requestType} ${event.status}`,
+        body: `Your ${event.requestType} request has been ${event.status}.`,
+        action_url: `/my-requests`,
       };
   }
 }

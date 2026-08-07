@@ -64,6 +64,11 @@ export const NAV_SECTIONS: NavSection[] = [
         to: '/schedule',
         icon: <ScrollText size={16} />
       },
+      {
+        label: 'My Requests',
+        to: '/my-requests',
+        icon: <FileText size={16} />
+      },
     ],
   },
   {
