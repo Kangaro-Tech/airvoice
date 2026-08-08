@@ -138,6 +138,10 @@ export default async function expenseRoutes(app: FastifyInstance) {
   app.get('/', { preHandler:[authenticate,requireStaff] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {status?:string;category_id?:string;from?:string;to?:string;page?:string};
     const page=parseInt(q.page??'1'), limit=50;
+
+    const financeRoles = ['finance_officer','accountant','admin','super_admin','system_operator'];
+    const seeAll = financeRoles.includes(req.user!.role);
+
     let query = getSupabase().from('expenses')
       .select(
         `*,
@@ -148,16 +152,20 @@ export default async function expenseRoutes(app: FastifyInstance) {
       .is('deleted_at',null)
       .order('expense_date',{ascending:false})
       .range((page-1)*limit, page*limit-1);
+
+    if (!seeAll) query = query.eq('submitted_by', req.user!.id);
     if (q.status) query = query.eq('status',q.status);
     if (q.category_id) query = query.eq('category_id',q.category_id);
     if (q.from) query = query.gte('expense_date',q.from);
     if (q.to)   query = query.lte('expense_date',q.to);
+
     const {data,count,error} = await query;
     if (error) {
       // Fallback without staff join if staff_registry not linked
       let q2 = getSupabase().from('expenses')
         .select('*,category:expense_categories(name,type)',{count:'exact'})
         .is('deleted_at',null).order('expense_date',{ascending:false}).range((page-1)*limit,page*limit-1);
+      if (!seeAll) q2 = q2.eq('submitted_by', req.user!.id);
       if (q.status) q2 = q2.eq('status',q.status);
       if (q.category_id) q2 = q2.eq('category_id',q.category_id);
       if (q.from) q2 = q2.gte('expense_date',q.from);
@@ -178,11 +186,56 @@ export default async function expenseRoutes(app: FastifyInstance) {
       receipt_reference:z.string().optional(),
     }).safeParse(req.body);
     if (!body.success) return reply.status(400).send({error:'Validation Error',details:body.error.flatten()});
-    const {data,error} = await getSupabase().from('expenses').insert({...body.data,submitted_by:req.user!.id,status:'pending'}).select().single();
+
+    const sb = getSupabase();
+
+    // Enforce monthly officer expense limit
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    const ms = monthStart.toISOString().slice(0,10);
+    const { data: lim } = await sb.from('officer_expense_limits')
+      .select('monthly_limit').eq('officer_id', req.user!.id).eq('limit_month', ms).maybeSingle();
+
+    if (lim) {
+      const { data: mtd } = await sb.from('expenses')
+        .select('amount').eq('submitted_by', req.user!.id)
+        .gte('expense_date', ms).is('deleted_at', null).neq('status','rejected');
+      const spent = (mtd ?? []).reduce((s:number,e:any)=> s + Number(e.amount||0), 0);
+      if (spent + Number(body.data.amount) > Number(lim.monthly_limit)) {
+        return reply.status(403).send({
+          error: 'Expense limit exceeded',
+          message: `Would exceed your monthly limit of LKR ${lim.monthly_limit} (already submitted LKR ${spent}).`
+        });
+      }
+    }
+
+    const {data,error} = await sb.from('expenses').insert({...body.data,submitted_by:req.user!.id,status:'pending'}).select().single();
     if (error) return reply.status(500).send({error:error.message});
-    const { data: cat } = await getSupabase().from('expense_categories').select('name').eq('id', body.data.category_id).single();
+    const { data: cat } = await sb.from('expense_categories').select('name').eq('id', body.data.category_id).single();
     notify({ kind: 'expense_pending', amount: body.data.amount, categoryName: cat?.name ?? 'Unknown' }).catch(() => {});
     return reply.status(201).send({data});
+  });
+
+  // ── POST /expenses/officer-limit ───────────────────────────
+  // Set monthly expense limit per officer (management)
+  app.post('/officer-limit', { preHandler:[authenticate,requireFinance] }, async (req:FastifyRequest, reply) => {
+    const b = z.object({
+      officer_id: z.string().uuid(),
+      limit_month: z.string(), // 'YYYY-MM'
+      monthly_limit: z.number().min(0)
+    }).safeParse(req.body);
+    if (!b.success) return reply.status(400).send({ error: 'Validation Error', details: b.error.flatten() });
+
+    const monthStr = b.data.limit_month.length === 7 ? `${b.data.limit_month}-01` : b.data.limit_month;
+    const { data, error } = await getSupabase().from('officer_expense_limits').upsert({
+      officer_id: b.data.officer_id,
+      limit_month: monthStr,
+      monthly_limit: b.data.monthly_limit,
+      set_by: req.user!.id,
+    } as any, { onConflict: 'officer_id,limit_month' }).select().single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send({ data });
   });
 
   // ── POST /expenses/:id/approve ────────────────────────────

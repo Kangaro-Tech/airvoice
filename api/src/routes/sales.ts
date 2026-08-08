@@ -174,4 +174,102 @@ export default async function salesRoutes(app: FastifyInstance) {
     writeAuditLog({ user_id: req.user!.id, action, entity_type: 'free_phone_requests', entity_id: id });
     return reply.send({ data });
   });
+
+  // ── POST /sales/targets ── Admin sets/updates monthly sale target for an officer
+  app.post('/targets', {
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')],
+  }, async (req: FastifyRequest, reply) => {
+    const b = z.object({
+      officer_id: z.string().uuid(),
+      target_month: z.string(), // 'YYYY-MM'
+      target_phones: z.number().int().min(0),
+      target_amount: z.number().optional(),
+      notes: z.string().optional()
+    }).safeParse(req.body);
+    if (!b.success) return reply.status(400).send({ error: 'Validation Error', details: b.error.flatten() });
+
+    const monthStr = b.data.target_month.length === 7 ? `${b.data.target_month}-01` : b.data.target_month;
+    const { data, error } = await getSupabase().from('sales_targets').upsert({
+      officer_id: b.data.officer_id,
+      target_month: monthStr,
+      target_phones: b.data.target_phones,
+      target_amount: b.data.target_amount,
+      notes: b.data.notes,
+      set_by: req.user!.id,
+      updated_at: new Date().toISOString(),
+    } as any, { onConflict: 'officer_id,target_month' }).select().single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.status(201).send({ data });
+  });
+
+  // ── GET /sales/my-target ── Officer reads target + live progress
+  app.get('/my-target', {
+    preHandler: [authenticate, requireRole('sales_officer', 'camp_officer', 'admin', 'super_admin', 'system_operator')],
+  }, async (req: FastifyRequest, reply) => {
+    const sb = getSupabase();
+    const month = ((req.query as any).month) || new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+    const ms = `${month}-01`;
+    const { data: tgt } = await sb.from('sales_targets')
+      .select('target_phones, target_amount, notes')
+      .eq('officer_id', req.user!.id).eq('target_month', ms).maybeSingle();
+
+    const { count } = await sb.from('applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('sales_officer_id', req.user!.id)
+      .gte('created_at', `${ms}T00:00:00Z`);
+
+    return reply.send({
+      data: {
+        target_phones: tgt?.target_phones ?? null,
+        target_amount: tgt?.target_amount ?? null,
+        notes: tgt?.notes ?? null,
+        sold: count ?? 0
+      }
+    });
+  });
+
+  // ── GET /sales/my-stock ── Officer views the stock in their custody
+  app.get('/my-stock', {
+    preHandler: [authenticate, requireRole('sales_officer', 'camp_officer', 'admin', 'super_admin', 'system_operator')],
+  }, async (req: FastifyRequest, reply) => {
+    const { data } = await getSupabase().from('officer_stock_assignments')
+      .select('*, model:phone_models(brand, model, storage)')
+      .eq('officer_id', req.user!.id).order('assign_date', { ascending: false });
+    return reply.send({ data: data ?? [] });
+  });
+
+  // ── GET /sales/daily-summary ── Admin daily sales summary roll-up per officer
+  app.get('/daily-summary', {
+    preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')],
+  }, async (req: FastifyRequest, reply) => {
+    const sb = getSupabase();
+    const day = ((req.query as any).date) || new Date().toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const { data: apps } = await sb.from('applications')
+      .select('id, sales_officer_id, sale_price, status, created_at')
+      .gte('created_at', `${day}T00:00:00Z`).lte('created_at', `${day}T23:59:59Z`);
+
+    const byOfficer: Record<string, { count: number; amount: number }> = {};
+    (apps ?? []).forEach((a: any) => {
+      const k = a.sales_officer_id || 'unassigned';
+      byOfficer[k] = byOfficer[k] || { count: 0, amount: 0 };
+      byOfficer[k].count += 1;
+      byOfficer[k].amount += Number(a.sale_price || 0);
+    });
+
+    const ids = Object.keys(byOfficer).filter(k => k !== 'unassigned');
+    const { data: users } = ids.length
+      ? await sb.from('users').select('id, phone_number, email').in('id', ids)
+      : { data: [] as any[] };
+
+    const nameMap = Object.fromEntries((users ?? []).map((u: any) => [u.id, u.email || u.phone_number]));
+    const officers = Object.entries(byOfficer).map(([officer_id, v]) => ({
+      officer_id,
+      officer: nameMap[officer_id] || 'Unassigned',
+      ...v
+    }));
+    const totals = officers.reduce((t, r) => ({ count: t.count + r.count, amount: t.amount + r.amount }), { count: 0, amount: 0 });
+
+    return reply.send({ data: { date: day, officers, totals } });
+  });
 }

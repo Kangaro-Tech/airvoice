@@ -3,92 +3,172 @@ import { z } from 'zod';
 import { authenticate, requireRole } from '../middleware/auth';
 import { getSupabase } from '../config/supabase';
 
+async function fetchAll(table: string, columns: string, apply?: (q: any) => any): Promise<any[]> {
+  const sb = getSupabase();
+  const pageSize = 1000;
+  let from = 0;
+  const out: any[] = [];
+  for (;;) {
+    let q = sb.from(table).select(columns).range(from, from + pageSize - 1);
+    if (apply) q = apply(q);
+    const { data, error } = await q;
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return out;
+}
+
+async function fetchInChunks<T>(
+  fn: (chunk: string[]) => PromiseLike<{ data: T[] | null; error: any }>,
+  keys: string[],
+  chunkSize = 200
+): Promise<T[]> {
+  if (keys.length === 0) return [];
+  const results: T[] = [];
+  for (let i = 0; i < keys.length; i += chunkSize) {
+    const chunk = keys.slice(i, i + chunkSize);
+    const res = await fn(chunk);
+    if (res.error) throw res.error;
+    if (res.data) results.push(...res.data);
+  }
+  return results;
+}
+
 export default async function recoveryRoutes(app: FastifyInstance) {
-  
+
   // ── GET /recovery/overdue ──
   app.get('/overdue', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
     const q = req.query as {camp_id?:string;min_missed?:string};
     const minMissed = parseInt(q.min_missed ?? '0');
     const sb = getSupabase();
+    const nowStr = new Date().toISOString();
 
-    // Query active customers
-    const { data: customersRaw } = await sb.from('customers')
-      .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
-      .is('deleted_at',null)
-      .eq('is_active',true);
-      
-    if (!customersRaw || customersRaw.length === 0) return reply.send({ data: [] });
-    let customers = customersRaw || [];
-    
-    const custIds = customers.map(c => c.id);
+    // 1. Fetch overdue installments & high/medium risk customers IN PARALLEL
+    const [{ data: overdueInsts }, { data: riskCusts }] = await Promise.all([
+      sb.from('installments')
+        .select('application_id, status, arrears_amount, due_date')
+        .or('status.eq.not_deducted,status.eq.arrears,arrears_amount.gt.0'),
+      sb.from('customers')
+        .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
+        .is('deleted_at', null)
+        .eq('is_active', true)
+        .or('risk_level.eq.high,risk_level.eq.medium,risk_score.gt.5')
+        .limit(300),
+    ]);
 
-    // Fetch active applications for these customers
-    const { data: appsRaw } = await sb.from('applications')
-      .select('id, ref_number, status, monthly_amount, customer_id, guarantor_id')
-      .eq('status', 'active')
-      .in('customer_id', custIds);
-      
-    const apps = appsRaw || [];
-    if (apps.length === 0) return reply.send({ data: [] });
-    
-    // Filter customers who have active applications
-    const activeAppCustIds = new Set(apps.map(a => a.customer_id));
-    customers = customers.filter(c => activeAppCustIds.has(c.id));
-    
-    // Fetch installments for these applications
+    const overdueAppIds = [...new Set((overdueInsts || []).map(i => i.application_id).filter(Boolean))];
+    const riskCustIds = [...new Set((riskCusts || []).map(c => c.id).filter(Boolean))];
+
+    // 2. Fetch applications for overdue installments and risk customers
+    const [appsByInst, appsByCust] = await Promise.all([
+      overdueAppIds.length > 0
+        ? fetchInChunks(
+            (chunk) => sb.from('applications')
+              .select('id, ref_number, status, monthly_amount, customer_id, guarantor_id')
+              .in('status', ['active', 'approved'])
+              .in('id', chunk),
+            overdueAppIds
+          )
+        : Promise.resolve([]),
+      riskCustIds.length > 0
+        ? fetchInChunks(
+            (chunk) => sb.from('applications')
+              .select('id, ref_number, status, monthly_amount, customer_id, guarantor_id')
+              .in('status', ['active', 'approved'])
+              .in('customer_id', chunk),
+            riskCustIds
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const allAppsMap = new Map<string, any>();
+    appsByInst.concat(appsByCust).forEach((a: any) => allAppsMap.set(a.id, a));
+    const apps = Array.from(allAppsMap.values());
+
+    if (apps.length === 0 && (!riskCusts || riskCusts.length === 0)) {
+      return reply.send({ data: [] });
+    }
+
+    const appCustIds = [...new Set(apps.map(a => a.customer_id).concat(riskCustIds).filter(Boolean))];
+
+    // 3. Fetch customer details for target customers
+    const targetCusts = await fetchInChunks(
+      (chunk) => sb.from('customers')
+        .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
+        .is('deleted_at', null)
+        .eq('is_active', true)
+        .in('id', chunk),
+      appCustIds
+    );
+
+    let customers = targetCusts;
     const appIds = apps.map(a => a.id);
-    const { data: instRaw } = await sb.from('installments')
-      .select('status, expected_amount, deducted_amount, arrears_amount, due_date, application_id')
-      .in('application_id', appIds);
-      
-    const installments = instRaw || [];
-    
-    // Fetch recovery logs for these customers
-    const { data: logsRaw } = await sb.from('recovery_logs')
-      .select('contact_method, contacted_at, outcome, notes, customer_id')
-      .in('customer_id', custIds);
-      
-    const logs = logsRaw || [];
-    
-    // Map data back to applications and customers
+
+    // 4. Fetch installments, logs, camps in parallel
+    const [installments, logs, campsRes] = await Promise.all([
+      appIds.length > 0
+        ? fetchInChunks(
+            (chunk) => sb.from('installments')
+              .select('status, expected_amount, deducted_amount, arrears_amount, due_date, application_id')
+              .in('application_id', chunk),
+            appIds
+          )
+        : Promise.resolve([]),
+      appCustIds.length > 0
+        ? fetchInChunks(
+            (chunk) => sb.from('recovery_logs')
+              .select('contact_method, contacted_at, outcome, notes, customer_id')
+              .in('customer_id', chunk),
+            appCustIds
+          )
+        : Promise.resolve([]),
+      (() => {
+        const campIds = [...new Set(customers.map(c => c.camp_id).filter(Boolean))];
+        return fetchInChunks(
+          (chunk) => sb.from('camps').select('id, name, branch').in('id', chunk),
+          campIds
+        );
+      })(),
+    ]);
+
     const instMap: Record<string, any[]> = {};
-    installments.forEach((i: any) => { instMap[i.application_id] = instMap[i.application_id] || []; instMap[i.application_id].push(i); });
-    
+    (installments || []).forEach((i: any) => { instMap[i.application_id] = instMap[i.application_id] || []; instMap[i.application_id].push(i); });
+
     const appMap: Record<string, any[]> = {};
-    apps.forEach((a: any) => { 
+    apps.forEach((a: any) => {
       a.installments = instMap[a.id] || [];
       appMap[a.customer_id] = appMap[a.customer_id] || [];
-      appMap[a.customer_id].push(a); 
+      appMap[a.customer_id].push(a);
     });
-    
-    const logMap: Record<string, any[]> = {};
-    logs.forEach((l: any) => { logMap[l.customer_id] = logMap[l.customer_id] || []; logMap[l.customer_id].push(l); });
 
-    (customers as any[]).forEach(c => {
+    const logMap: Record<string, any[]> = {};
+    (logs || []).forEach((l: any) => { logMap[l.customer_id] = logMap[l.customer_id] || []; logMap[l.customer_id].push(l); });
+
+    const campMap = Object.fromEntries((campsRes || []).map((c: any) => [c.id, { name: c.name, branch: c.branch }]));
+
+    customers.forEach((c: any) => {
       c.applications = appMap[c.id] || [];
       c.recovery_logs = logMap[c.id] || [];
+      c.camp = campMap[c.camp_id] || null;
     });
 
-    // Manually fetch camps
-    const campIds = [...new Set((customers || []).map(c => c.camp_id).filter(Boolean))];
-    const campsRes = campIds.length > 0 ? await sb.from('camps').select('id, name, branch').in('id', campIds) : { data: [] };
-    const campMap = Object.fromEntries((campsRes.data || []).map(c => [c.id, { name: c.name, branch: c.branch }]));
-    customers.forEach((c: any) => { c.camp = campMap[c.camp_id] || null; });
-
-    // Fetch accepted guarantor requests for these applications
+    // 5. Fetch guarantor details in parallel
     const guarantorAppIds = customers.map((c: any) => c.applications?.[0]?.id).filter(Boolean);
     let reqMap = new Map<string, any>();
     if (guarantorAppIds.length > 0) {
-      const { data: reqRows } = await sb
-        .from('guarantor_requests')
-        .select('application_id, guarantor_name, guarantor_phone, guarantor_customer_id')
-        .in('application_id', guarantorAppIds)
-        .eq('status', 'accepted');
+      const reqRows = await fetchInChunks(
+        (chunk) => sb.from('guarantor_requests')
+          .select('application_id, guarantor_name, guarantor_phone, guarantor_customer_id')
+          .in('application_id', chunk)
+          .eq('status', 'accepted'),
+        guarantorAppIds
+      );
 
-      // Manually get guarantor customer service numbers
       const gCustIds = [...new Set((reqRows || []).map((r: any) => r.guarantor_customer_id).filter(Boolean))];
-      const gCustRes = gCustIds.length > 0 ? await sb.from('customers').select('id, service_number').in('id', gCustIds) : { data: [] };
-      const gCustMap = Object.fromEntries((gCustRes.data || []).map(c => [c.id, c]));
+      const gCustRes = gCustIds.length > 0 ? await fetchInChunks((chunk) => sb.from('customers').select('id, service_number').in('id', chunk), gCustIds) : [];
+      const gCustMap = Object.fromEntries((gCustRes || []).map((c: any) => [c.id, c]));
 
       (reqRows ?? []).forEach((r: any) => {
         r.guarantor_customer = gCustMap[r.guarantor_customer_id] || null;
@@ -98,27 +178,35 @@ export default async function recoveryRoutes(app: FastifyInstance) {
       });
     }
 
-    // Fallback: Fetch legacy guarantors directly from the guarantors table if application has guarantor_id
     const legacyGuarantorIds = customers.map((c: any) => c.applications?.[0]?.guarantor_id).filter(Boolean);
     let legacyGuarantorsMap = new Map<string, any>();
     if (legacyGuarantorIds.length > 0) {
-      const { data: legGuarantors } = await sb
-        .from('guarantors')
-        .select('id, full_name, phone_number, service_number')
-        .in('id', legacyGuarantorIds);
-      (legGuarantors ?? []).forEach(g => legacyGuarantorsMap.set(g.id, g));
+      const legGuarantors = await fetchInChunks(
+        (chunk) => sb.from('guarantors')
+          .select('id, full_name, phone_number, service_number')
+          .in('id', chunk),
+        legacyGuarantorIds
+      );
+      (legGuarantors ?? []).forEach((g: any) => legacyGuarantorsMap.set(g.id, g));
     }
 
     const result = (customers ?? []).map((c: any) => {
       const app = c.applications?.[0];
       const installments = app?.installments ?? [];
       const arrears = installments.reduce((s: number, inst: any) => s + Number(inst.arrears_amount ?? 0), 0);
-      const missed = installments.filter((inst: any) => inst.status === 'not_deducted' || inst.status === 'arrears').length;
+      const missed = installments.filter((inst: any) =>
+        inst.status === 'not_deducted' ||
+        inst.status === 'arrears' ||
+        (inst.status === 'pending' && inst.due_date && inst.due_date < nowStr)
+      ).length;
 
-      if (missed < minMissed) return null;
+      const isHighRisk = c.risk_level === 'high' || (c.risk_score && c.risk_score > 10);
+      const isMediumRisk = c.risk_level === 'medium' || (c.risk_score && c.risk_score > 5);
+
+      if (missed === 0 && arrears === 0 && !isHighRisk && !isMediumRisk) return null;
+      if (minMissed > 0 && missed < minMissed) return null;
 
       let guarantor = null;
-      // Guarantor data comes from guarantor_requests or fallback to legacy guarantor
       if (app) {
         const reqRow = reqMap.get(app.id);
         if (reqRow) {
@@ -141,6 +229,7 @@ export default async function recoveryRoutes(app: FastifyInstance) {
 
       const sortedLogs = c.recovery_logs ? [...c.recovery_logs].sort((a: any, b: any) => new Date(b.contacted_at).getTime() - new Date(a.contacted_at).getTime()) : [];
       const latestLog = sortedLogs[0];
+      const effectiveArrears = arrears > 0 ? arrears : (missed * Number(app?.monthly_amount ?? 0));
 
       return {
         id: c.id,
@@ -148,11 +237,11 @@ export default async function recoveryRoutes(app: FastifyInstance) {
         service_number: c.service_number,
         phone_number: c.phone_number,
         email: c.email,
-        risk_level: c.risk_level ?? 'low',
+        risk_level: c.risk_level ?? (c.risk_score > 10 ? 'high' : c.risk_score > 5 ? 'medium' : 'low'),
         risk_score: c.risk_score ?? 0,
         camp: c.camp ? { name: c.camp.name, branch: c.camp.branch } : null,
         guarantor,
-        arrears_amount: arrears,
+        arrears_amount: effectiveArrears,
         missed_months: missed,
         last_contact_date: latestLog ? new Date(latestLog.contacted_at).toISOString().split('T')[0] : null,
         last_contact_outcome: latestLog ? `${latestLog.notes || latestLog.outcome}` : `${missed} consecutive missed deduction(s).`,

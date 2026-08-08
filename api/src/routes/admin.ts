@@ -220,4 +220,26 @@ export default async function adminRoutes(app: FastifyInstance) {
     
     return reply.send({ data: stats });
   });
+
+  // ── Set Officer Expense Limit ──────────────────────────────
+  app.post('/officer-expense-limit', { preHandler: [authenticate, requireAdmin] }, async (req: FastifyRequest, reply: FastifyReply) => {
+    const { z } = await import('zod');
+    const b = z.object({
+      officer_id: z.string().uuid(),
+      limit_month: z.string(), // 'YYYY-MM'
+      monthly_limit: z.number().min(0)
+    }).safeParse(req.body);
+    if (!b.success) return reply.status(400).send({ error: 'Validation Error', details: b.error.flatten() });
+
+    const monthStr = b.data.limit_month.length === 7 ? `${b.data.limit_month}-01` : b.data.limit_month;
+    const { data, error } = await getSupabase().from('officer_expense_limits').upsert({
+      officer_id: b.data.officer_id,
+      limit_month: monthStr,
+      monthly_limit: b.data.monthly_limit,
+      set_by: req.user!.id,
+    } as any, { onConflict: 'officer_id,limit_month' }).select().single();
+
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.send({ data });
+  });
 }

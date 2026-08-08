@@ -4,7 +4,7 @@ import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { uploadDocumentViaApi, DocumentType } from '@/services/supabaseStorage';
 import {
-  TrendingUp, Target, Award, Gift, Plus, XCircle,
+  TrendingUp, Target, Award, Gift, Plus, XCircle, X,
   Loader2, Download, CheckCircle2, Clock, User, Eye,
   Percent, FileText, ChevronRight, AlertCircle, Sparkles,
   Camera, Check, Search, Smartphone
@@ -43,7 +43,7 @@ const STATUS_STYLES: Record<string, string> = {
   dispatched: 'bg-blue-100 text-blue-700',
 };
 
-const TABS = ['Overview', 'My Applications', 'Special Approvals', 'Commission', 'Targets', 'Leads', 'My Stock', 'Free Phone Reward'] as const;
+const TABS = ['Overview', 'My Applications', 'Special Approvals', 'Commission', 'Targets', 'Expenses', 'My Stock', 'Leads', 'Free Phone Reward'] as const;
 type Tab = typeof TABS[number];
 
 export default function SalesOfficerPage() {
@@ -147,6 +147,104 @@ export default function SalesOfficerPage() {
   const { data: perfRes, isLoading: perfLoading } = useQuery({
     queryKey: ['sales-performance', month],
     queryFn: () => api.get('/sales/performance', { params: { month } }).then(r => r.data),
+  });
+
+  // Sales Portal Gaps: Targets, My Stock & Expenses
+  const { data: myTarget } = useQuery({
+    queryKey: ['my-target', month],
+    queryFn: () => api.get('/sales/my-target', { params: { month } }).then(r => r.data.data),
+  });
+
+  const { data: myStock } = useQuery({
+    queryKey: ['my-stock'],
+    queryFn: () => api.get('/sales/my-stock').then(r => r.data.data),
+  });
+
+  const { data: myExpensesRes, isLoading: expensesLoading } = useQuery({
+    queryKey: ['my-expenses'],
+    queryFn: () => api.get('/expenses').then(r => r.data.data),
+  });
+  const myExpenses = myExpensesRes ?? [];
+
+  const { data: categoriesRes } = useQuery({
+    queryKey: ['expense-categories'],
+    queryFn: () => api.get('/expenses/categories').then(r => r.data.data ?? []),
+  });
+  const categories = categoriesRes ?? [];
+
+  const { data: staffUsersRes } = useQuery({
+    queryKey: ['staff-users'],
+    queryFn: () => api.get('/admin/staff').then(r => r.data.data ?? []),
+    enabled: ['admin', 'super_admin', 'system_operator', 'finance_officer'].includes(user?.role || ''),
+  });
+  const staffUsers = staffUsersRes ?? [];
+
+  const submitExpense = useMutation({
+    mutationFn: (p: any) => api.post('/expenses', p),
+    onSuccess: () => {
+      alert('Expense submitted successfully.');
+      qc.invalidateQueries({ queryKey: ['my-expenses'] });
+    },
+    onError: (e: any) => alert(e.response?.data?.message || e.response?.data?.error || 'Failed to submit expense (limit reached?)'),
+  });
+
+  const requestStock = useMutation({
+    mutationFn: (p: any) => api.post('/inventory/stock-orders', p),
+    onSuccess: () => {
+      alert('Stock request submitted to inventory.');
+    },
+    onError: (e: any) => alert(e.response?.data?.error || 'Failed to request stock'),
+  });
+
+  // Admin action states & mutations
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showTargetModal, setShowTargetModal] = useState(false);
+  const [showAssignStockModal, setShowAssignStockModal] = useState(false);
+
+  const [adminOfficerId, setAdminOfficerId] = useState('');
+  const [adminLimitMonth, setAdminLimitMonth] = useState(month);
+  const [adminLimitAmount, setAdminLimitAmount] = useState('');
+
+  const [targetOfficerId, setTargetOfficerId] = useState('');
+  const [targetMonth, setTargetMonth] = useState(month);
+  const [targetPhones, setTargetPhones] = useState('');
+  const [targetAmountVal, setTargetAmountVal] = useState('');
+
+  const [assignOfficerId, setAssignOfficerId] = useState('');
+  const [assignModelId, setAssignModelId] = useState('');
+  const [assignQty, setAssignQty] = useState('1');
+
+  const setExpenseLimitMutation = useMutation({
+    mutationFn: (payload: { officer_id: string; limit_month: string; monthly_limit: number }) =>
+      api.post('/admin/officer-expense-limit', payload),
+    onSuccess: () => {
+      alert('Officer expense limit set successfully!');
+      setShowLimitModal(false);
+      qc.invalidateQueries({ queryKey: ['my-expenses'] });
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to set expense limit'),
+  });
+
+  const setTargetMutation = useMutation({
+    mutationFn: (payload: { officer_id: string; target_month: string; target_phones: number; target_amount?: number }) =>
+      api.post('/sales/targets', payload),
+    onSuccess: () => {
+      alert('Monthly phone-sale target updated successfully!');
+      setShowTargetModal(false);
+      qc.invalidateQueries({ queryKey: ['my-target'] });
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to set target'),
+  });
+
+  const assignStockMutation = useMutation({
+    mutationFn: (payload: { officer_id: string; model_id?: string; quantity: number }) =>
+      api.post('/inventory/assign-officer', payload),
+    onSuccess: () => {
+      alert('Daily stock assigned to officer successfully!');
+      setShowAssignStockModal(false);
+      qc.invalidateQueries({ queryKey: ['my-stock'] });
+    },
+    onError: (err: any) => alert(err.response?.data?.error || 'Failed to assign stock'),
   });
 
   const { data: freePhoneRes, isLoading: fpLoading } = useQuery({
@@ -926,10 +1024,152 @@ export default function SalesOfficerPage() {
       )}
 
       {tab === 'Targets' && (
-        <div className="card p-6 text-center text-base-muted text-sm">
-          <Target size={30} className="mx-auto mb-2 opacity-30 text-amber-500" />
-          <p className="font-semibold text-base-secondary">Monthly Targets & Objectives</p>
-          <p className="text-xs text-base-muted mt-1">Goal: 5 active applications per month. Keep track of customer installments to secure full payouts.</p>
+        <div className="card p-6 text-left space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-base text-base-primary flex items-center gap-2">
+              <Target size={18} className="text-blue-500" /> Monthly Phone-Sale Target
+            </h3>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-base-muted">Month:</span>
+              <input
+                type="month"
+                value={month}
+                onChange={e => setMonth(e.target.value)}
+                className="border border-base rounded-lg px-2.5 py-1 text-xs surface"
+              />
+              {['admin', 'super_admin', 'system_operator', 'finance_officer'].includes(user?.role || '') && (
+                <button
+                  onClick={() => setShowTargetModal(true)}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition"
+                >
+                  + Set Target
+                </button>
+              )}
+            </div>
+          </div>
+          {myTarget?.target_phones == null ? (
+            <p className="text-base-muted text-sm py-4">No monthly phone-sale target set by admin for {month}.</p>
+          ) : (
+            <div className="space-y-3 bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-base">
+              <div className="flex justify-between items-center text-sm font-semibold">
+                <span>Phones Sold: <strong className="text-blue-600 font-mono text-base">{myTarget.sold}</strong> / <span className="font-mono text-base">{myTarget.target_phones}</span> phones</span>
+                <span className="bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 text-xs px-2.5 py-1 rounded-full font-bold">
+                  {Math.round((myTarget.sold / Math.max(1, myTarget.target_phones)) * 100)}% Completed
+                </span>
+              </div>
+              <div className="w-full surface-2 rounded-full h-3 overflow-hidden p-0.5 border border-base">
+                <div
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(100, (myTarget.sold / Math.max(1, myTarget.target_phones)) * 100)}%` }}
+                />
+              </div>
+              {myTarget.target_amount && (
+                <div className="text-xs text-base-muted font-mono">Target Sales Volume: LKR {Number(myTarget.target_amount).toLocaleString()}</div>
+              )}
+              {myTarget.notes && (
+                <p className="text-xs text-base-muted italic pt-1 border-t border-base">Management Note: {myTarget.notes}</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'Expenses' && (
+        <div className="card p-6 text-left space-y-6">
+          <div className="flex justify-between items-center border-b border-base pb-3">
+            <h3 className="font-bold text-base text-base-primary flex items-center gap-2">
+              <FileText size={18} className="text-amber-500" /> Submit &amp; View Expenses
+            </h3>
+            {['admin', 'super_admin', 'system_operator', 'finance_officer'].includes(user?.role || '') && (
+              <button
+                onClick={() => setShowLimitModal(true)}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition"
+              >
+                + Set Expense Limit
+              </button>
+            )}
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const f = e.target as any;
+              submitExpense.mutate({
+                amount: Number(f.amount.value),
+                expense_date: f.date.value,
+                description: f.desc.value,
+                category_id: f.category.value || undefined,
+                notes: f.notes.value || undefined,
+              });
+              f.reset();
+            }}
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900/40 p-5 rounded-2xl border border-base"
+          >
+            <div>
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Amount (LKR)</label>
+              <input name="amount" type="number" step="0.01" min="1" placeholder="e.g. 2500" required className="w-full border border-base rounded-lg px-3 py-2 text-sm surface focus:outline-none focus:ring-2 focus:ring-amber-400 font-mono" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Expense Date</label>
+              <input name="date" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required className="w-full border border-base rounded-lg px-3 py-2 text-sm surface focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            </div>
+            <div>
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Category</label>
+              <select name="category" className="w-full border border-base rounded-lg px-3 py-2 text-sm surface focus:outline-none focus:ring-2 focus:ring-amber-400">
+                <option value="">Select Category (Optional)</option>
+                {(categories || []).map((cat: any) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Description</label>
+              <input name="desc" type="text" placeholder="e.g. Travel allowance for camp visit" required className="w-full border border-base rounded-lg px-3 py-2 text-sm surface focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">Notes / Justification (Optional)</label>
+              <input name="notes" type="text" placeholder="Additional notes..." className="w-full border border-base rounded-lg px-3 py-2 text-sm surface focus:outline-none focus:ring-2 focus:ring-amber-400" />
+            </div>
+            <button
+              type="submit"
+              disabled={submitExpense.isPending}
+              className="md:col-span-2 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {submitExpense.isPending && <Loader2 size={16} className="animate-spin" />} Submit Expense
+            </button>
+          </form>
+
+          <div>
+            <h4 className="font-bold text-sm text-base-primary mb-3">My Submitted Expenses</h4>
+            {expensesLoading ? (
+              <div className="py-6 text-center text-base-muted"><Loader2 className="animate-spin inline" /> Loading expenses...</div>
+            ) : (myExpenses ?? []).length === 0 ? (
+              <p className="text-base-muted text-sm py-4">No expenses submitted yet.</p>
+            ) : (
+              <div className="divide-y divide-base border border-base rounded-2xl overflow-hidden">
+                {(myExpenses ?? []).map((x: any) => (
+                  <div key={x.id} className="p-4 flex items-center justify-between hover:bg-[var(--bg-surface-2)] transition">
+                    <div>
+                      <div className="font-bold text-sm text-base-primary">{x.description}</div>
+                      <div className="text-xs text-base-muted mt-0.5">
+                        {x.category?.name || 'General'} · {new Date(x.expense_date).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold font-mono text-sm">LKR {Number(x.amount).toLocaleString()}</div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                        x.status === 'approved' ? 'bg-green-100 text-green-800'
+                        : x.status === 'rejected' ? 'bg-red-100 text-red-800'
+                        : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {x.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -942,10 +1182,65 @@ export default function SalesOfficerPage() {
       )}
 
       {tab === 'My Stock' && (
-        <div className="card p-6 text-center text-base-muted text-sm">
-          <User size={30} className="mx-auto mb-2 opacity-30 text-amber-500" />
-          <p className="font-semibold text-base-secondary">Allocated Officer Stock</p>
-          <p className="text-xs text-base-muted mt-1">View list of devices in your custody ready for handovers.</p>
+        <div className="card p-6 text-left space-y-4">
+          <div className="flex justify-between items-center border-b border-base pb-3">
+            <div>
+              <h3 className="font-bold text-base text-base-primary flex items-center gap-2">
+                <Smartphone size={18} className="text-indigo-500" /> Stock in My Custody
+              </h3>
+              <p className="text-xs text-base-muted mt-0.5">Daily stock assigned to you by inventory management</p>
+            </div>
+            <div className="flex items-center gap-2">
+              {['admin', 'super_admin', 'system_operator', 'inventory_manager'].includes(user?.role || '') && (
+                <button
+                  onClick={() => setShowAssignStockModal(true)}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl text-xs transition"
+                >
+                  + Assign Stock
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const model_id = prompt('Enter Phone Model ID to request:');
+                  const quantity = Number(prompt('Quantity needed:', '1'));
+                  if (model_id && quantity > 0) {
+                    requestStock.mutate({ model_id, quantity });
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow"
+              >
+                <Plus size={14} /> Request New Stock
+              </button>
+            </div>
+          </div>
+
+          {(myStock ?? []).length === 0 ? (
+            <div className="py-12 text-center text-base-muted text-sm">
+              <Smartphone size={32} className="mx-auto mb-2 opacity-30" />
+              No stock assigned to you today. Click "+ Request New Stock" to request stock from inventory.
+            </div>
+          ) : (
+            <div className="divide-y divide-base border border-base rounded-2xl overflow-hidden">
+              {(myStock ?? []).map((s: any) => (
+                <div key={s.id} className="p-4 flex items-center justify-between hover:bg-[var(--bg-surface-2)] transition">
+                  <div>
+                    <div className="font-bold text-sm text-base-primary">
+                      {s.model?.brand} {s.model?.model} <span className="text-xs font-normal text-base-muted">({s.model?.storage || '128GB'})</span>
+                    </div>
+                    <div className="text-xs text-base-muted mt-0.5">
+                      Assigned Date: {s.assign_date} {s.notes ? `· ${s.notes}` : ''}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-bold font-mono text-sm text-indigo-600">Qty: x{s.quantity}</div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize bg-blue-50 text-blue-700 border border-blue-200">
+                      {s.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1591,6 +1886,195 @@ export default function SalesOfficerPage() {
             </div>
           </div>
         )
+      )}
+
+      {/* Admin Modal: Set Expense Limit */}
+      {showLimitModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="surface rounded-2xl w-full max-w-md shadow-2xl border border-base p-6 space-y-4 text-left">
+            <div className="flex justify-between items-center border-b border-base pb-3">
+              <h3 className="font-bold text-base text-base-primary">Set Officer Monthly Expense Limit</h3>
+              <button onClick={() => setShowLimitModal(false)} className="text-base-muted hover:text-base-primary"><X size={18} /></button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Select Officer</label>
+              <select
+                value={adminOfficerId}
+                onChange={e => setAdminOfficerId(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface"
+              >
+                <option value="">Select Officer...</option>
+                {staffUsers.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.staff_registry?.full_name || u.email || u.phone_number} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Target Month</label>
+              <input
+                type="month"
+                value={adminLimitMonth}
+                onChange={e => setAdminLimitMonth(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Monthly Limit (LKR)</label>
+              <input
+                type="number"
+                placeholder="e.g. 50000"
+                value={adminLimitAmount}
+                onChange={e => setAdminLimitAmount(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface font-mono"
+              />
+            </div>
+            <button
+              onClick={() => {
+                if (!adminOfficerId || !adminLimitAmount) return alert('Select officer and enter limit');
+                setExpenseLimitMutation.mutate({
+                  officer_id: adminOfficerId,
+                  limit_month: adminLimitMonth,
+                  monthly_limit: Number(adminLimitAmount),
+                });
+              }}
+              disabled={setExpenseLimitMutation.isPending}
+              className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-sm transition disabled:opacity-50"
+            >
+              {setExpenseLimitMutation.isPending ? <Loader2 size={16} className="animate-spin inline" /> : 'Save Expense Limit'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Modal: Set Sales Target */}
+      {showTargetModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="surface rounded-2xl w-full max-w-md shadow-2xl border border-base p-6 space-y-4 text-left">
+            <div className="flex justify-between items-center border-b border-base pb-3">
+              <h3 className="font-bold text-base text-base-primary">Set Monthly Phone-Sale Target</h3>
+              <button onClick={() => setShowTargetModal(false)} className="text-base-muted hover:text-base-primary"><X size={18} /></button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Select Sales Officer</label>
+              <select
+                value={targetOfficerId}
+                onChange={e => setTargetOfficerId(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface"
+              >
+                <option value="">Select Officer...</option>
+                {staffUsers.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.staff_registry?.full_name || u.email || u.phone_number} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Target Month</label>
+              <input
+                type="month"
+                value={targetMonth}
+                onChange={e => setTargetMonth(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Phone Target Count</label>
+              <input
+                type="number"
+                placeholder="e.g. 5"
+                value={targetPhones}
+                onChange={e => setTargetPhones(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface font-mono"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Target Volume (LKR, Optional)</label>
+              <input
+                type="number"
+                placeholder="e.g. 250000"
+                value={targetAmountVal}
+                onChange={e => setTargetAmountVal(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface font-mono"
+              />
+            </div>
+            <button
+              onClick={() => {
+                if (!targetOfficerId || !targetPhones) return alert('Select officer and enter phone target');
+                setTargetMutation.mutate({
+                  officer_id: targetOfficerId,
+                  target_month: targetMonth,
+                  target_phones: Number(targetPhones),
+                  target_amount: targetAmountVal ? Number(targetAmountVal) : undefined,
+                });
+              }}
+              disabled={setTargetMutation.isPending}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition disabled:opacity-50"
+            >
+              {setTargetMutation.isPending ? <Loader2 size={16} className="animate-spin inline" /> : 'Save Sales Target'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Modal: Assign Daily Stock */}
+      {showAssignStockModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="surface rounded-2xl w-full max-w-md shadow-2xl border border-base p-6 space-y-4 text-left">
+            <div className="flex justify-between items-center border-b border-base pb-3">
+              <h3 className="font-bold text-base text-base-primary">Assign Daily Stock to Officer</h3>
+              <button onClick={() => setShowAssignStockModal(false)} className="text-base-muted hover:text-base-primary"><X size={18} /></button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Select Officer</label>
+              <select
+                value={assignOfficerId}
+                onChange={e => setAssignOfficerId(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface"
+              >
+                <option value="">Select Officer...</option>
+                {staffUsers.map((u: any) => (
+                  <option key={u.id} value={u.id}>{u.staff_registry?.full_name || u.email || u.phone_number} ({u.role})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Select Phone Model</label>
+              <select
+                value={assignModelId}
+                onChange={e => setAssignModelId(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface"
+              >
+                <option value="">Choose Device Model...</option>
+                {(phoneModels || []).map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.brand} {m.model} ({m.storage || '128GB'})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-base-muted mb-1">Quantity</label>
+              <input
+                type="number"
+                min="1"
+                value={assignQty}
+                onChange={e => setAssignQty(e.target.value)}
+                className="w-full border border-base rounded-lg p-2.5 text-sm surface font-mono"
+              />
+            </div>
+            <button
+              onClick={() => {
+                if (!assignOfficerId || !assignQty) return alert('Select officer and enter quantity');
+                assignStockMutation.mutate({
+                  officer_id: assignOfficerId,
+                  model_id: assignModelId || undefined,
+                  quantity: Number(assignQty),
+                });
+              }}
+              disabled={assignStockMutation.isPending}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-sm transition disabled:opacity-50"
+            >
+              {assignStockMutation.isPending ? <Loader2 size={16} className="animate-spin inline" /> : 'Assign Stock'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

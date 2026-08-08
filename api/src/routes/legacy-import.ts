@@ -11,6 +11,7 @@ import { uploadToStorage, getFirebaseStorage } from '../config/firebase';
 import { writeAuditLog, AuditActions } from '../services/audit';
 import { notify } from '../services/notify';
 import { extractMultipleMilitaryUnitDetails } from '../services/gemini';
+import { refreshCustomerRisk } from '../services/customers';
 
 // ─── Month header parser ──────────────────────────────────────
 const MONTH_MAP: Record<string, string> = {
@@ -1063,118 +1064,167 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
       } // end if (applicationsToInsert.length > 0)
 
       if (appsToProcessInstallments.length > 0) {
-        // Pre-fetch all existing installments to avoid duplication
-        const existingInstallmentKeys = new Set<string>();
+        // Pre-fetch all existing installments with id, status, confirmed_at to update pending ones
+        const existingInstMap = new Map<string, { id: string; status: string; confirmed_at: string | null }>();
         const appIds = appsToProcessInstallments.map(a => a.id);
         for (let i = 0; i < appIds.length; i += 500) {
-            const chunk = appIds.slice(i, i + 500);
-            const { data: existInsts } = await sb.from('installments')
-              .select('application_id, due_year, due_month')
-              .in('application_id', chunk);
-            if (existInsts) {
-              existInsts.forEach((inst: any) => {
-                existingInstallmentKeys.add(`${inst.application_id}_${inst.due_year}_${inst.due_month}`);
+          const chunk = appIds.slice(i, i + 500);
+          const { data: existInsts } = await sb.from('installments')
+            .select('id, application_id, due_year, due_month, status, confirmed_at')
+            .in('application_id', chunk);
+          if (existInsts) {
+            existInsts.forEach((inst: any) => {
+              existingInstMap.set(`${inst.application_id}_${inst.due_year}_${inst.due_month}`, {
+                id: inst.id,
+                status: inst.status,
+                confirmed_at: inst.confirmed_at,
+              });
+            });
+          }
+        }
+        const installmentsToUpdate: any[] = [];
+
+        // For each application, generate installment rows
+        for (const app_ of appsToProcessInstallments) {
+          const srcRow = legacyRowsData.find(r => r.customer_id === app_.customer_id);
+          if (!srcRow) continue;
+          const origRow = srcRow.service_number ? rowByServiceNo.get(srcRow.service_number) : undefined;
+          if (!origRow) continue;
+
+          const itemCount = Number(origRow.item_count ?? 1) || 1;
+          const monthlyAmt = Number(app_.monthly_amount ?? 0);
+          const histEntries = Object.entries(origRow.deduction_history as Record<string, any>);
+
+          // Sort history chronologically
+          histEntries.sort(([a], [b]) => a.localeCompare(b));
+
+          let monthNumber = 0;
+          // Historical months from deduction_history
+          for (const [monthKey, hist] of histEntries) {
+            monthNumber++;
+            const [yStr, mStr] = monthKey.split('-');
+            const yr = parseInt(yStr);
+            const mo = parseInt(mStr);
+            if (!yr || !mo) continue;
+
+            const dueDate = new Date(yr, mo - 1, 1);
+            const totalDeductedAmt = Number(hist.amount ?? 0);
+            const deductedAmt = totalDeductedAmt / itemCount;
+            const isDeducted = hist.status === 'deducted' || deductedAmt > 0;
+
+            const key = `${app_.id}_${yr}_${mo}`;
+            const existing = existingInstMap.get(key);
+
+            if (!existing) {
+              // NEW month — insert
+              installmentsToInsert.push({
+                application_id:  app_.id,
+                customer_id:     app_.customer_id,
+                due_date:        dueDate.toISOString().split('T')[0],
+                due_year:        yr,
+                due_month:       mo,
+                month_number:    monthNumber,
+                expected_amount: monthlyAmt,
+                deducted_amount: isDeducted ? deductedAmt : 0,
+                arrears_amount:  isDeducted ? Math.max(0, monthlyAmt - deductedAmt) : monthlyAmt,
+                status:          isDeducted ? (deductedAmt >= monthlyAmt ? 'deducted' : 'partial') : 'not_deducted',
+              });
+            } else if (
+              existing.status !== 'deducted' &&   // don't downgrade a completed month
+              !existing.confirmed_at              // don't overwrite a manual camp-officer confirmation
+            ) {
+              // EXISTING month — refresh payment status from the uploaded sheet
+              installmentsToUpdate.push({
+                id:              existing.id,
+                customer_id:     app_.customer_id,
+                deducted_amount: isDeducted ? deductedAmt : 0,
+                arrears_amount:  isDeducted ? Math.max(0, monthlyAmt - deductedAmt) : monthlyAmt,
+                status:          isDeducted ? (deductedAmt >= monthlyAmt ? 'deducted' : 'partial') : 'not_deducted',
+                updated_at:      new Date().toISOString(),
               });
             }
           }
 
-          // For each application, generate installment rows
-          for (const app_ of appsToProcessInstallments) {
-            const srcRow = legacyRowsData.find(r => r.customer_id === app_.customer_id);
-            if (!srcRow) continue;
-            const origRow = srcRow.service_number ? rowByServiceNo.get(srcRow.service_number) : undefined;
-            if (!origRow) continue;
+          // Future/remaining months — status 'pending'
+          const termMonths = Number(app_.term_months ?? 24);
+          const remainingMonths = Math.max(0, termMonths - histEntries.length);
+          const now2 = new Date();
+          
+          let lastHistDate = app_.sale_date ? new Date(app_.sale_date) : new Date(now2.getFullYear(), now2.getMonth(), 1);
+          if (histEntries.length > 0) {
+            const [lastHistMonthStr] = histEntries[histEntries.length - 1];
+            const [lastY, lastM] = lastHistMonthStr.split('-');
+            lastHistDate = new Date(parseInt(lastY), parseInt(lastM) - 1, 1);
+          } else {
+            // If there's no history, the first installment should start in the sale date's month.
+            // Since the loop adds `i` (starting at 1), we offset the base date by -1 month.
+            lastHistDate.setMonth(lastHistDate.getMonth() - 1);
+          }
 
-            const itemCount = Number(origRow.item_count ?? 1) || 1;
-            const monthlyAmt = Number(app_.monthly_amount ?? 0);
-            const histEntries = Object.entries(origRow.deduction_history as Record<string, any>);
-
-            // Sort history chronologically
-            histEntries.sort(([a], [b]) => a.localeCompare(b));
-
-            let monthNumber = 0;
-            // Historical months from deduction_history
-            for (const [monthKey, hist] of histEntries) {
-              monthNumber++;
-              const [yStr, mStr] = monthKey.split('-');
-              const yr = parseInt(yStr);
-              const mo = parseInt(mStr);
-              if (!yr || !mo) continue;
-
-              const dueDate = new Date(yr, mo - 1, 1);
-              const totalDeductedAmt = Number(hist.amount ?? 0);
-              const deductedAmt = totalDeductedAmt / itemCount;
-              const isDeducted = hist.status === 'deducted' || deductedAmt > 0;
-
-              const key = `${app_.id}_${yr}_${mo}`;
-              if (!existingInstallmentKeys.has(key)) {
-                installmentsToInsert.push({
-                  application_id:  app_.id,
-                  customer_id:     app_.customer_id,
-                  due_date:        dueDate.toISOString().split('T')[0],
-                  due_year:        yr,
-                  due_month:       mo,
-                  month_number:    monthNumber,
-                  expected_amount: monthlyAmt,
-                  deducted_amount: isDeducted ? deductedAmt : 0,
-                  arrears_amount:  isDeducted ? Math.max(0, monthlyAmt - deductedAmt) : monthlyAmt,
-                  status:          isDeducted ? (deductedAmt >= monthlyAmt ? 'deducted' : 'partial') : 'not_deducted',
-                });
-              }
-            }
-
-            // Future/remaining months — status 'pending'
-            const termMonths = Number(app_.term_months ?? 24);
-            const remainingMonths = Math.max(0, termMonths - histEntries.length);
-            const now2 = new Date();
+          for (let i = 1; i <= remainingMonths; i++) {
+            monthNumber++;
+            const futureDate = new Date(lastHistDate.getFullYear(), lastHistDate.getMonth() + i, 1);
+            const key = `${app_.id}_${futureDate.getFullYear()}_${futureDate.getMonth() + 1}`;
+            const existing = existingInstMap.get(key);
             
-            let lastHistDate = app_.sale_date ? new Date(app_.sale_date) : new Date(now2.getFullYear(), now2.getMonth(), 1);
-            if (histEntries.length > 0) {
-              const [lastHistMonthStr] = histEntries[histEntries.length - 1];
-              const [lastY, lastM] = lastHistMonthStr.split('-');
-              lastHistDate = new Date(parseInt(lastY), parseInt(lastM) - 1, 1);
-            } else {
-              // If there's no history, the first installment should start in the sale date's month.
-              // Since the loop adds `i` (starting at 1), we offset the base date by -1 month.
-              lastHistDate.setMonth(lastHistDate.getMonth() - 1);
-            }
+            // Check if futureDate is actually in the past compared to current month
+            const isPastDue = futureDate.getFullYear() < now2.getFullYear() || 
+                             (futureDate.getFullYear() === now2.getFullYear() && futureDate.getMonth() < now2.getMonth());
 
-            for (let i = 1; i <= remainingMonths; i++) {
-              monthNumber++;
-              const futureDate = new Date(lastHistDate.getFullYear(), lastHistDate.getMonth() + i, 1);
-              const key = `${app_.id}_${futureDate.getFullYear()}_${futureDate.getMonth() + 1}`;
-              
-              // Check if futureDate is actually in the past compared to current month
-              const isPastDue = futureDate.getFullYear() < now2.getFullYear() || 
-                               (futureDate.getFullYear() === now2.getFullYear() && futureDate.getMonth() < now2.getMonth());
-
-              if (!existingInstallmentKeys.has(key)) {
-                installmentsToInsert.push({
-                  application_id:  app_.id,
-                  customer_id:     app_.customer_id,
-                  due_date:        futureDate.toISOString().split('T')[0],
-                  due_year:        futureDate.getFullYear(),
-                  due_month:       futureDate.getMonth() + 1,
-                  month_number:    monthNumber,
-                  expected_amount: monthlyAmt,
-                  deducted_amount: 0,
-                  arrears_amount:  isPastDue ? monthlyAmt : 0,
-                  status:          isPastDue ? 'not_deducted' : 'pending',
-                });
-              }
+            if (!existing) {
+              installmentsToInsert.push({
+                application_id:  app_.id,
+                customer_id:     app_.customer_id,
+                due_date:        futureDate.toISOString().split('T')[0],
+                due_year:        futureDate.getFullYear(),
+                due_month:       futureDate.getMonth() + 1,
+                month_number:    monthNumber,
+                expected_amount: monthlyAmt,
+                deducted_amount: 0,
+                arrears_amount:  isPastDue ? monthlyAmt : 0,
+                status:          isPastDue ? 'not_deducted' : 'pending',
+              });
             }
           }
+        }
 
-          // Bulk insert installments in chunks of 500
-          for (let ci = 0; ci < installmentsToInsert.length; ci += 500) {
-            const chunk = installmentsToInsert.slice(ci, ci + 500);
-            const { error: instErr } = await sb.from('installments').insert(chunk);
-            if (instErr) app.log.error(`Installment insert error: ${instErr.message}`);
+        // Bulk insert installments in chunks of 500
+        for (let ci = 0; ci < installmentsToInsert.length; ci += 500) {
+          const chunk = installmentsToInsert.slice(ci, ci + 500);
+          const { error: instErr } = await sb.from('installments').insert(chunk);
+          if (instErr) app.log.error(`Installment insert error: ${instErr.message}`);
+        }
+
+        // Bulk update existing installments from the sheet
+        const updatedCustIds = new Set<string>();
+        for (const u of installmentsToUpdate) {
+          const { error: updErr } = await sb.from('installments').update({
+            deducted_amount: u.deducted_amount,
+            arrears_amount:  u.arrears_amount,
+            status:          u.status,
+            updated_at:      u.updated_at,
+          }).eq('id', u.id);
+          if (updErr) {
+            app.log.error(`Installment update error: ${updErr.message}`);
+          } else if (u.customer_id) {
+            updatedCustIds.add(u.customer_id);
           }
+        }
 
-          app.log.info(`Processed ${appsToProcessInstallments.length} applications and created ${installmentsToInsert.length} installments from legacy import`);
+        // Refresh customer risk for affected customers
+        if (updatedCustIds.size > 0) {
+          for (const custId of updatedCustIds) {
+            try {
+              await refreshCustomerRisk(custId);
+            } catch (err: any) {
+              app.log.error(`Failed to refresh customer risk for ${custId}: ${err.message}`);
+            }
+          }
+        }
 
-      } // end if (appsToProcessInstallments.length > 0)
+        app.log.info(`Processed ${appsToProcessInstallments.length} applications: created ${installmentsToInsert.length} installments, updated ${installmentsToUpdate.length} existing installments from legacy import`);
+
+    } // end if (appsToProcessInstallments.length > 0)
     } // end if (legacyPhoneModelId)
 
     // ── Extract and Insert Guarantors (Runs for ALL rows) ─────────────────────

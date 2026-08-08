@@ -325,5 +325,25 @@ export default async function inventoryRoutes(app: FastifyInstance) {
     if (error) return reply.status(404).send({ error: 'Phone model not found' });
     return reply.send({ success: true });
   });
+
+  // ── POST /inventory/assign-officer ── Assign stock to a sales officer
+  app.post('/assign-officer', {
+    preHandler: [authenticate, requireRole('inventory_manager', 'admin', 'super_admin', 'system_operator')],
+  }, async (req: FastifyRequest, reply: FastifyReply) => {
+    const b = z.object({
+      officer_id: z.string().uuid(),
+      model_id: z.string().uuid().optional(),
+      phone_id: z.string().uuid().optional(),
+      quantity: z.number().int().positive().default(1),
+      assign_date: z.string().optional(),
+      notes: z.string().optional(),
+    }).safeParse(req.body);
+    if (!b.success) return reply.status(400).send({ error: 'Validation Error', details: b.error.flatten() });
+
+    const { data, error } = await getSupabase().from('officer_stock_assignments')
+      .insert({ ...b.data, assigned_by: req.user!.id } as any).select().single();
+    if (error) return reply.status(500).send({ error: error.message });
+    return reply.status(201).send({ data });
+  });
 }
 
