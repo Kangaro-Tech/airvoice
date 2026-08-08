@@ -87,10 +87,11 @@ export default function GuarantorsPage() {
 
   // 1. Fetch guarantors list
   const { data: guarantorsRes, isLoading: guarantorsLoading } = useQuery({
-    queryKey: ['guarantors'],
-    queryFn: () => api.get('/guarantors').then(r => r.data),
+    queryKey: ['guarantors', search, branchFilter],
+    queryFn: () => api.get('/guarantors', { params: { search: search.trim() || undefined, branch: branchFilter !== 'all' ? branchFilter : undefined, limit: 1000 } }).then(r => r.data),
   });
   const guarantors: GuarantorRow[] = guarantorsRes?.data ?? [];
+  const totalGuarantorsCount = guarantorsRes?.total_count ?? guarantors.length;
 
   // 2. Fetch overdue/transfer cases
   const { data: overdueRes } = useQuery({
@@ -182,7 +183,7 @@ export default function GuarantorsPage() {
   };
 
   // Calculate dynamic stats
-  const activeCount = guarantors.filter(g => g.is_active).length;
+  const activeCount = totalGuarantorsCount;
   const transferCasesCount = overdueCases.length;
   const totalLiabilityValue = guarantors.reduce((s, g) => s + Number(g.total_liability ?? 0), 0);
 
@@ -247,33 +248,33 @@ export default function GuarantorsPage() {
             <Plus size={15} /> Add Guarantor
           </button>
           <button
-          onClick={() => {
-            const headers = ['Guarantor Name', 'Service No', 'Branch', 'Camp', 'Guaranteed Customer', 'Liability'];
-            const rows = filteredGuarantors.map(g => {
-              const activeReq = g.guarantor_requests?.find(r => r.status === 'accepted');
-              return [
-                g.full_name,
-                g.service_number,
-                g.branch?.toUpperCase(),
-                g.camp?.name ?? '',
-                activeReq?.application?.customer?.full_name ?? '—',
-                g.total_liability
-              ];
-            });
-            const csvContent = "data:text/csv;charset=utf-8,"
-              + [headers.join(','), ...rows.map(e => e.map(val => `"${val ?? ''}"`).join(","))].join("\n");
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `guarantors_report.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }}
-          className="flex items-center gap-2 px-4 py-2 surface border border-base rounded-lg text-sm font-semibold text-base-secondary hover:bg-[var(--bg-surface-2)] transition-colors shadow-sm"
-        >
-          <Download size={15} /> Export
-        </button>
+            onClick={() => {
+              const headers = ['Guarantor Name', 'Service No', 'Branch', 'Camp', 'Guaranteed Customer', 'Liability'];
+              const rows = filteredGuarantors.map(g => {
+                const activeReq = g.guarantor_requests?.find(r => r.status === 'accepted');
+                return [
+                  g.full_name,
+                  g.service_number,
+                  g.branch?.toUpperCase(),
+                  g.camp?.name ?? '',
+                  activeReq?.application?.customer?.full_name ?? '—',
+                  g.total_liability
+                ];
+              });
+              const csvContent = "data:text/csv;charset=utf-8,"
+                + [headers.join(','), ...rows.map(e => e.map(val => `"${val ?? ''}"`).join(","))].join("\n");
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", `guarantors_report.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="flex items-center gap-2 px-4 py-2 surface border border-base rounded-lg text-sm font-semibold text-base-secondary hover:bg-[var(--bg-surface-2)] transition-colors shadow-sm"
+          >
+            <Download size={15} /> Export
+          </button>
         </div>
       </div>
 
@@ -331,11 +332,10 @@ export default function GuarantorsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setBranchFilter('all')}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-              branchFilter === 'all'
-                ? 'bg-[#0f1c2e] text-white shadow-sm'
-                : 'surface-2 text-base-secondary hover:bg-[var(--bg-surface-3)]'
-            }`}
+            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${branchFilter === 'all'
+              ? 'bg-[#0f1c2e] text-white shadow-sm'
+              : 'surface-2 text-base-secondary hover:bg-[var(--bg-surface-3)]'
+              }`}
           >
             All Branches
           </button>
@@ -347,11 +347,10 @@ export default function GuarantorsPage() {
             <button
               key={b.key}
               onClick={() => setBranchFilter(b.key)}
-              className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${
-                branchFilter === b.key
-                  ? 'bg-[#0f1c2e] text-white shadow-sm'
-                  : 'surface-2 text-base-secondary hover:bg-[var(--bg-surface-3)]'
-              }`}
+              className={`px-4 py-2 rounded-full text-xs font-bold flex items-center gap-1.5 transition-all ${branchFilter === b.key
+                ? 'bg-[#0f1c2e] text-white shadow-sm'
+                : 'surface-2 text-base-secondary hover:bg-[var(--bg-surface-3)]'
+                }`}
             >
               <span>{b.label}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${branchFilter === b.key ? 'bg-white/20 text-white' : 'surface-3 text-base-muted'}`}>
@@ -432,7 +431,7 @@ export default function GuarantorsPage() {
         <div className="flex-1 card overflow-hidden surface shadow-sm border border-base rounded-2xl">
           <div className="px-5 py-4 border-b border-base">
             <h3 className="font-bold text-base-primary text-sm flex items-center gap-2">
-              <Shield size={16} className="text-blue-600" /> Active Guarantors ({filteredGuarantors.length})
+              <Shield size={16} className="text-blue-600" /> Active Guarantors ({totalGuarantorsCount})
             </h3>
           </div>
           {guarantorsLoading ? (
@@ -462,7 +461,7 @@ export default function GuarantorsPage() {
                 </thead>
                 <tbody className="divide-y divide-base">
                   {filteredGuarantors.map(g => {
-                    const activeReq = g.guarantor_requests?.find(r => r.status === 'accepted') ?? g.guarantor_requests?.[0];
+                    const activeReq = g.guarantor_requests?.find(r => r.status === 'accepted');
                     const hasApp = activeReq?.application;
                     const custName = activeReq?.application?.customer?.full_name ?? '—';
                     const custService = activeReq?.application?.customer?.service_number ?? '';
@@ -472,9 +471,8 @@ export default function GuarantorsPage() {
                       <tr
                         key={g.id}
                         onClick={() => setSelectedGuarantor(g)}
-                        className={`hover:bg-[var(--bg-surface-2)] cursor-pointer transition-colors ${
-                          selectedGuarantor?.id === g.id ? 'bg-[var(--bg-surface-2)]' : ''
-                        }`}
+                        className={`hover:bg-[var(--bg-surface-2)] cursor-pointer transition-colors ${selectedGuarantor?.id === g.id ? 'bg-[var(--bg-surface-2)]' : ''
+                          }`}
                       >
                         {/* Guarantor Name & Rank */}
                         <td className="px-5 py-4">
@@ -484,11 +482,10 @@ export default function GuarantorsPage() {
 
                         {/* Branch / Camp */}
                         <td className="px-5 py-4">
-                          <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-                            g.branch === 'navy' ? 'bg-blue-50 text-blue-700' :
+                          <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${g.branch === 'navy' ? 'bg-blue-50 text-blue-700' :
                             g.branch === 'army' ? 'bg-green-50 text-green-700' :
-                            'bg-purple-50 text-purple-700'
-                          }`}>
+                              'bg-purple-50 text-purple-700'
+                            }`}>
                             {g.branch}
                           </span>
                           <div className="text-[10px] text-base-muted mt-1 truncate max-w-[150px]">{g.camp?.name || '—'}</div>
@@ -538,11 +535,10 @@ export default function GuarantorsPage() {
                         {/* Risk Score */}
                         <td className="px-5 py-4">
                           {riskScore !== null ? (
-                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-bold ${
-                              riskScore > 12 ? 'bg-red-50 text-red-700' :
+                            <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-[10px] font-bold ${riskScore > 12 ? 'bg-red-50 text-red-700' :
                               riskScore > 6 ? 'bg-amber-50 text-amber-700' :
-                              'bg-green-50 text-green-700'
-                            }`}>
+                                'bg-green-50 text-green-700'
+                              }`}>
                               {riskScore}
                             </span>
                           ) : (
@@ -821,7 +817,7 @@ export default function GuarantorsPage() {
                 <div className="font-semibold text-blue-900">{selectedGuarantor.full_name}</div>
                 <div className="text-blue-700 text-xs mt-0.5">Paying on behalf of customer</div>
               </div>
-              
+
               <div>
                 <label className="block text-xs font-bold text-base-muted uppercase tracking-widest mb-1.5">Amount (LKR)</label>
                 <input
@@ -850,7 +846,7 @@ export default function GuarantorsPage() {
                   const activeReq = selectedGuarantor.guarantor_requests?.find(r => r.status === 'accepted');
                   if (!activeReq) return alert('No active guaranteed application found.');
                   if (!payAmount || Number(payAmount) <= 0) return alert('Enter a valid amount.');
-                  
+
                   payMutation.mutate({
                     customer_id: activeReq.application.customer.id,
                     application_id: activeReq.application.id,
