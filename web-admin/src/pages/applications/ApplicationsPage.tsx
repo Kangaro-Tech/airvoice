@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, applicationsApi, customersApi } from '@/services/api';
@@ -10,7 +10,7 @@ import {
   Printer, Eye, Check, X, FileText, Smartphone, RefreshCw,
   Shield, CheckCircle, XCircle, ArrowLeft, Loader2, Camera,
   ClipboardList, Users, DollarSign, Award, MessageCircle,
-  PackageCheck, Receipt, ScrollText, Truck
+  PackageCheck, Receipt, ScrollText, Truck, PenTool
 } from 'lucide-react';
 
 const STATUS_BADGE: Record<string, string> = {
@@ -39,6 +39,7 @@ const fmtLKR = (val: any) => {
 };
 
 import CameraModal from '@/components/CameraModal';
+import SignatureModal from '@/components/SignatureModal';
 
 export default function ApplicationsPage() {
   const [params, setParams] = useSearchParams();
@@ -127,6 +128,12 @@ export default function ApplicationsPage() {
   const [imei1, setImei1] = useState('');
   const [imei2, setImei2] = useState('');
   const [cameraActiveForImei, setCameraActiveForImei] = useState<'imei_1' | 'imei_2' | null>(null);
+  const [customerSignature, setCustomerSignature] = useState<string>('');
+  const [guarantorSignature, setGuarantorSignature] = useState<string>('');
+  const [showCustomerSignaturePad, setShowCustomerSignaturePad] = useState(false);
+  const [showGuarantorSignaturePad, setShowGuarantorSignaturePad] = useState(false);
+  const customerSignaturePadRef = React.useRef<any>(null);
+  const guarantorSignaturePadRef = React.useRef<any>(null);
 
   // WhatsApp template state
   const [waMessage, setWaMessage] = useState('');
@@ -172,10 +179,8 @@ export default function ApplicationsPage() {
     queryFn: async () => {
       try {
         const response = await api.get('/applications/special-approval-requests', { params: { status: 'pending' } });
-        console.log('Special approval requests response:', response.data);
         return response.data?.data || [];
-      } catch (error) {
-        console.error('Failed to fetch special approval requests:', error);
+      } catch {
         return [];
       }
     },
@@ -189,8 +194,7 @@ export default function ApplicationsPage() {
       try {
         const response = await api.get('/applications/special-approval-requests', { params: { status: 'pending' } });
         return response.data?.data || [];
-      } catch (error) {
-        console.error('Failed to fetch my special approval requests:', error);
+      } catch {
         return [];
       }
     },
@@ -264,6 +268,45 @@ export default function ApplicationsPage() {
       api.get(`/applications/${variables.id}`).then(r => {
         setShowInvoiceModal(r.data.data);
       });
+    },
+    onError: (error: any) => {
+      let errorMsg = 'Failed to confirm handover. Please try again.';
+
+      if (error?.response?.status === 400) {
+        const details = error?.response?.data?.details;
+
+        if (details) {
+          const fieldErrors: string[] = [];
+          if (details.fieldErrors) {
+            Object.entries(details.fieldErrors).forEach(([field, msgs]: any) => {
+              fieldErrors.push(`${field}: ${msgs.join(', ')}`);
+            });
+          }
+          if (fieldErrors.length > 0) {
+            errorMsg = `Validation Error:\n${fieldErrors.join('\n')}`;
+          } else {
+            errorMsg = `Validation Error: ${JSON.stringify(details)}`;
+          }
+        } else if (error?.response?.data?.message) {
+          errorMsg = error.response.data.message;
+        } else {
+          errorMsg = 'Validation error. Please check all fields.';
+        }
+      } else if (error?.response?.status === 500) {
+        const serverMessage = error?.response?.data?.message || error?.response?.data?.error;
+        errorMsg = 'Server error occurred. Please check the data and try again.';
+        if (serverMessage) {
+          errorMsg = `Server error: ${serverMessage}`;
+        }
+      } else if (error?.response?.data?.message) {
+        errorMsg = error.response.data.message;
+      } else if (error?.response?.data?.error) {
+        errorMsg = error.response.data.error;
+      } else if (error?.message) {
+        errorMsg = error.message;
+      }
+
+      alert(`Error: ${errorMsg}`);
     }
   });
 
@@ -430,13 +473,41 @@ export default function ApplicationsPage() {
       alert('Please scan or enter IMEI 1');
       return;
     }
+    if (!customerSignature || customerSignature.trim() === '') {
+      alert('Please capture customer e-signature');
+      return;
+    }
+    // Check guarantor signature if guarantor exists
+    if (showHandoverModal?.guarantor_id && (!guarantorSignature || guarantorSignature.trim() === '')) {
+      alert('Please capture guarantor e-signature');
+      return;
+    }
+    
+    // Verify handover_date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(handoverDate)) {
+      alert(`Invalid date format. Must be YYYY-MM-DD, got: ${handoverDate}`);
+      return;
+    }
+    
+    // Build payload with only non-null/non-empty fields
+    const payload: any = {
+      imei_1: imei1.trim(),
+      handover_date: handoverDate,
+      customer_signature: customerSignature,
+    };
+    
+    // Only add optional fields if they have values
+    if (imei2 && imei2.trim()) {
+      payload.imei_2 = imei2.trim();
+    }
+    if (guarantorSignature && guarantorSignature.trim()) {
+      payload.guarantor_signature = guarantorSignature;
+    }
+    
     handoverMutation.mutate({
       id: showHandoverModal.id,
-      data: {
-        imei_1: imei1.trim(),
-        imei_2: imei2.trim() || undefined,
-        handover_date: handoverDate,
-      }
+      data: payload
     });
   };
 
@@ -898,10 +969,16 @@ export default function ApplicationsPage() {
                           )}
                           {a.status === 'active' && (
                             <>
-                              <button onClick={() => { setShowInvoiceModal(a); }} className="px-2 py-1 border border-base text-xs font-bold rounded hover:bg-[var(--bg-surface-2)] text-base-secondary">
+                              <button onClick={async () => {
+                                const res = await api.get(`/applications/${a.id}`);
+                                setShowInvoiceModal(res.data.data);
+                              }} className="px-2 py-1 border border-base text-xs font-bold rounded hover:bg-[var(--bg-surface-2)] text-base-secondary">
                                 Invoice
                               </button>
-                              <button onClick={() => { setShowAgreementModal(a); }} className="px-2 py-1 border border-base text-xs font-bold rounded hover:bg-[var(--bg-surface-2)] text-base-secondary">
+                              <button onClick={async () => {
+                                const res = await api.get(`/applications/${a.id}`);
+                                setShowAgreementModal(res.data.data);
+                              }} className="px-2 py-1 border border-base text-xs font-bold rounded hover:bg-[var(--bg-surface-2)] text-base-secondary">
                                 Agreement
                               </button>
                               <button onClick={() => handleWhatsAppOpen(a)} className="p-1.5 rounded-lg border border-green-200 hover:bg-green-50 text-green-600" title="WhatsApp Notice">
@@ -1599,25 +1676,27 @@ export default function ApplicationsPage() {
 
       {/* Handover Modal */}
       {showHandoverModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="surface rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-base">
-            <div className="panel-header px-6 py-4 flex items-center justify-between">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="surface rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl border border-base my-8">
+            <div className="panel-header px-6 py-4 flex items-center justify-between sticky top-0 z-10">
               <h3 className="font-bold text-lg flex items-center gap-2"><Truck size={19} /> Physical Handover Confirmation</h3>
               <button onClick={() => {
                 setShowHandoverModal(null);
                 setImei1('');
                 setImei2('');
+                setCustomerSignature('');
+                setGuarantorSignature('');
               }} className="text-base-muted hover:text-white transition-colors">
                 <X size={20} />
               </button>
             </div>
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto">
               <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 text-xs leading-relaxed">
-                Scan or enter the device IMEI numbers for the <strong className="text-slate-900 font-bold">{showHandoverModal.phone_brand} {showHandoverModal.phone_model}</strong> being handed over to the customer.
+                Scan IMEI numbers and capture e-signatures for the <strong className="text-slate-900 font-bold">{showHandoverModal.phone_brand} {showHandoverModal.phone_model}</strong> being handed over.
               </div>
               
               {/* IMEI Capture Section */}
-              <div className="space-y-3">
+              <div className="space-y-3 pb-4 border-b border-base">
                 {/* IMEI 1 */}
                 <div>
                   <label className="form-label font-bold text-xs text-gray-600">IMEI 1 *</label>
@@ -1661,27 +1740,165 @@ export default function ApplicationsPage() {
                     </button>
                   </div>
                 </div>
+                
+                {/* Handover Date */}
+                <div>
+                  <label className="form-label font-bold text-xs text-gray-600">Handover Date *</label>
+                  <input
+                    type="date"
+                    value={handoverDate}
+                    onChange={e => setHandoverDate(e.target.value)}
+                    className="form-input surface mt-1.5"
+                  />
+                </div>
               </div>
               
-              <div>
-                <label className="form-label font-bold text-xs text-gray-600">Handover Date *</label>
-                <input
-                  type="date"
-                  value={handoverDate}
-                  onChange={e => setHandoverDate(e.target.value)}
-                  className="form-input surface mt-1.5"
-                />
+              {/* E-Signature Capture Section */}
+              <div className="space-y-6">
+                {/* Customer E-Signature */}
+                <div>
+                  <label className="form-label font-bold text-sm text-gray-700 flex items-center gap-2">
+                    <PenTool size={16} className="text-indigo-600" />
+                    Customer E-Signature *
+                  </label>
+                  <div className="border-2 border-dashed border-slate-300 rounded-xl p-3 mt-2 bg-slate-50">
+                    {customerSignature ? (
+                      <div className="space-y-2">
+                        <div className="relative flex items-center justify-center">
+                          <img src={customerSignature} alt="Customer Signature" className="h-auto max-h-32 object-contain" />
+                          <button
+                            type="button"
+                            onClick={() => setCustomerSignature('')}
+                            className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 text-xs"
+                            title="Clear signature"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomerSignaturePad(true)}
+                            className="flex-1 py-2 px-3 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 text-xs font-medium"
+                          >
+                            Redraw
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-3">
+                        <PenTool size={24} className="text-slate-400 mx-auto" />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowCustomerSignaturePad(true)}
+                            className="flex-1 py-2 px-3 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-medium"
+                          >
+                            Draw Signature
+                          </button>
+                          <label className="flex-1 py-2 px-3 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 text-xs font-medium cursor-pointer">
+                            Upload File
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = (evt) => {
+                                    setCustomerSignature(evt.target?.result as string);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Guarantor E-Signature */}
+                {showHandoverModal?.guarantor_id && (
+                  <div>
+                    <label className="form-label font-bold text-sm text-gray-700 flex items-center gap-2">
+                      <PenTool size={16} className="text-amber-600" />
+                      Guarantor E-Signature *
+                    </label>
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-3 mt-2 bg-slate-50">
+                      {guarantorSignature ? (
+                        <div className="space-y-2">
+                          <div className="relative flex items-center justify-center">
+                            <img src={guarantorSignature} alt="Guarantor Signature" className="h-auto max-h-32 object-contain" />
+                            <button
+                              type="button"
+                              onClick={() => setGuarantorSignature('')}
+                              className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1.5 text-xs"
+                              title="Clear signature"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowGuarantorSignaturePad(true)}
+                              className="flex-1 py-2 px-3 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 text-xs font-medium"
+                            >
+                              Redraw
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center space-y-3">
+                          <PenTool size={24} className="text-slate-400 mx-auto" />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setShowGuarantorSignaturePad(true)}
+                              className="flex-1 py-2 px-3 rounded-lg bg-amber-600 text-white hover:bg-amber-700 text-xs font-medium"
+                            >
+                              Draw Signature
+                            </button>
+                            <label className="flex-1 py-2 px-3 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 text-xs font-medium cursor-pointer">
+                              Upload File
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (evt) => {
+                                      setGuarantorSignature(evt.target?.result as string);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="surface-2 px-6 py-4 flex justify-end gap-2 border-t border-base">
+            <div className="surface-2 px-6 py-4 flex justify-end gap-2 border-t border-base sticky bottom-0">
               <button onClick={() => {
                 setShowHandoverModal(null);
                 setImei1('');
                 setImei2('');
+                setCustomerSignature('');
+                setGuarantorSignature('');
               }} className="btn-secondary py-1.5 px-4 rounded-xl text-base-secondary font-medium">Cancel</button>
               <button
                 onClick={handleConfirmHandover}
-                disabled={!imei1.trim() || handoverMutation.isPending}
+                disabled={!imei1.trim() || !customerSignature || (showHandoverModal?.guarantor_id && !guarantorSignature) || handoverMutation.isPending}
                 className="btn bg-green-600 hover:bg-green-700 text-white py-1.5 px-5 rounded-xl font-bold flex items-center gap-1.5 disabled:opacity-40"
               >
                 {handoverMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PackageCheck size={16} />}
@@ -1811,17 +2028,20 @@ export default function ApplicationsPage() {
                   <strong>SELLER:</strong> AIRVOICE (PVT) LTD, Colombo, Sri Lanka.
                 </div>
                 <div className="p-3 surface-2 rounded border border-base">
-                  <strong>BUYER:</strong> {showAgreementModal.customer?.full_name}, {showAgreementModal.customer?.rank}, Service No: {showAgreementModal.customer?.service_number}, NIC: {showAgreementModal.customer?.nic_number}, serving at {showAgreementModal.customer?.camp?.name}.
+                  <strong>BUYER:</strong> {showAgreementModal.customer?.full_name || 'Customer Name Not Available'}, {showAgreementModal.customer?.rank || 'Rank Not Available'}, Service No: {showAgreementModal.customer?.service_number || '—'}, NIC: {showAgreementModal.customer?.nic_number || showAgreementModal.customer?.new_nic_number || '—'}, serving at {showAgreementModal.customer?.camp?.name || '—'}.
+                </div>
+                <div className="p-3 surface-2 rounded border border-base">
+                  <strong>GUARANTOR:</strong> {showAgreementModal.guarantor?.full_name || showAgreementModal.guarantor_name || 'Not Assigned'}{showAgreementModal.guarantor?.nic_number ? `, NIC: ${showAgreementModal.guarantor.nic_number}` : ''}.
                 </div>
               </div>
 
               <div className="space-y-3">
                 <h4 className="font-bold border-b border-base pb-1">1. GOODS & PAYMENT TERMS</h4>
                 <p>
-                  1.1 The Customer agrees to purchase and take delivery of the device: <strong>{showAgreementModal.phone_model?.brand} {showAgreementModal.phone_model?.model}</strong> (IMEI: {showAgreementModal.phone?.imei_1 || 'Pending'}).
+                  1.1 The Customer agrees to purchase and take delivery of the device: <strong>{showAgreementModal.phone_model?.brand || showAgreementModal.phone_brand || 'Device'} {showAgreementModal.phone_model?.model || showAgreementModal.phone_model_name || ''}</strong> (IMEI 1: {showAgreementModal.phone?.imei_1 || showAgreementModal.imei_1 || 'Pending'}{showAgreementModal.phone?.imei_2 || showAgreementModal.imei_2 ? `, IMEI 2: ${showAgreementModal.phone?.imei_2 || showAgreementModal.imei_2}` : ''}).
                 </p>
                 <p>
-                  1.2 The Customer agrees to pay the total sum of <strong>{fmtLKR(showAgreementModal.monthly_amount * showAgreementModal.term_months)}</strong> in <strong>{showAgreementModal.term_months}</strong> consecutive monthly installments of <strong>{fmtLKR(showAgreementModal.monthly_amount)}</strong>.
+                  1.2 The Customer agrees to pay the total sum of <strong>{fmtLKR((Number(showAgreementModal.monthly_amount) || 0) * (Number(showAgreementModal.term_months) || 0))}</strong> in <strong>{showAgreementModal.term_months}</strong> consecutive monthly installments of <strong>{fmtLKR(showAgreementModal.monthly_amount)}</strong>.
                 </p>
               </div>
 
@@ -1920,6 +2140,30 @@ export default function ApplicationsPage() {
           }}
           facingMode="environment"
           label={cameraActiveForImei === 'imei_1' ? 'Scan IMEI 1' : 'Scan IMEI 2'}
+        />
+      )}
+
+      {/* Customer Signature Pad Modal */}
+      {showCustomerSignaturePad && (
+        <SignatureModal
+          title="Draw Customer Signature"
+          onClose={() => setShowCustomerSignaturePad(false)}
+          onSave={(signatureData) => {
+            setCustomerSignature(signatureData);
+            setShowCustomerSignaturePad(false);
+          }}
+        />
+      )}
+
+      {/* Guarantor Signature Pad Modal */}
+      {showGuarantorSignaturePad && (
+        <SignatureModal
+          title="Draw Guarantor Signature"
+          onClose={() => setShowGuarantorSignaturePad(false)}
+          onSave={(signatureData) => {
+            setGuarantorSignature(signatureData);
+            setShowGuarantorSignaturePad(false);
+          }}
         />
       )}
     </div>

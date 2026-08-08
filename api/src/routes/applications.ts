@@ -27,7 +27,24 @@ const HandoverSchema = z.object({
   imei_2: z.string().optional(),
   handover_date: z.string().date(),
   notes: z.string().optional(),
+  customer_signature: z.string().min(1, 'Customer e-signature is required'), // Base64 data URL or SVG string
+  guarantor_signature: z.string().optional(), // Base64 data URL or SVG string (optional if no guarantor)
 });
+
+async function getAvailableColumns(supabase: ReturnType<typeof getSupabase>, tableName: string): Promise<Set<string>> {
+  try {
+    const { data, error } = await supabase
+      .from('information_schema.columns')
+      .select('column_name')
+      .eq('table_schema', 'public')
+      .eq('table_name', tableName);
+
+    if (error || !data) return new Set();
+    return new Set(data.map((row: any) => String(row.column_name)));
+  } catch {
+    return new Set();
+  }
+}
 
 export default async function applicationRoutes(app: FastifyInstance) {
 
@@ -459,9 +476,12 @@ export default async function applicationRoutes(app: FastifyInstance) {
 
     // Look up phone by IMEI 1, or create a new phone record if not found
     let phoneRecord;
+    const phoneColumns = await getAvailableColumns(supabase, 'phones');
+    const hasPhoneModelId = phoneColumns.has('phone_model_id');
+    const phoneSelectColumns = hasPhoneModelId ? 'id, status, phone_model_id' : 'id, status, model_id';
     const { data: existingPhones } = await supabase
       .from('phones')
-      .select('id, status, phone_model_id')
+      .select(phoneSelectColumns)
       .eq('imei_1', body.data.imei_1)
       .limit(1);
 
@@ -469,30 +489,66 @@ export default async function applicationRoutes(app: FastifyInstance) {
       phoneRecord = existingPhones[0];
       // Verify phone is in_stock or unassigned
       if (phoneRecord.status !== 'in_stock' && phoneRecord.status !== 'unassigned') {
-        return reply.status(422).send({ error: 'Phone is not available for handover (status: ' + phoneRecord.status + ')' });
+        return reply.status(422).send({
+          error: 'Phone is not available for handover',
+          message: 'Phone is not available for handover (status: ' + phoneRecord.status + ')',
+        });
       }
     } else {
       // Create new phone record with the IMEI
+      const phoneInsert: Record<string, any> = {
+        model_id: app.phone_model_id ?? 'unknown',
+        imei_1: body.data.imei_1,
+        imei_2: body.data.imei_2 || null,
+        status: 'in_stock',
+      };
+
+      if (hasPhoneModelId) {
+        phoneInsert.phone_model_id = app.phone_model_id;
+      }
+
       const { data: newPhone, error: createError } = await supabase
         .from('phones')
-        .insert({
-          model_id: 'unknown', // Placeholder, will be updated if needed
-          phone_model_id: app.phone_model_id,
-          imei_1: body.data.imei_1,
-          imei_2: body.data.imei_2 || null,
-          status: 'in_stock',
-        })
+        .insert(phoneInsert)
         .select()
         .single();
 
       if (createError) {
-        return reply.status(500).send({ error: 'Failed to create phone record: ' + createError.message });
+        const isDuplicateImei = /duplicate|unique/i.test(createError.message || '');
+        if (isDuplicateImei) {
+          const { data: duplicatePhone, error: duplicateError } = await supabase
+            .from('phones')
+            .select(phoneSelectColumns)
+            .eq('imei_1', body.data.imei_1)
+            .limit(1);
+
+          if (!duplicateError && duplicatePhone && duplicatePhone.length > 0) {
+            phoneRecord = duplicatePhone[0];
+            if (phoneRecord.status !== 'in_stock' && phoneRecord.status !== 'unassigned') {
+              return reply.status(422).send({
+                error: 'Phone is not available for handover',
+                message: 'Phone is not available for handover (status: ' + phoneRecord.status + ')',
+              });
+            }
+          } else {
+            return reply.status(409).send({
+              error: 'Duplicate IMEI detected',
+              message: createError.message,
+            });
+          }
+        } else {
+          return reply.status(500).send({
+            error: 'Failed to create phone record',
+            message: createError.message,
+          });
+        }
+      } else {
+        phoneRecord = newPhone;
       }
-      phoneRecord = newPhone;
     }
 
     // Update phone with handover details
-    await supabase
+    const { error: phoneUpdateError } = await supabase
       .from('phones')
       .update({
         status: 'sold',
@@ -505,6 +561,13 @@ export default async function applicationRoutes(app: FastifyInstance) {
         imei_2: body.data.imei_2 || undefined,
       })
       .eq('id', phoneRecord.id);
+
+    if (phoneUpdateError) {
+      return reply.status(500).send({
+        error: 'Failed to update phone record',
+        message: phoneUpdateError.message,
+      });
+    }
 
     // Create installment schedule
     const FIRST_RENTAL_OFFSET_MONTHS = 3; // 3-month grace period before first rental payment
@@ -527,20 +590,39 @@ export default async function applicationRoutes(app: FastifyInstance) {
         status: 'pending',
       });
     }
-    await supabase.from('installments').insert(installments);
+    const { error: installmentsError } = await supabase.from('installments').insert(installments);
+    if (installmentsError) {
+      return reply.status(500).send({
+        error: 'Failed to create installment schedule',
+        message: installmentsError.message,
+      });
+    }
 
-    // Advance to active and auto-approve with IMEI capture
-    await supabase
+    const availableColumns = await getAvailableColumns(supabase, 'applications');
+
+    const applicationUpdate: Record<string, any> = {
+      status: 'active',
+      phone_id: phoneRecord.id,
+    };
+
+    if (availableColumns.has('handover_date')) applicationUpdate.handover_date = body.data.handover_date;
+    if (availableColumns.has('handover_by')) applicationUpdate.handover_by = request.user!.id;
+    if (availableColumns.has('customer_signature')) applicationUpdate.customer_signature = body.data.customer_signature;
+    if (availableColumns.has('guarantor_signature')) applicationUpdate.guarantor_signature = body.data.guarantor_signature || null;
+    if (availableColumns.has('admin_approved_at')) applicationUpdate.admin_approved_at = new Date().toISOString();
+    if (availableColumns.has('admin_approved_by')) applicationUpdate.admin_approved_by = request.user!.id;
+
+    const { error: applicationUpdateError } = await supabase
       .from('applications')
-      .update({
-        status: 'active',
-        phone_id: phoneRecord.id,
-        handover_date: body.data.handover_date,
-        handover_by: request.user!.id,
-        admin_approved_at: new Date().toISOString(),
-        admin_approved_by: request.user!.id,
-      })
+      .update(applicationUpdate)
       .eq('id', id);
+
+    if (applicationUpdateError) {
+      return reply.status(500).send({
+        error: 'Failed to complete handover update',
+        message: applicationUpdateError.message,
+      });
+    }
 
     writeAuditLog({
       user_id: request.user!.id,

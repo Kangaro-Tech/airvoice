@@ -9,6 +9,7 @@
     "vercel-build": "npm run build",
     "lint": "eslint src --ext .ts",
     "test": "tsx src/tests/checklist.ts",
+    "migrate": "tsx src/scripts/run-migrations.ts",
     "create-districts-table": "tsx src/scripts/create-districts-table.ts"
   },
   "dependencies": {
@@ -32,7 +33,6 @@
     "jsonwebtoken": "^9.0.3",
     "openai": "^7.4.0",
     "p-limit": "^7.3.0",
-    "pg": "^8.11.3",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.22.4"
   },
@@ -40,6 +40,7 @@
     "@types/node": "^20.11.24",
     "@types/p-limit": "^2.1.0",
     "@types/pg": "^8.20.0",
+    "pg": "^8.22.0",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
   }
