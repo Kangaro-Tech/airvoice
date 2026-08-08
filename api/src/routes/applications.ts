@@ -23,7 +23,8 @@ const ReviewSchema = z.object({
 });
 
 const HandoverSchema = z.object({
-  phone_id: z.string().uuid(),
+  imei_1: z.string().min(1, 'IMEI 1 is required'),
+  imei_2: z.string().optional(),
   handover_date: z.string().date(),
   notes: z.string().optional(),
 });
@@ -292,6 +293,8 @@ export default async function applicationRoutes(app: FastifyInstance) {
         submitted_by: request.user!.id,
         requires_special_approval: eligibility.requires_special_approval ?? false,
         notes: body.data.notes,
+        admin_approved_at: null,
+        admin_approved_by: null,
       })
       .select()
       .single();
@@ -340,6 +343,8 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const result = await advanceStage(request, reply, 'draft', 'submitted', AuditActions.APPLICATION_SUBMITTED, {
       submitted_at: new Date().toISOString(),
       submitted_by: request.user!.id,
+      admin_approved_at: null,
+      admin_approved_by: null,
     });
     if (appRow) notify({ kind: 'application_submitted', ref: appRow.ref_number, appId: id, customerId: appRow.customer_id, salesOfficerId: appRow.sales_officer_id });
     return result;
@@ -354,11 +359,13 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { data: appRow } = await getSupabase().from('applications').select('ref_number').eq('id', id).single();
     const ref = appRow?.ref_number ?? id;
-    const nextStatus = body.data.action === 'approve' ? 'admin_review' : 'rejected';
+    const nextStatus = body.data.action === 'approve' ? 'approved' : 'rejected';
     const result = await advanceStage(request, reply, 'submitted', nextStatus, AuditActions.APPLICATION_STAGE_ADVANCED, {
       sales_reviewed_at: new Date().toISOString(),
       sales_reviewed_by: request.user!.id,
       sales_note: body.data.note,
+      admin_approved_at: nextStatus === 'approved' ? new Date().toISOString() : null,
+      admin_approved_by: nextStatus === 'approved' ? request.user!.id : null,
       ...(nextStatus === 'rejected' ? {
         rejected_at: new Date().toISOString(),
         rejected_by: request.user!.id,
@@ -367,7 +374,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
       } : {}),
     });
     if (nextStatus === 'rejected') notify({ kind: 'application_rejected', ref, appId: id, reason: body.data.rejection_reason, triggeredBy: request.user!.id });
-    else notify({ kind: 'application_pending_review', ref, appId: id, stage: 'admin_review' });
+    else notify({ kind: 'application_approved', ref, appId: id, stage: 'sales_review', triggeredBy: request.user!.id });
     return result;
   });
 
@@ -412,7 +419,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const { data: appRow } = await getSupabase().from('applications').select('ref_number').eq('id', id).single();
     const ref = appRow?.ref_number ?? id;
-    const nextStatus = body.data.action === 'approve' ? 'admin_review' : 'rejected';
+    const nextStatus = body.data.action === 'approve' ? 'approved' : 'rejected';
     const result = await advanceStage(request, reply, 'finance_review', nextStatus, AuditActions.APPLICATION_STAGE_ADVANCED, {
       finance_reviewed_at: new Date().toISOString(),
       finance_reviewed_by: request.user!.id,
@@ -425,33 +432,7 @@ export default async function applicationRoutes(app: FastifyInstance) {
       } : {}),
     });
     if (nextStatus === 'rejected') notify({ kind: 'application_rejected', ref, appId: id, reason: body.data.rejection_reason, triggeredBy: request.user!.id });
-    else notify({ kind: 'application_pending_review', ref, appId: id, stage: 'admin_review' });
-    return result;
-  });
-
-  // ── Admin final approval ──────────────────────────────────
-  app.post('/:id/admin-approve', {
-    preHandler: [authenticate, requireAdmin],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const body = ReviewSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
-    const { id } = request.params as { id: string };
-    const { data: appRow } = await getSupabase().from('applications').select('ref_number').eq('id', id).single();
-    const ref = appRow?.ref_number ?? id;
-    const nextStatus = body.data.action === 'approve' ? 'approved' : 'rejected';
-    const result = await advanceStage(request, reply, 'admin_review', nextStatus, AuditActions.APPLICATION_APPROVED, {
-      admin_approved_at: new Date().toISOString(),
-      admin_approved_by: request.user!.id,
-      admin_note: body.data.note,
-      ...(nextStatus === 'rejected' ? {
-        rejected_at: new Date().toISOString(),
-        rejected_by: request.user!.id,
-        rejection_reason: body.data.rejection_reason,
-        rejection_stage: 'admin_review',
-      } : {}),
-    });
-    if (nextStatus === 'approved') notify({ kind: 'application_approved', ref, appId: id, stage: 'admin_review', triggeredBy: request.user!.id });
-    else notify({ kind: 'application_rejected', ref, appId: id, reason: body.data.rejection_reason, triggeredBy: request.user!.id });
+    else notify({ kind: 'application_approved', ref, appId: id, stage: 'finance_review', triggeredBy: request.user!.id });
     return result;
   });
 
@@ -461,14 +442,14 @@ export default async function applicationRoutes(app: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = HandoverSchema.safeParse(request.body);
-    if (!body.success) return reply.status(400).send({ error: 'Validation Error' });
+    if (!body.success) return reply.status(400).send({ error: 'Validation Error', details: body.error.flatten() });
 
     const supabase = getSupabase();
 
     // Verify application is in approved state
     const { data: app } = await supabase
       .from('applications')
-      .select('id, status, customer_id, term_months, monthly_amount, sale_date')
+      .select('id, status, customer_id, term_months, monthly_amount, sale_date, phone_model_id')
       .eq('id', id)
       .single();
 
@@ -476,7 +457,41 @@ export default async function applicationRoutes(app: FastifyInstance) {
       return reply.status(422).send({ error: 'Application must be in "approved" state for handover' });
     }
 
-    // Assign phone to application
+    // Look up phone by IMEI 1, or create a new phone record if not found
+    let phoneRecord;
+    const { data: existingPhones } = await supabase
+      .from('phones')
+      .select('id, status, phone_model_id')
+      .eq('imei_1', body.data.imei_1)
+      .limit(1);
+
+    if (existingPhones && existingPhones.length > 0) {
+      phoneRecord = existingPhones[0];
+      // Verify phone is in_stock or unassigned
+      if (phoneRecord.status !== 'in_stock' && phoneRecord.status !== 'unassigned') {
+        return reply.status(422).send({ error: 'Phone is not available for handover (status: ' + phoneRecord.status + ')' });
+      }
+    } else {
+      // Create new phone record with the IMEI
+      const { data: newPhone, error: createError } = await supabase
+        .from('phones')
+        .insert({
+          model_id: 'unknown', // Placeholder, will be updated if needed
+          phone_model_id: app.phone_model_id,
+          imei_1: body.data.imei_1,
+          imei_2: body.data.imei_2 || null,
+          status: 'in_stock',
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        return reply.status(500).send({ error: 'Failed to create phone record: ' + createError.message });
+      }
+      phoneRecord = newPhone;
+    }
+
+    // Update phone with handover details
     await supabase
       .from('phones')
       .update({
@@ -486,8 +501,10 @@ export default async function applicationRoutes(app: FastifyInstance) {
         sold_date: body.data.handover_date,
         allocated_by: request.user!.id,
         allocated_at: new Date().toISOString(),
+        imei_1: body.data.imei_1,
+        imei_2: body.data.imei_2 || undefined,
       })
-      .eq('id', body.data.phone_id);
+      .eq('id', phoneRecord.id);
 
     // Create installment schedule
     const installments = [];
@@ -508,14 +525,16 @@ export default async function applicationRoutes(app: FastifyInstance) {
     }
     await supabase.from('installments').insert(installments);
 
-    // Advance to active
+    // Advance to active and auto-approve with IMEI capture
     await supabase
       .from('applications')
       .update({
         status: 'active',
-        phone_id: body.data.phone_id,
+        phone_id: phoneRecord.id,
         handover_date: body.data.handover_date,
         handover_by: request.user!.id,
+        admin_approved_at: new Date().toISOString(),
+        admin_approved_by: request.user!.id,
       })
       .eq('id', id);
 
@@ -524,10 +543,10 @@ export default async function applicationRoutes(app: FastifyInstance) {
       action: AuditActions.PHONE_HANDOVER,
       entity_type: 'applications',
       entity_id: id,
-      new_values: { phone_id: body.data.phone_id, handover_date: body.data.handover_date },
+      new_values: { phone_id: phoneRecord.id, handover_date: body.data.handover_date, imei_1: body.data.imei_1, imei_2: body.data.imei_2 },
     });
 
-    return reply.send({ success: true, installments_created: installments.length });
+    return reply.send({ success: true, phone_id: phoneRecord.id, installments_created: installments.length });
   });
 
   // ── Special approval for 3rd phone ───────────────────────

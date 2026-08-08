@@ -6,13 +6,12 @@ import { ArrowLeft, CheckCircle, XCircle, AlertTriangle, Pencil, Loader2 } from 
 import { EditDrawer } from '@/components/EditDrawer';
 import { useAuthStore } from '@/store/authStore';
 
-const STAGES = ['submitted','sales_review','camp_review','finance_review','admin_review','approved','active','completed'];
+const STAGES = ['submitted','sales_review','camp_review','finance_review','approved','active','completed'];
 const NEXT_ACTION: Record<string,{endpoint:string;label:string;requiredRoles:string[]}> = {
   submitted:{endpoint:'sales-review',label:'Sales Review',requiredRoles:['sales_officer','admin','super_admin','system_operator']},
   sales_review:{endpoint:'sales-review',label:'Sales Decision',requiredRoles:['sales_officer','admin','super_admin','system_operator']},
   camp_review:{endpoint:'camp-review',label:'Camp Decision',requiredRoles:['camp_officer','admin','super_admin','system_operator']},
   finance_review:{endpoint:'finance-review',label:'Finance Decision',requiredRoles:['finance_officer','accountant','admin','super_admin','system_operator']},
-  admin_review:{endpoint:'admin-approve',label:'Admin Decision',requiredRoles:['admin','super_admin','system_operator']},
 };
 
 export default function ApplicationDetailPage() {

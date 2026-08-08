@@ -19,17 +19,15 @@ const STATUS_BADGE: Record<string, string> = {
   docs_review: 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:border-sky-800 dark:text-sky-300',
   camp_review: 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:border-blue-800 dark:text-blue-300',
   finance_review: 'bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:border-indigo-800 dark:text-indigo-300',
-  admin_review: 'bg-indigo-50 text-indigo-800 border border-indigo-200 dark:bg-indigo-950/50 dark:border-indigo-800 dark:text-indigo-300',
   approved: 'bg-teal-50 text-teal-700 border border-teal-200',
   active: 'bg-green-50 text-green-700 border border-green-200',
   rejected: 'bg-red-50 text-red-700 border border-red-200',
   completed: 'surface-2 text-base-secondary border border-base',
 };
 
-const STAGES = ['submitted', 'admin_review', 'approved', 'active', 'rejected'];
+const STAGES = ['submitted', 'approved', 'active', 'rejected'];
 const STAGE_LABELS: Record<string, string> = {
   submitted: 'Submitted',
-  admin_review: 'Admin Review',
   approved: 'Approved',
   active: 'Active',
   rejected: 'Rejected'
@@ -125,8 +123,10 @@ export default function ApplicationsPage() {
   const [nicLoading, setNicLoading] = useState(false);
 
   // Handover state
-  const [selectedPhoneId, setSelectedPhoneId] = useState('');
   const [handoverDate, setHandoverDate] = useState(new Date().toISOString().split('T')[0]);
+  const [imei1, setImei1] = useState('');
+  const [imei2, setImei2] = useState('');
+  const [cameraActiveForImei, setCameraActiveForImei] = useState<'imei_1' | 'imei_2' | null>(null);
 
   // WhatsApp template state
   const [waMessage, setWaMessage] = useState('');
@@ -162,18 +162,6 @@ export default function ApplicationsPage() {
     queryKey: ['devices-list'],
     queryFn: () => api.get('/inventory/models').then(r => r.data.data),
     enabled: showNewModal
-  });
-
-  const { data: inStockPhones } = useQuery({
-    queryKey: ['in-stock-phones', showHandoverModal?.phone_model_id],
-    queryFn: () =>
-      api.get('/phones', {
-        params: {
-          status: 'in_stock',
-          model_id: showHandoverModal?.phone_model_id
-        }
-      }).then(r => r.data.data),
-    enabled: !!showHandoverModal
   });
 
   const isAdminReviewRole = user?.role === 'admin' || user?.role === 'super_admin';
@@ -411,9 +399,6 @@ export default function ApplicationsPage() {
     if (appStatus === 'submitted') {
       return user?.role === 'sales_officer' || user?.role === 'admin' || user?.role === 'super_admin';
     }
-    if (appStatus === 'admin_review') {
-      return user?.role === 'admin' || user?.role === 'super_admin';
-    }
     return false;
   };
 
@@ -422,7 +407,6 @@ export default function ApplicationsPage() {
 
     let endpoint = '';
     if (showReviewModal.status === 'submitted') endpoint = 'sales-review';
-    else if (showReviewModal.status === 'admin_review') endpoint = 'admin-approve';
 
     if (!endpoint) return;
 
@@ -442,15 +426,16 @@ export default function ApplicationsPage() {
   };
 
   const handleConfirmHandover = () => {
-    if (!selectedPhoneId) {
-      alert('Please select a physical device IMEI');
+    if (!imei1.trim()) {
+      alert('Please scan or enter IMEI 1');
       return;
     }
     handoverMutation.mutate({
       id: showHandoverModal.id,
       data: {
-        phone_id: selectedPhoneId,
-        handover_date: handoverDate
+        imei_1: imei1.trim(),
+        imei_2: imei2.trim() || undefined,
+        handover_date: handoverDate,
       }
     });
   };
@@ -693,10 +678,9 @@ export default function ApplicationsPage() {
       )}
 
       {/* Metric summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {[
           { key: 'submitted', label: 'Submitted', color: 'border-blue-500 text-blue-600', icon: FileText },
-          { key: 'admin_review', label: 'Admin Review', color: 'border-pink-500 text-pink-600', icon: Shield },
           { key: 'approved', label: 'Approved', color: 'border-teal-500 text-teal-600', icon: Award }
         ].map(card => {
           const cnt = getStageCount(card.key);
@@ -810,7 +794,7 @@ export default function ApplicationsPage() {
               ) : (
                 apps.map(a => {
                   const retRisk = a.retirement_flag === 'retire_risk';
-                  const stagesList = ['submitted', 'admin_review', 'approved', 'active'];
+                  const stagesList = ['submitted', 'approved', 'active'];
                   const currentIdx = stagesList.indexOf(a.status);
                   return (
                     <tr key={a.id} className="hover:bg-gray-50/80 transition-colors">
@@ -881,7 +865,7 @@ export default function ApplicationsPage() {
                             // Count active/pending phones for this customer to enforce max 2 limit
                             const activePhones = (allApps ?? []).filter((ap: any) =>
                               ap.customer_id === a.customer_id &&
-                              ['active', 'submitted', 'admin_review', 'approved'].includes(ap.status)
+                              ['active', 'submitted', 'approved'].includes(ap.status)
                             ).length;
                             const atLimit = activePhones >= 2;
                             return (
@@ -903,7 +887,12 @@ export default function ApplicationsPage() {
                             );
                           })()}
                           {a.status === 'approved' && (
-                            <button onClick={() => setShowHandoverModal(a)} className="btn bg-amber-500 hover:bg-amber-600 text-slate-900 px-2.5 py-1 text-xs rounded font-bold">
+                            <button onClick={() => {
+                              setImei1('');
+                              setImei2('');
+                              setHandoverDate(new Date().toISOString().split('T')[0]);
+                              setShowHandoverModal(a);
+                            }} className="btn bg-amber-500 hover:bg-amber-600 text-slate-900 px-2.5 py-1 text-xs rounded font-bold">
                               Handover
                             </button>
                           )}
@@ -1614,31 +1603,66 @@ export default function ApplicationsPage() {
           <div className="surface rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl border border-base">
             <div className="panel-header px-6 py-4 flex items-center justify-between">
               <h3 className="font-bold text-lg flex items-center gap-2"><Truck size={19} /> Physical Handover Confirmation</h3>
-              <button onClick={() => setShowHandoverModal(null)} className="text-base-muted hover:text-white transition-colors">
+              <button onClick={() => {
+                setShowHandoverModal(null);
+                setImei1('');
+                setImei2('');
+              }} className="text-base-muted hover:text-white transition-colors">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-4 text-xs leading-relaxed">
-                Assign a physical device serial/IMEI from in-stock inventory for the model: <strong className="text-slate-900 font-bold">{showHandoverModal.phone_brand} {showHandoverModal.phone_model}</strong>. This step confirms physical device transfer to the customer.
+                Scan or enter the device IMEI numbers for the <strong className="text-slate-900 font-bold">{showHandoverModal.phone_brand} {showHandoverModal.phone_model}</strong> being handed over to the customer.
               </div>
-              <div>
-                <label className="form-label font-bold text-xs text-gray-600">Select Physical Device IMEI *</label>
-                {inStockPhones?.length === 0 ? (
-                  <div className="text-sm text-red-600 mt-2 font-bold">⚠️ No devices currently in stock for this model!</div>
-                ) : (
-                  <select
-                    value={selectedPhoneId}
-                    onChange={e => setSelectedPhoneId(e.target.value)}
-                    className="form-input surface mt-1.5"
-                  >
-                    <option value="">Choose IMEI</option>
-                    {inStockPhones?.map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.imei_1} {p.imei_2 ? ` / ${p.imei_2}` : ''} ({p.stock_location || 'Default Store'})</option>
-                    ))}
-                  </select>
-                )}
+              
+              {/* IMEI Capture Section */}
+              <div className="space-y-3">
+                {/* IMEI 1 */}
+                <div>
+                  <label className="form-label font-bold text-xs text-gray-600">IMEI 1 *</label>
+                  <div className="flex gap-2 mt-1.5">
+                    <input
+                      type="text"
+                      placeholder="Scan or type IMEI 1"
+                      value={imei1}
+                      onChange={e => setImei1(e.target.value)}
+                      className="form-input surface flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCameraActiveForImei('imei_1')}
+                      className="px-3 py-2 border border-amber-300 hover:bg-amber-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition bg-amber-50"
+                      title="Scan IMEI 1 via Camera"
+                    >
+                      <Camera size={14} /> Scan
+                    </button>
+                  </div>
+                </div>
+                
+                {/* IMEI 2 */}
+                <div>
+                  <label className="form-label font-bold text-xs text-gray-600">IMEI 2 (Optional)</label>
+                  <div className="flex gap-2 mt-1.5">
+                    <input
+                      type="text"
+                      placeholder="Scan or type IMEI 2"
+                      value={imei2}
+                      onChange={e => setImei2(e.target.value)}
+                      className="form-input surface flex-1"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCameraActiveForImei('imei_2')}
+                      className="px-3 py-2 border border-slate-200 hover:bg-slate-50 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition"
+                      title="Scan IMEI 2 via Camera"
+                    >
+                      <Camera size={14} /> Scan
+                    </button>
+                  </div>
+                </div>
               </div>
+              
               <div>
                 <label className="form-label font-bold text-xs text-gray-600">Handover Date *</label>
                 <input
@@ -1650,14 +1674,18 @@ export default function ApplicationsPage() {
               </div>
             </div>
             <div className="surface-2 px-6 py-4 flex justify-end gap-2 border-t border-base">
-              <button onClick={() => setShowHandoverModal(null)} className="btn-secondary py-1.5 px-4 rounded-xl text-base-secondary font-medium">Cancel</button>
+              <button onClick={() => {
+                setShowHandoverModal(null);
+                setImei1('');
+                setImei2('');
+              }} className="btn-secondary py-1.5 px-4 rounded-xl text-base-secondary font-medium">Cancel</button>
               <button
                 onClick={handleConfirmHandover}
-                disabled={!selectedPhoneId || handoverMutation.isPending}
+                disabled={!imei1.trim() || handoverMutation.isPending}
                 className="btn bg-green-600 hover:bg-green-700 text-white py-1.5 px-5 rounded-xl font-bold flex items-center gap-1.5 disabled:opacity-40"
               >
                 {handoverMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <PackageCheck size={16} />}
-                Confirm & Print Invoice
+                Handover & Print Invoice
               </button>
             </div>
           </div>
@@ -1877,6 +1905,21 @@ export default function ApplicationsPage() {
           }}
           facingMode={cameraActiveFor === 'selfie' ? 'user' : 'environment'}
           label={cameraActiveFor === 'nic_front' ? 'NIC Front' : cameraActiveFor === 'nic_back' ? 'NIC Back' : 'Selfie'}
+        />
+      )}
+      
+      {/* IMEI Camera Capture Modal */}
+      {cameraActiveForImei && (
+        <CameraModal
+          onClose={() => setCameraActiveForImei(null)}
+          onCapture={(file) => {
+            // For IMEI, we could implement OCR here in the future
+            // For now, we'll just store the file and let user manually enter IMEI
+            // This serves as a visual reference when scanning the device
+            setCameraActiveForImei(null);
+          }}
+          facingMode="environment"
+          label={cameraActiveForImei === 'imei_1' ? 'Scan IMEI 1' : 'Scan IMEI 2'}
         />
       )}
     </div>

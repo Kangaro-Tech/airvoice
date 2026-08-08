@@ -9,7 +9,7 @@ export type Branch = 'army' | 'navy' | 'air_force';
 export type RiskLevel = 'low' | 'medium' | 'high' | 'critical';
 export type ApplicationStatus =
   | 'draft' | 'submitted' | 'sales_review' | 'camp_review'
-  | 'finance_review' | 'admin_review' | 'approved' | 'active'
+  | 'finance_review' | 'approved' | 'active'
   | 'completed' | 'rejected' | 'cancelled';
 
 export interface Customer {

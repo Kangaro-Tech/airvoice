@@ -82,9 +82,9 @@ export default async function notificationRoutes(app: FastifyInstance) {
       camp_officer:     ['camp_review'],
       finance_officer:  ['finance_review'],
       accountant:       ['finance_review'],
-      admin:            ['submitted','camp_review','finance_review','admin_review'],
-      super_admin:      ['submitted','camp_review','finance_review','admin_review'],
-      system_operator:  ['submitted','camp_review','finance_review','admin_review'],
+      admin:            ['submitted','camp_review','finance_review'],
+      super_admin:      ['submitted','camp_review','finance_review'],
+      system_operator:  ['submitted','camp_review','finance_review'],
     };
     const stages = REVIEW_STAGES[role] ?? [];
     const { count: pendingApps } = stages.length > 0

@@ -58,7 +58,6 @@ export const applicationsApi = {
   salesReview: (id: string, data: unknown) => api.post(`/applications/${id}/sales-review`, data),
   campReview: (id: string, data: unknown) => api.post(`/applications/${id}/camp-review`, data),
   financeReview: (id: string, data: unknown) => api.post(`/applications/${id}/finance-review`, data),
-  adminApprove: (id: string, data: unknown) => api.post(`/applications/${id}/admin-approve`, data),
   handover: (id: string, data: unknown) => api.post(`/applications/${id}/handover`, data),
   specialApproval: (id: string, data: unknown) => api.post(`/applications/${id}/special-approval`, data),
 };

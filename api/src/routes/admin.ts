@@ -26,7 +26,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     ] = await Promise.all([
       sb.from('customers').select('id',{count:'exact',head:true}).is('deleted_at',null),
       sb.from('applications').select('id',{count:'exact',head:true}).eq('status','active'),
-      sb.from('applications').select('id',{count:'exact',head:true}).in('status',['submitted','sales_review','camp_review','finance_review','admin_review']),
+      sb.from('applications').select('id',{count:'exact',head:true}).in('status',['submitted','sales_review','camp_review','finance_review']),
       sb.from('customers').select('id',{count:'exact',head:true}).in('risk_level',['high','critical']).is('deleted_at',null),
       sb.from('users').select('id',{count:'exact',head:true}).is('deleted_at',null),
     ]);
