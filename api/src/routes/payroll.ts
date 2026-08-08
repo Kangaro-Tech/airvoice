@@ -314,13 +314,15 @@ export default async function payrollRoutes(app: FastifyInstance) {
     const { data: staff, error: staffErr } = await sb.from('staff_registry').select('*').eq('is_active', true);
     if (staffErr) return reply.status(500).send({ error: staffErr.message });
 
-    // Fetch commission fees earned during the payroll month.
+    // Fetch commission fees earned during the payroll month (only unpaid ones).
     const monthStart = `${body.data.run_month}-01`;
     const monthEnd = new Date(runYear, monthIndex, 0).toISOString().split('T')[0];
     const { data: commissions, error: commissionErr } = await sb.from('commissions')
       .select('sales_officer_id, amount')
-      .gte('created_at', monthStart)
-      .lte('created_at', `${monthEnd}T23:59:59Z`);
+      .eq('status', 'payable')
+      .is('payroll_run_id', null)
+      .gte('became_payable_at', monthStart)
+      .lte('became_payable_at', `${monthEnd}T23:59:59Z`);
     if (commissionErr) return reply.status(500).send({ error: commissionErr.message });
 
     const salesMap: Record<string, { phonesSold: number; commissionAmount: number }> = {};
@@ -458,10 +460,20 @@ export default async function payrollRoutes(app: FastifyInstance) {
   // ── POST /payroll/runs/:id/mark-paid
   app.post('/runs/:id/mark-paid', { preHandler: [authenticate, requireRole('admin', 'super_admin', 'system_operator')] }, async (req: FastifyRequest, reply) => {
     const { id } = req.params as { id: string };
-    const { data, error } = await getSupabase().from('payroll_runs').update({
+    const sb = getSupabase();
+    
+    // Update payroll run status
+    const { data, error } = await sb.from('payroll_runs').update({
       status: 'paid', paid_at: new Date().toISOString(),
     }).eq('id', id).eq('status', 'approved').select().single();
     if (error) return reply.status(400).send({ error: error.message });
+    
+    // Update commissions for this payroll run: set to paid and link payroll_run_id
+    await sb.from('commissions').update({
+      status: 'paid',
+      payroll_run_id: id,
+    }).eq('status', 'payable').is('payroll_run_id', null);
+    
     return reply.send({ data });
   });
 }

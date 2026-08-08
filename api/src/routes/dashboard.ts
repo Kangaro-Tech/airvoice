@@ -607,6 +607,19 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       return reply.send({ data: [], total: 0, page, limit, pages: 0 });
     }
 
+    // ── 2.5. Fetch arrears data for these customers ──
+    const { data: arrearsRows } = await sb.from('installments')
+      .select('customer_id, arrears_amount')
+      .in('customer_id', multiPhoneIds)
+      .or('arrears_amount.gt.0,status.eq.not_deducted');
+
+    const arrearsMap: Record<string, number> = {};
+    (arrearsRows ?? []).forEach((inst: any) => {
+      if (inst.customer_id) {
+        arrearsMap[inst.customer_id] = (arrearsMap[inst.customer_id] || 0) + Number(inst.arrears_amount || 0);
+      }
+    });
+
     // ── 3. Fetch customer details in chunks ──
     const allCustomers: any[] = [];
     for (let i = 0; i < multiPhoneIds.length; i += 400) {
@@ -618,18 +631,51 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       if (data) allCustomers.push(...data);
     }
 
+    // ── 3.5. Calculate risk scores with multi-phone and arrears logic ──
+    let allResult = allCustomers.map((c: any) => {
+      const phoneCount = phoneCounts[c.id] || 0;
+      const hasArrears = !!arrearsMap[c.id];
+      const arrearsAmount = arrearsMap[c.id] || 0;
+      const retDate = c.retirement_date;
+      const retirementRisk = retDate
+        ? (new Date(retDate).getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000) < 12
+        : false;
+
+      let score = c.risk_score || 0;
+      let level = 'low';
+      if (hasArrears) { score = Math.max(score, 85) + Math.min(arrearsAmount / 1000, 15); level = 'critical'; }
+      else if (phoneCount >= 2) { score = Math.max(score, 70); level = 'high'; }
+      else { level = score >= 60 ? 'high' : score >= 30 ? 'medium' : 'low'; }
+      if (retirementRisk && score < 100) score = Math.min(score + 15, 100);
+
+      return {
+        customerId: c.id,
+        name: c.full_name || 'Unknown',
+        rank: c.rank || '',
+        branch: c.branch || '',
+        campId: c.camp_id || '',
+        campName: '',
+        service_number: c.service_number || '',
+        phone_number: c.phone_number || '',
+        retirement_date: retDate || '',
+        phoneCount,
+        risk_score: Math.round(Math.min(score, 100)),
+        risk_level: level,
+      };
+    });
+
     // ── 4. Search filter ──
-    let filtered = allCustomers;
+    let filtered = allResult;
     if (search) {
-      filtered = allCustomers.filter(c =>
-        (c.full_name || '').toLowerCase().includes(search) ||
+      filtered = allResult.filter(c =>
+        (c.name || '').toLowerCase().includes(search) ||
         (c.service_number || '').toLowerCase().includes(search) ||
         (c.phone_number || '').toLowerCase().includes(search)
       );
     }
 
-    // Sort by phone count desc
-    filtered.sort((a, b) => (phoneCounts[b.id] || 0) - (phoneCounts[a.id] || 0));
+    // Sort by phone count desc, then by risk score
+    filtered.sort((a, b) => (b.phoneCount - a.phoneCount) || (b.risk_score - a.risk_score));
 
     // ── 5. Paginate ──
     const total = filtered.length;
@@ -637,28 +683,14 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     const pageData = filtered.slice((page - 1) * limit, page * limit);
 
     // ── 6. Camp names for this page only ──
-    const campIds = [...new Set(pageData.map((c: any) => c.camp_id).filter(Boolean))];
+    const campIds = [...new Set(pageData.map((c: any) => c.campId).filter(Boolean))];
     const campsRes = campIds.length > 0
       ? await sb.from('camps').select('id, name').in('id', campIds)
       : { data: [] };
     const campMap = Object.fromEntries((campsRes.data || []).map((c: any) => [c.id, c.name]));
+    pageData.forEach(c => { c.campName = campMap[c.campId] ?? c.branch ?? 'N/A'; });
 
-    const result = pageData.map((c: any) => ({
-      customerId: c.id,
-      name: c.full_name || 'Unknown',
-      rank: c.rank || '',
-      branch: c.branch || '',
-      campId: c.camp_id || '',
-      campName: campMap[c.camp_id] ?? c.branch ?? 'N/A',
-      service_number: c.service_number || '',
-      phone_number: c.phone_number || '',
-      retirement_date: c.retirement_date || '',
-      phoneCount: phoneCounts[c.id] || 0,
-      risk_score: c.risk_score || 0,
-      risk_level: c.risk_level || 'low',
-    }));
-
-    return reply.send({ data: result, total, page, limit, pages });
+    return reply.send({ data: pageData, total, page, limit, pages });
   });
 
   /**

@@ -1,5 +1,6 @@
 import { getSupabase } from '../config/supabase';
 import { writeAuditLog, AuditActions } from './audit';
+import { normalizeNic } from '../utils/nic';
 
 export interface CustomerCreateInput {
   user_id?: string;
@@ -44,8 +45,34 @@ export async function checkCustomerDuplicates(input: {
   const supabase = getSupabase();
   const duplicates: DuplicateCheckResult['duplicates'] = [];
 
+  // Check NIC canonical first (most reliable fraud prevention)
+  if (input.nic_number) {
+    const nicCanonical = normalizeNic(input.nic_number);
+    if (nicCanonical) {
+      const { data } = await supabase
+        .from('customers')
+        .select('id, full_name')
+        .eq('nic_canonical', nicCanonical)
+        .is('deleted_at', null)
+        .single();
+
+      if (data) {
+        duplicates.push({
+          field: 'nic_number',
+          value: input.nic_number,
+          existing_customer_id: data.id,
+          existing_customer_name: data.full_name,
+        });
+      }
+    }
+  }
+
+  // Stop early if NIC duplicate found (highest confidence match)
+  if (duplicates.length > 0) {
+    return { has_duplicate: true, duplicates };
+  }
+
   const checks = [
-    { field: 'nic_number', value: input.nic_number },
     { field: 'service_number', value: input.service_number },
     { field: 'military_id_number', value: input.military_id_number },
     { field: 'phone_number', value: input.phone_number },

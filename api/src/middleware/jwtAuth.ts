@@ -2,7 +2,11 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
 import { getSupabase } from '../config/supabase';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'airvoice-email-auth-secret-change-in-production';
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET && process.env.NODE_ENV === 'production') {
+  throw new Error('JWT_SECRET env var is REQUIRED in production');
+}
+const JWT_SECRET = SECRET || 'DEV-ONLY-SECRET-CHANGE-IN-PRODUCTION';
 
 export interface EmailAuthPayload {
   userId: string;

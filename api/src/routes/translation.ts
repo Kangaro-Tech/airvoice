@@ -52,7 +52,7 @@ async function translateText(
       return { translatedText: text };
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     return {
       translatedText: data.data?.translations?.[0]?.translatedText || text,
       detectedLanguage: data.data?.translations?.[0]?.detectedSourceLanguage,
@@ -83,7 +83,7 @@ async function detectLanguageCode(text: string): Promise<string> {
       return 'en';
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     return data.data?.detections?.[0]?.[0]?.language || 'en';
   } catch (error) {
     console.error('Language detection error:', error);
@@ -96,7 +96,14 @@ export default async function translationRoutes(fastify: FastifyInstance) {
    * POST /translate
    * Translate single text
    */
-  fastify.post('/translate', async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post('/translate', {
+    config: {
+      rateLimit: {
+        max: 20,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = TranslateSchema.parse(request.body);
       const result = await translateText(body.text, body.targetLanguage, body.sourceLanguage);

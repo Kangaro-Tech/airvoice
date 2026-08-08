@@ -507,11 +507,15 @@ export default async function applicationRoutes(app: FastifyInstance) {
       .eq('id', phoneRecord.id);
 
     // Create installment schedule
+    const FIRST_RENTAL_OFFSET_MONTHS = 3; // 3-month grace period before first rental payment
     const installments = [];
     const saleDate = new Date(app.sale_date ?? new Date());
     for (let m = 1; m <= app.term_months; m++) {
       const due = new Date(saleDate);
-      due.setMonth(due.getMonth() + m);
+      // First installment: add grace period offset (3 months) + month offset
+      // Subsequent installments: add month offset normally
+      const monthOffset = m === 1 ? FIRST_RENTAL_OFFSET_MONTHS + m - 1 : FIRST_RENTAL_OFFSET_MONTHS + m - 1;
+      due.setMonth(due.getMonth() + monthOffset);
       installments.push({
         application_id: id,
         customer_id: app.customer_id,

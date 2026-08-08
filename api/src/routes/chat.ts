@@ -113,7 +113,14 @@ const chatRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // ── Chat Completion ────────────────────────────────────────────────────────
-  app.post('/', async (req, reply) => {
+  app.post('/', {
+    config: {
+      rateLimit: {
+        max: 15,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (req, reply) => {
     try {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {

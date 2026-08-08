@@ -1,8 +1,8 @@
 import * as admin from 'firebase-admin';
 
-let firebaseApp: admin.app.App | null = null;
+let firebaseApp: any = null;
 
-function parseServiceAccountKey(raw: string): admin.ServiceAccount | null {
+function parseServiceAccountKey(raw: string): any {
   const trimmed = raw.trim();
   if (!trimmed) return null;
 
@@ -46,10 +46,10 @@ function parseServiceAccountKey(raw: string): admin.ServiceAccount | null {
     auth_provider_x509_cert_url: authProviderCertUrl || '',
     client_x509_cert_url: clientCertUrl || '',
     universe_domain: universeDomain || 'googleapis.com',
-  } as admin.ServiceAccount;
+  };
 }
 
-export function initFirebase(): admin.app.App | null {
+export function initFirebase(): any {
   if (firebaseApp) return firebaseApp;
 
   const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -64,41 +64,42 @@ export function initFirebase(): admin.app.App | null {
     return null;
   }
 
-  let credential: admin.credential.Credential;
   try {
-    credential = admin.credential.cert(parsed);
+    const cred = admin.cert(parsed);
+    firebaseApp = admin.initializeApp({
+      credential: cred,
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    });
   } catch (error) {
     console.warn(`[Firebase] Invalid service account credentials: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 
-  firebaseApp = admin.initializeApp({
-    credential,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  });
-
   return firebaseApp;
 }
 
-export function getFirebaseAdmin(): admin.app.App | null {
+export function getFirebaseAdmin(): any {
   return firebaseApp;
 }
 
-export function getFirebaseAuth(): admin.auth.Auth | null {
+export function getFirebaseAuth(): any {
   return firebaseApp ? firebaseApp.auth() : null;
 }
 
-export function getFirebaseStorage(): admin.storage.Storage | null {
+export function getFirebaseStorage(): any {
   return firebaseApp ? firebaseApp.storage() : null;
 }
 
-export function getFirebaseMessaging(): admin.messaging.Messaging | null {
+export function getFirebaseMessaging(): any {
   return firebaseApp ? firebaseApp.messaging() : null;
 }
 
-export async function verifyFirebaseToken(idToken: string): Promise<admin.auth.DecodedIdToken> {
-  const auth = getFirebaseAuth();
-  if (!auth) {
+export async function verifyFirebaseToken(idToken: string): Promise<any> {
+  if (process.env.NODE_ENV === 'production' && !getFirebaseAuth()) {
+    throw new Error('Firebase authentication is REQUIRED in production. Set FIREBASE_SERVICE_ACCOUNT_KEY.');
+  }
+  const authInstance = getFirebaseAuth();
+  if (!authInstance) {
     // Dev mode — parse the token claims without verification
     // This allows local testing without Firebase credentials
     console.warn('[Firebase] Skipping token verification in dev mode');
@@ -108,9 +109,9 @@ export async function verifyFirebaseToken(idToken: string): Promise<admin.auth.D
       uid: decoded.user_id || decoded.sub || 'dev-uid',
       phone_number: decoded.phone_number || '+94000000000',
       ...decoded,
-    } as admin.auth.DecodedIdToken;
+    };
   }
-  return auth.verifyIdToken(idToken, true);
+  return authInstance.verifyIdToken(idToken, true);
 }
 
 export async function getSignedUrl(storagePath: string, expirySeconds = 900): Promise<string> {

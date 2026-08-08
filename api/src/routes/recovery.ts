@@ -46,16 +46,22 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     const nowStr = new Date().toISOString();
 
     // 1. Fetch overdue installments & high/medium risk customers IN PARALLEL
+    let riskCustsQuery = sb.from('customers')
+      .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
+      .is('deleted_at', null)
+      .eq('is_active', true)
+      .or('risk_level.eq.high,risk_level.eq.medium,risk_score.gt.5')
+      .limit(300);
+    
+    if (q.camp_id) {
+      riskCustsQuery = riskCustsQuery.eq('camp_id', q.camp_id);
+    }
+
     const [{ data: overdueInsts }, { data: riskCusts }] = await Promise.all([
       sb.from('installments')
         .select('application_id, status, arrears_amount, due_date')
         .or('status.eq.not_deducted,status.eq.arrears,arrears_amount.gt.0'),
-      sb.from('customers')
-        .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
-        .is('deleted_at', null)
-        .eq('is_active', true)
-        .or('risk_level.eq.high,risk_level.eq.medium,risk_score.gt.5')
-        .limit(300),
+      riskCustsQuery,
     ]);
 
     const overdueAppIds = [...new Set((overdueInsts || []).map(i => i.application_id).filter(Boolean))];
@@ -94,14 +100,19 @@ export default async function recoveryRoutes(app: FastifyInstance) {
     const appCustIds = [...new Set(apps.map(a => a.customer_id).concat(riskCustIds).filter(Boolean))];
 
     // 3. Fetch customer details for target customers
-    const targetCusts = await fetchInChunks(
-      (chunk) => sb.from('customers')
+    let targetCustsQuery = (chunk: any[]) => {
+      let query = sb.from('customers')
         .select('id, full_name, service_number, phone_number, email, risk_level, risk_score, camp_id')
         .is('deleted_at', null)
         .eq('is_active', true)
-        .in('id', chunk),
-      appCustIds
-    );
+        .in('id', chunk);
+      if (q.camp_id) {
+        query = query.eq('camp_id', q.camp_id);
+      }
+      return query;
+    };
+    
+    const targetCusts = await fetchInChunks(targetCustsQuery, appCustIds);
 
     let customers = targetCusts;
     const appIds = apps.map(a => a.id);
@@ -841,6 +852,54 @@ AIRVOICE Defence Finance Recovery Department
 Tel: +94 11 XXX XXXX`;
 
     return reply.send({ template, customer: customerData });
+  });
+
+  // ── GET /recovery/by-camp - Camp-wise recovery summary ──
+  app.get('/by-camp', { preHandler:[authenticate,requireRole('recovery_officer','finance_officer','admin','super_admin','system_operator')] }, async (req:FastifyRequest, reply) => {
+    const sb = getSupabase();
+    
+    // Fetch all overdue installments with customer and camp details
+    const { data: overdueData, error } = await sb.from('installments')
+      .select(`
+        id, expected_amount, arrears_amount, status, 
+        applications(monthly_amount, customer_id, customers(camp_id, camps(id, name, branch)))
+      `)
+      .or('status.eq.not_deducted,status.eq.arrears,arrears_amount.gt.0');
+    
+    if (error) return reply.status(500).send({ error: error.message });
+    
+    // Aggregate by camp
+    const campSummary: Record<string, {
+      camp_id: string;
+      camp_name: string;
+      branch: string;
+      total_arrears: number;
+      total_expected: number;
+      overdue_count: number;
+    }> = {};
+    
+    (overdueData || []).forEach((inst: any) => {
+      const app = inst.applications;
+      const camp = app?.customers?.camps;
+      if (!camp) return;
+      
+      const key = camp.id;
+      if (!campSummary[key]) {
+        campSummary[key] = {
+          camp_id: camp.id,
+          camp_name: camp.name,
+          branch: camp.branch,
+          total_arrears: 0,
+          total_expected: 0,
+          overdue_count: 0,
+        };
+      }
+      campSummary[key].total_arrears += inst.arrears_amount || 0;
+      campSummary[key].total_expected += app?.monthly_amount || 0;
+      campSummary[key].overdue_count += 1;
+    });
+    
+    return reply.send({ camps: Object.values(campSummary) });
   });
 }
 

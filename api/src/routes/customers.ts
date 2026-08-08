@@ -8,6 +8,7 @@ import {
   linkLegacyRecord,
   refreshCustomerRisk,
 } from '../services/customers';
+import { normalizeNic } from '../utils/nic';
 import { writeAuditLog, AuditActions } from '../services/audit';
 import { notify } from '../services/notify';
 
@@ -192,6 +193,7 @@ export default async function customerRoutes(app: FastifyInstance) {
       .from('customers')
       .insert({
         ...body.data,
+        nic_canonical: body.data.nic_number ? normalizeNic(body.data.nic_number) : null,
         created_by: request.user!.id,
       })
       .select()

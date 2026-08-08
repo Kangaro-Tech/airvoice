@@ -300,24 +300,23 @@ export async function buildApp() {
 
 
   app.setErrorHandler(
-    (error, request, reply) => {
-
-
+    (error: unknown, request, reply) => {
       app.log.error(error);
 
-
-      reply.status(
-        error.statusCode ?? 500
-      )
+      const err = error instanceof Error ? error : new Error(String(error));
+      const statusCode = (error as any)?.statusCode ?? 500;
+      const isProd = process.env.NODE_ENV === 'production';
+      
+      // Mask 5xx error details in production to avoid leaking internals
+      const message = isProd && statusCode >= 500
+        ? 'An error occurred processing your request. Please try again later.'
+        : err.message;
+      
+      reply.status(statusCode)
         .send({
-
-          error: error.name,
-
-          message: error.message
-
+          error: isProd && statusCode >= 500 ? 'ServerError' : err.name,
+          message
         });
-
-
     }
   );
 
