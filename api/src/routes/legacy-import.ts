@@ -319,6 +319,23 @@ async function findExistingCustomer(serviceNo?: string, nic?: string): Promise<{
   return { found: false };
 }
 
+// ─── Commission Split: resolve member from sales_member alias ───
+async function resolveMember(salesMember?: string) {
+  if (!salesMember) return null;
+  const sb = getSupabase();
+  const { data } = await sb.from('sales_member_aliases')
+    .select('*')
+    .ilike('alias', salesMember.trim())
+    .maybeSingle();
+  return data || null;
+}
+
+// ─── Check if designation indicates a field salesman ───
+const isSalesOfficer = (designation?: string) => {
+  if (!designation) return false;
+  return /sales\s*officer|salesman/i.test(designation);
+};
+
 // ═══════════════════════════════════════════════════════════════
 export default async function legacyImportRoutes(app: FastifyInstance) {
 
@@ -1057,6 +1074,65 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
             await Promise.all(phoneUpdates.slice(pi, pi + 200));
           }
           app.log.info(`[LegacyImport] Marked ${phoneUpdates.length} phone(s) as sold from inventory.`);
+        }
+
+        // ── Create Commissions with 125+125 split ─────────────────────────────
+        const commissionsToInsert: any[] = [];
+        for (const insertedApp of allInsertedApps) {
+          const srcRow = legacyRowsData.find(lr => lr.customer_id === insertedApp.customer_id);
+          if (!srcRow) continue;
+          
+          const srcRowData = srcRow.service_number ? rowByServiceNo.get(srcRow.service_number) : undefined;
+          const salesMember = (srcRowData as any)?.sales_member;
+          const member = await resolveMember(salesMember);
+          if (!member?.user_id) continue;
+
+          const firstPaid = Object.values((srcRowData as any)?.deduction_history ?? {})
+            .some((h: any) => h.status === 'deducted');
+          const base = {
+            application_id: insertedApp.id,
+            customer_id: insertedApp.customer_id,
+            status: firstPaid ? 'payable' : 'pending',
+            became_payable_at: firstPaid ? new Date().toISOString() : null,
+          };
+
+          if (member.is_company_worker) {
+            // Company worker: 125 to worker
+            commissionsToInsert.push({
+              ...base,
+              sales_officer_id: member.user_id,
+              amount: Number(member.worker_amount ?? 125),
+              notes: `Company worker share (${salesMember})`,
+            });
+            // Field salesman: 125 to split partner
+            if (member.split_user_id) {
+              commissionsToInsert.push({
+                ...base,
+                sales_officer_id: member.split_user_id,
+                amount: Number(member.split_amount ?? 125),
+                notes: `Field salesman share (paired with ${salesMember})`,
+              });
+            } else {
+              app.log.warn({ alias: salesMember }, 'Company worker has no split_user_id — field 125 not paid');
+            }
+          } else {
+            // Field salesman: 250 total (125+125)
+            commissionsToInsert.push({
+              ...base,
+              sales_officer_id: member.user_id,
+              amount: Number(member.worker_amount ?? 125) + Number(member.split_amount ?? 125),
+              notes: `Full commission (${salesMember})`,
+            });
+          }
+        }
+
+        // Batch insert commissions
+        for (let i = 0; i < commissionsToInsert.length; i += 500) {
+          const { error: commErr } = await sb.from('commissions').insert(commissionsToInsert.slice(i, i + 500));
+          if (commErr) app.log.error(`Commission insert error: ${commErr.message}`);
+        }
+        if (commissionsToInsert.length > 0) {
+          app.log.info(`[LegacyImport] Created ${commissionsToInsert.length} commission records`);
         }
         
         // Add newly inserted apps to our processing list
@@ -2162,7 +2238,67 @@ export default async function legacyImportRoutes(app: FastifyInstance) {
           }
         }
 
-        // 8. Mark batch complete
+        // 8. Create commissions with 125+125 split
+        const commissionsToInsert: any[] = [];
+        for (const appRow of newRowsForDB) {
+          const row = appRow.row;
+          const member = await resolveMember(row.salesMember);
+          if (!member?.user_id) continue;
+
+          // Get the first payment to determine if payable
+          const firstPaid = Object.values(row.totalAmount ? { status: 'deducted' } : {}).some((h: any) => h.status === 'deducted');
+          const base = {
+            customer_id: lookupCust(row.serviceNo, row.nic)?.id,
+            status: firstPaid ? 'payable' : 'pending',
+            became_payable_at: firstPaid ? new Date().toISOString() : null,
+          };
+
+          if (member.is_company_worker) {
+            // Company worker: 125 to worker
+            commissionsToInsert.push({
+              ...base,
+              sales_officer_id: member.user_id,
+              amount: Number(member.worker_amount ?? 125),
+              notes: `Company worker share (${row.salesMember})`,
+            });
+            // Field salesman: 125 to split partner
+            if (member.split_user_id) {
+              commissionsToInsert.push({
+                ...base,
+                sales_officer_id: member.split_user_id,
+                amount: Number(member.split_amount ?? 125),
+                notes: `Field salesman share (paired with ${row.salesMember})`,
+              });
+            } else {
+              app.log.warn({ alias: row.salesMember }, 'Company worker has no split_user_id — field 125 not paid');
+            }
+          } else {
+            // Field salesman: 250 total (125+125)
+            commissionsToInsert.push({
+              ...base,
+              sales_officer_id: member.user_id,
+              amount: Number(member.worker_amount ?? 125) + Number(member.split_amount ?? 125),
+              notes: `Full commission (${row.salesMember})`,
+            });
+          }
+        }
+
+        // Batch insert commissions
+        for (let i = 0; i < commissionsToInsert.length; i += 500) {
+          const chunk = commissionsToInsert.slice(i, i + 500);
+          const commissions = chunk.map(c => ({
+            application_id: insertedApps.find(a => a.customer_id === c.customer_id)?.id,
+            ...c,
+          })).filter(c => c.application_id);
+          if (commissions.length > 0) {
+            await sb.from('commissions').insert(commissions);
+          }
+        }
+        if (commissionsToInsert.length > 0) {
+          app.log.info(`[UnitWiseImport] Created ${commissionsToInsert.length} commission records`);
+        }
+
+        // 9. Mark batch complete
         await sb.from('legacy_import_batches').update({
           status:        'completed',
           total_rows:    dataRows.length,
